@@ -119,7 +119,6 @@ export async function salvarUnidade(formData: FormData) {
   const sigla = texto(formData, 'sigla').toUpperCase();
   const total = Number(formData.get('capacidadeTotal'));
   const reservadas = Number(formData.get('capacidadeReservadas'));
-  const paiId = Number(formData.get('paiId') ?? 0) || null;
 
   if (!nome || !codigo || !sigla) voltarComErro(PARAMS, formData, 'Nome, código e sigla são obrigatórios.');
   if (!Number.isInteger(total) || total < 0) voltarComErro(PARAMS, formData, 'Capacidade total inválida.');
@@ -138,9 +137,6 @@ export async function salvarUnidade(formData: FormData) {
     capacidade_reservadas: reservadas,
     ordem: Number(formData.get('ordem') ?? 0),
     ativa: marcado(formData, 'ativa'),
-    // Posto interno (Corpo Clínico dentro do Morumbi). O banco garante o nível
-    // único e recusa ciclo; aqui só barramos o caso óbvio de apontar para si.
-    pai_id: paiId && paiId !== id ? paiId : null,
   };
 
   const { error } = id
@@ -148,8 +144,7 @@ export async function salvarUnidade(formData: FormData) {
     : await supabase.from('unidades').insert(registro);
   if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a unidade: ${mensagemErroBanco(error)}`);
 
-  const dentroDe = paiId ? ` · posto interno de ${(await supabase.from('unidades').select('nome').eq('id', paiId).single()).data?.nome ?? paiId}` : '';
-  await registrarLog(sessao, id ? 'Unidade atualizada' : 'Unidade criada', `${nome} · ${total - reservadas} posições operacionais${dentroDe}`);
+  await registrarLog(sessao, id ? 'Unidade atualizada' : 'Unidade criada', `${nome} · ${total - reservadas} posições operacionais`);
   revalidatePath('/', 'layout');
   voltar(PARAMS, formData);
 }
@@ -401,6 +396,62 @@ export async function removerCotaEquipe(formData: FormData) {
   if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a cota: ${mensagemErroBanco(error)}`);
 
   await registrarLog(sessao, 'Cota por equipe removida', `#${id}`);
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData);
+}
+
+/* ============================================================
+   POSTOS
+   ============================================================ */
+
+/**
+ * Posto: uma função exercida dentro de uma unidade — o Corpo Clínico dentro do
+ * Morumbi. Não é lugar concorrente: quem cobre o posto ocupa uma posição normal
+ * da unidade, então capacidade e distribuição percentual não mudam.
+ */
+export async function salvarPosto(formData: FormData) {
+  const sessao = await getSessao();
+  exigirPlanejamento(sessao.papel, PARAMS);
+
+  const id = Number(formData.get('id') ?? 0);
+  const unidadeId = Number(formData.get('unidadeId'));
+  const nome = texto(formData, 'nome');
+  const vagas = Number(formData.get('vagas') ?? 1);
+
+  if (!unidadeId) voltarComErro(PARAMS, formData, 'Escolha a unidade do posto.');
+  if (!nome) voltarComErro(PARAMS, formData, 'Informe o nome do posto.');
+  if (!Number.isInteger(vagas) || vagas < 1) voltarComErro(PARAMS, formData, 'O posto precisa de ao menos 1 vaga.');
+
+  const supabase = await createClient();
+  const registro = {
+    conta_id: sessao.conta.id,
+    unidade_id: unidadeId,
+    nome,
+    vagas,
+    ativo: marcado(formData, 'ativo'),
+  };
+  const { error } = id
+    ? await supabase.from('postos').update(registro).eq('id', id)
+    : await supabase.from('postos').insert(registro);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar o posto: ${mensagemErroBanco(error)}`);
+
+  await registrarLog(sessao, id ? 'Posto atualizado' : 'Posto criado', `${nome} · ${vagas} vaga(s)`);
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData);
+}
+
+export async function removerPosto(formData: FormData) {
+  const sessao = await getSessao();
+  exigirPlanejamento(sessao.papel, PARAMS);
+
+  const id = Number(formData.get('id'));
+  if (!id) voltarComErro(PARAMS, formData, 'Posto inválido.');
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('postos').delete().eq('id', id);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover o posto: ${mensagemErroBanco(error)}`);
+
+  await registrarLog(sessao, 'Posto removido', `#${id}`);
   revalidatePath('/', 'layout');
   voltar(PARAMS, formData);
 }

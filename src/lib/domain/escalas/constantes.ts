@@ -116,3 +116,32 @@ export const REGRAS_MOTOR: { n: number; titulo: string; desc: string; rigida: bo
   { n: 11, titulo: 'Preferência de home office', desc: 'Tenta usar os dias preferidos antes de qualquer outro dia elegível.', rigida: false },
   { n: 12, titulo: 'Balanceamento e cobertura', desc: 'Evita concentrar a mesma equipe numa unidade e avisa quando a cobertura mínima do dia não é atingida. A cobertura mínima só é cobrada das unidades principais.', rigida: false },
 ];
+
+/**
+ * Famílias de cargo que o motor usa para desempatar.
+ *
+ * A regra da operação: analista tem prioridade no home office, técnico tem
+ * prioridade na posição presencial — o técnico é quem precisa estar perto do
+ * equipamento. Derivado do prefixo porque CARGOS é uma lista fechada do próprio
+ * sistema; cargo fora dela cai em 'OUTRO' e não recebe nem perde prioridade.
+ */
+export type FamiliaCargo = 'TECNICO' | 'ANALISTA' | 'OUTRO';
+
+export function familiaDoCargo(cargo: string): FamiliaCargo {
+  const c = cargo.trim().toLowerCase();
+  if (c.startsWith('técnico') || c.startsWith('tecnico')) return 'TECNICO';
+  if (c.startsWith('analista')) return 'ANALISTA';
+  return 'OUTRO';
+}
+
+/** Menor vem primeiro na disputa por home office. */
+export function ordemHomeOffice(cargo: string): number {
+  const f = familiaDoCargo(cargo);
+  return f === 'ANALISTA' ? 0 : f === 'OUTRO' ? 1 : 2;
+}
+
+/** Menor vem primeiro na disputa por posição presencial. */
+export function ordemPresencial(cargo: string): number {
+  const f = familiaDoCargo(cargo);
+  return f === 'TECNICO' ? 0 : f === 'OUTRO' ? 1 : 2;
+}

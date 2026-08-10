@@ -4,7 +4,7 @@ import { checarPlanos, type Pendencia } from '@/lib/domain/escalas/validacao';
 import { addDias, diasNoMes, iso, partesIso } from '@/lib/domain/escalas/datas';
 import type {
   Alocacao, Ausencia, Aviso, Colaborador, Equipe, GerarEscalaOutput,
-  Modalidade, PlanoMensal, StatusGeracao, Unidade,
+  Modalidade, PlanoMensal, Posto, StatusGeracao, Unidade,
 } from '@/lib/domain/escalas/tipos';
 import type { StatusSolicitacao, TipoOcorrencia, TipoSolicitacao } from '@/lib/domain/escalas/constantes';
 
@@ -15,7 +15,6 @@ import type { StatusSolicitacao, TipoOcorrencia, TipoSolicitacao } from '@/lib/d
 interface LinhaUnidade {
   id: number; codigo: string; nome: string; sigla: string; cor: string; bg: string;
   capacidade_total: number; capacidade_reservadas: number; ordem: number; ativa: boolean;
-  pai_id: number | null;
 }
 
 interface LinhaColaborador {
@@ -32,6 +31,7 @@ interface LinhaPlano {
   ho_dias_preferencia: number[]; ho_dias_proibidos: number[];
   plano_distribuicao: { unidade_id: number; percentual: number }[] | null;
   plano_unidade_fixa: { dow: number; unidade_id: number }[] | null;
+  plano_posto: { posto_id: number; dias: number; semana: number | null }[] | null;
 }
 
 export interface Geracao {
@@ -80,7 +80,7 @@ export interface Ocorrencia {
 const paraUnidade = (u: LinhaUnidade): Unidade => ({
   id: u.id, codigo: u.codigo, nome: u.nome, sigla: u.sigla, cor: u.cor, bg: u.bg,
   capacidadeTotal: u.capacidade_total, capacidadeReservadas: u.capacidade_reservadas,
-  ordem: u.ordem, ativa: u.ativa, paiId: u.pai_id ?? null,
+  ordem: u.ordem, ativa: u.ativa,
 });
 
 const paraColaborador = (c: LinhaColaborador): Colaborador => ({
@@ -105,6 +105,7 @@ const paraPlano = (p: LinhaPlano): PlanoMensal => ({
   },
   distribuicao: Object.fromEntries((p.plano_distribuicao ?? []).map(d => [d.unidade_id, d.percentual])),
   unidadesFixas: Object.fromEntries((p.plano_unidade_fixa ?? []).map(f => [f.dow, f.unidade_id])),
+  postos: (p.plano_posto ?? []).map(x => ({ postoId: x.posto_id, dias: x.dias, semana: x.semana })),
 });
 
 /* ============================================================
@@ -164,6 +165,7 @@ export interface ContextoMes {
   colaboradores: Colaborador[];
   planos: PlanoMensal[];
   ausencias: Ausencia[];
+  postos: Posto[];
   capacidades: { unidadeId: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
   cotasEquipe: { unidadeId: number; equipeId: number; dow: number | null; limite: number }[];
   feriados: Record<string, string>;
@@ -177,14 +179,14 @@ export async function carregarContextoMes(competencia: string, contaId: string):
   const primeiro = competencia;
   const ultimo = iso(ano, mes, diasNoMes(ano, mes));
 
-  const [unidades, equipes, colaboradores, config, planosRes, ausRes, capRes, cotaRes, ferRes, pinRes] = await Promise.all([
+  const [unidades, equipes, colaboradores, config, planosRes, ausRes, capRes, cotaRes, postoRes, ferRes, pinRes] = await Promise.all([
     listarUnidades(),
     listarEquipes(),
     listarColaboradores(),
     getConfig(contaId),
     supabase
       .from('planos')
-      .select('*, plano_distribuicao(unidade_id, percentual), plano_unidade_fixa(dow, unidade_id)')
+      .select('*, plano_distribuicao(unidade_id, percentual), plano_unidade_fixa(dow, unidade_id), plano_posto(posto_id, dias, semana)')
       .eq('competencia', competencia),
     // Ausências que interceptam o mês, mesmo tendo começado antes dele.
     supabase
@@ -194,6 +196,7 @@ export async function carregarContextoMes(competencia: string, contaId: string):
       .gte('inicio', addDias(primeiro, -365)),
     supabase.from('capacidades').select('*'),
     supabase.from('cotas_equipe').select('*'),
+    supabase.from('postos').select('*').order('nome'),
     supabase.from('feriados').select('data, nome').gte('data', primeiro).lte('data', ultimo),
     supabase.from('pins').select('*').gte('data', primeiro).lte('data', ultimo),
   ]);
@@ -215,6 +218,8 @@ export async function carregarContextoMes(competencia: string, contaId: string):
     ausencias,
     capacidades: ((capRes.data ?? []) as { unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[])
       .map(c => ({ unidadeId: c.unidade_id, dow: c.dow, data: c.data, total: c.total, reservadas: c.reservadas })),
+    postos: ((postoRes.data ?? []) as { id: number; unidade_id: number; nome: string; vagas: number; ativo: boolean }[])
+      .map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo })),
     cotasEquipe: ((cotaRes.data ?? []) as { unidade_id: number; equipe_id: number; dow: number | null; limite: number }[])
       .map(c => ({ unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, limite: c.limite })),
     feriados: Object.fromEntries(((ferRes.data ?? []) as { data: string; nome: string }[]).map(f => [f.data, f.nome])),
@@ -235,6 +240,7 @@ export function simular(ctx: ContextoMes, pinsExtras: ContextoMes['pins'] = []):
     ausencias: ctx.ausencias,
     capacidades: ctx.capacidades,
     cotasEquipe: ctx.cotasEquipe,
+    postos: ctx.postos,
     feriados: ctx.feriados,
     pins: [...ctx.pins, ...pinsExtras],
     cicloAncora: ctx.config.cicloAncora,
@@ -277,14 +283,17 @@ export async function listarAlocacoes(geracaoId: number): Promise<Alocacao[]> {
   for (let de = 0; ; de += passo) {
     const { data, error } = await supabase
       .from('alocacoes')
-      .select('colaborador_id, data, modalidade, unidade_id, travado')
+      .select('colaborador_id, data, modalidade, unidade_id, travado, posto_id')
       .eq('geracao_id', geracaoId)
       .order('data')
       .order('colaborador_id')
       .range(de, de + passo - 1);
     if (error || !data || data.length === 0) break;
-    linhas.push(...(data as { colaborador_id: number; data: string; modalidade: Modalidade; unidade_id: number | null; travado: boolean }[])
-      .map(a => ({ colaboradorId: a.colaborador_id, data: a.data, modalidade: a.modalidade, unidadeId: a.unidade_id, travado: a.travado })));
+    linhas.push(...(data as { colaborador_id: number; data: string; modalidade: Modalidade; unidade_id: number | null; travado: boolean; posto_id: number | null }[])
+      .map(a => ({
+        colaboradorId: a.colaborador_id, data: a.data, modalidade: a.modalidade,
+        unidadeId: a.unidade_id, travado: a.travado, postoId: a.posto_id ?? null,
+      })));
     if (data.length < passo) break;
   }
   return linhas;

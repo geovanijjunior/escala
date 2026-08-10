@@ -189,6 +189,15 @@ declare n int; begin
   raise notice 'ok: conta B nao ve cotas da conta A';
 end $$;
 
+\echo '=== Colaborador NÃO pode criar posto (deve falhar) ==='
+do $$ begin
+  insert into postos (conta_id, unidade_id, nome) values
+    ('11111111-1111-1111-1111-111111111111', 1, 'Invadido');
+  raise exception 'FALHA DE SEGURANCA: colaborador criou posto';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
 reset role;
 \echo ''
 \echo '>>> TODOS OS TESTES DE RLS PASSARAM'

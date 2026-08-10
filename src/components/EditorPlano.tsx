@@ -6,13 +6,15 @@ import { Bloco } from './Ui';
 import { DistribuicaoUnidades } from './DistribuicaoUnidades';
 import { MotivoDependente } from './MotivoDependente';
 import { UnidadesFixasEHomeOffice } from './UnidadesFixasEHomeOffice';
-import type { Ausencia, Colaborador, PlanoMensal, Unidade } from '@/lib/domain/escalas/tipos';
+import type { Ausencia, Colaborador, PlanoMensal, Posto, Unidade } from '@/lib/domain/escalas/tipos';
+import { PostosDoPlano } from './PostosDoPlano';
 
 interface Props {
   colaborador: Colaborador;
   plano: PlanoMensal | null;
   ausencias: Ausencia[];
   unidades: Unidade[];
+  postos: Posto[];
   competencia: string;
   pendencias: string[];
   fecharHref: string;
@@ -26,7 +28,7 @@ interface Props {
  * que ninguém consegue explicar depois.
  */
 export function EditorPlano({
-  colaborador: c, plano, ausencias, unidades, competencia, pendencias, fecharHref,
+  colaborador: c, plano, ausencias, unidades, postos, competencia, pendencias, fecharHref,
 }: Props) {
   const ho = plano?.homeOffice;
   const ferias = ausencias.find(a => a.tipo === 'FERIAS');
@@ -86,6 +88,13 @@ export function EditorPlano({
           homeOffice={ho ?? { modo: null, diasSemana: [], quantidade: 2, diasPreferencia: [], diasProibidos: [] }}
           elegHome={c.elegHome}
           nome={c.nome}
+        />
+
+        <PostosDoPlano
+          postos={postos}
+          unidades={unidades}
+          atribuidos={plano?.postos ?? []}
+          distribuicao={Object.fromEntries(unidades.map(u => [u.id, plano?.distribuicao[u.id] ?? (u.id === c.unidadeBaseId ? 100 : 0)]))}
         />
 
         <div className="flex flex-wrap items-center gap-2 pt-1">

@@ -9,6 +9,7 @@ import {
   competenciaDe,
   DIAS_ABREV,
 } from './datas';
+import { ordemHomeOffice, ordemPresencial } from './constantes';
 import type {
   Alocacao,
   Aviso,
@@ -103,24 +104,13 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     ?? cotaGeral.get(`${unidadeId}|${equipeId}`)
     ?? null;
 
-  // ── Sub-unidades: um posto dentro de outra unidade (Corpo Clínico no Morumbi).
-  // Quem ocupa o posto está fisicamente no prédio, então consome lugar nos dois.
-  // Sem isso o Morumbi mostraria um lugar livre que não existe.
-  const paiDe = new Map<number, number | null>(unidades.map(u => [u.id, u.paiId]));
-
-  /** A unidade e, se for um posto interno, a que a contém. Um nível só. */
-  const cadeia = (id: number): number[] => {
-    const pai = paiDe.get(id) ?? null;
-    return pai !== null && paiDe.has(pai) ? [id, pai] : [id];
-  };
-
   const conflitos: Aviso[] = [];
   const alertas: Aviso[] = [];
   const datas: string[] = [];
   for (let d = 1; d <= nDias; d++) datas.push(iso(ano, mes, d));
 
   /** colabId -> data -> alocação decidida. */
-  const escala = new Map<number, Map<string, { modalidade: Modalidade; unidadeId: number | null; travado: boolean }>>();
+  const escala = new Map<number, Map<string, { modalidade: Modalidade; unidadeId: number | null; travado: boolean; postoId: number | null }>>();
   const ocupacao: Record<string, Record<number, number>> = {};
   const capacidadeDia: Record<string, Record<number, number>> = {};
   for (const data of datas) {
@@ -129,9 +119,12 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     capacidadeDia[data] = Object.fromEntries(unidades.map(u => [u.id, posicoesDoDia(u, data, dow)]));
   }
 
-  const definir = (colabId: number, data: string, modalidade: Modalidade, unidadeId: number | null, travado = false) => {
+  const definir = (
+    colabId: number, data: string, modalidade: Modalidade,
+    unidadeId: number | null, travado = false, postoId: number | null = null,
+  ) => {
     const dias = escala.get(colabId) ?? new Map();
-    dias.set(data, { modalidade, unidadeId, travado });
+    dias.set(data, { modalidade, unidadeId, travado, postoId });
     escala.set(colabId, dias);
   };
 
@@ -145,6 +138,79 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
 
   const dowDoPrimeiro = diaSemana(ano, mes, 1);
   const semanaDoMes = (dia: number) => Math.floor((dia + dowDoPrimeiro - 1) / 7);
+
+  // ─────────────────────────────────────────────────────────────
+  // Postos: N dias úteis CONTÍGUOS numa semana, na unidade do posto.
+  //
+  // Contíguo e semanal porque é assim que o rodízio funciona na prática — quem
+  // cobre o Corpo Clínico fica a semana (ou parte dela) inteira, não dias
+  // soltos. A semana pode ser fixada no plano; em branco, o motor escolhe a
+  // primeira com vaga, o que rodizia entre as pessoas sem trabalho manual.
+  // ─────────────────────────────────────────────────────────────
+  const postoPorId = new Map(input.postos.filter(p => p.ativo).map(p => [p.id, p]));
+  const semanasDoMes = [...new Set(Array.from({ length: nDias }, (_, i) => semanaDoMes(i + 1)))].sort((a, b) => a - b);
+
+  /** Dias úteis de uma semana do mês, em ordem. */
+  const uteisDaSemana = (semana: number): string[] => {
+    const out: string[] = [];
+    for (let d = 1; d <= nDias; d++) {
+      if (semanaDoMes(d) !== semana) continue;
+      const dow = diaSemana(ano, mes, d);
+      if (dow >= 1 && dow <= 5) out.push(datas[d - 1]);
+    }
+    return out;
+  };
+
+  /** postoId|data -> quantas pessoas já estão cobrindo. Respeita `vagas`. */
+  const ocupacaoPosto = new Map<string, number>();
+  const usoDePosto = (postoId: number, data: string) => ocupacaoPosto.get(`${postoId}|${data}`) ?? 0;
+
+  /** colabId -> data -> postoId, decidido antes do laço principal. */
+  const diasDePosto = new Map<number, Map<string, number>>();
+
+  for (const c of colaboradores) {
+    const plano = planoPorColab.get(c.id);
+    if (!plano?.postos?.length) continue;
+
+    const ausencias = ausenciasPorColab.get(c.id) ?? [];
+    const indisponivel = (data: string) => ausencias.some(a => data >= a.inicio && data <= a.fim);
+
+    for (const atrib of plano.postos) {
+      const posto = postoPorId.get(atrib.postoId);
+      if (!posto) continue;
+
+      // Semana fixada no plano é 1-based para quem preenche; internamente 0-based.
+      const candidatas = atrib.semana !== null && atrib.semana !== undefined
+        ? [atrib.semana - 1]
+        : semanasDoMes;
+
+      let escolhida: string[] | null = null;
+      for (const semana of candidatas) {
+        const uteis = uteisDaSemana(semana);
+        if (uteis.length < atrib.dias) continue;
+        const bloco = uteis.slice(0, atrib.dias);
+        const livre = bloco.every(d => usoDePosto(posto.id, d) < posto.vagas && !indisponivel(d));
+        if (livre) { escolhida = bloco; break; }
+      }
+
+      if (!escolhida) {
+        conflitos.push({
+          nivel: 'erro', colaboradorId: c.id, colaborador: c.nome,
+          msg: atrib.semana
+            ? `Não foi possível reservar ${atrib.dias} dia(s) seguidos de ${posto.nome} na semana ${atrib.semana}: o posto já está ocupado ou a pessoa tem ausência nesses dias.`
+            : `Não há nenhuma semana com ${atrib.dias} dia(s) seguidos livres em ${posto.nome} para ${c.nome}.`,
+        });
+        continue;
+      }
+
+      const mapa = diasDePosto.get(c.id) ?? new Map<string, number>();
+      for (const d of escolhida) {
+        mapa.set(d, posto.id);
+        ocupacaoPosto.set(`${posto.id}|${d}`, usoDePosto(posto.id, d) + 1);
+      }
+      diasDePosto.set(c.id, mapa);
+    }
+  }
 
   for (const c of colaboradores) {
     const plano = planoPorColab.get(c.id);
@@ -203,6 +269,17 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
         if (feriados[data]) { definir(c.id, data, 'FERIADO', null); continue; }
       }
 
+      // Posto vence home office e unidade fixa: é escala combinada de cobertura
+      // presencial, decidida antes por semana inteira.
+      const postoDoDia = diasDePosto.get(c.id)?.get(data);
+      if (postoDoDia !== undefined) {
+        const posto = postoPorId.get(postoDoDia)!;
+        definir(c.id, data, 'UNIDADE', posto.unidadeId, false, posto.id);
+        livres.push(data);
+        fixos.add(data);
+        continue;
+      }
+
       const unidadeFixa = unidadesFixas[dow];
       const temFixa = unidadeFixa !== undefined && idsUnidades.includes(unidadeFixa);
 
@@ -226,48 +303,88 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
         continue;
       }
 
-      // 8 (primeira passada). Cota semanal de home office nos dias preferidos.
+      // 8. A cota de home office só é registrada aqui; a escolha dos dias é
+      // feita depois, com visão do mês inteiro. Decidir pessoa a pessoa, como
+      // antes, empilhava todo mundo nos mesmos dias preferidos.
       if (c.elegHome && ho?.modo === 'COTA') {
         const semana = semanaDoMes(d);
         const porSemana = cotaRestante.get(c.id) ?? new Map<number, number>();
         if (!porSemana.has(semana)) porSemana.set(semana, ho.quantidade);
         cotaRestante.set(c.id, porSemana);
-
-        const proibido = ho.diasProibidos.includes(dow);
-        const preferido = ho.diasPreferencia.includes(dow);
-        if (!proibido && preferido && (porSemana.get(semana) ?? 0) > 0) {
-          porSemana.set(semana, (porSemana.get(semana) ?? 0) - 1);
-          definir(c.id, data, 'HOME', null);
-          continue;
-        }
       }
 
       livres.push(data);
     }
   }
 
-  // ── Regra 8 (segunda passada): completa a cota que a preferência não cobriu.
+  // ─────────────────────────────────────────────────────────────
+  // Regra 8 (escolha dos dias): espalha o home office pelo mês.
+  //
+  // Antes cada pessoa pegava gulosamente os próprios dias preferidos, o que
+  // juntava meio time em casa na sexta e enchia a unidade na segunda. Agora a
+  // decisão é global: para cada semana, quem tem cota disputa os dias, e cada
+  // escolha vai para o dia MENOS carregado de home naquele momento. O empate
+  // usa a preferência da pessoa e, depois, o dia mais cedo.
+  //
+  // A ordem de quem escolhe primeiro segue a prioridade por cargo: analista
+  // antes de técnico, porque o técnico é quem precisa estar perto do
+  // equipamento. Quem escolhe antes pega o dia mais vazio.
+  // ─────────────────────────────────────────────────────────────
+  const homePorDia: Record<string, number> = Object.fromEntries(datas.map(d => [d, 0]));
   for (const c of colaboradores) {
-    if (!c.elegHome) continue;
     const ho = planoPorColab.get(c.id)?.homeOffice;
-    if (ho?.modo !== 'COTA') continue;
-    const porSemana = cotaRestante.get(c.id);
-    if (!porSemana) continue;
+    if (ho?.modo !== 'FIXO') continue;
+    for (const data of datas) {
+      if (escala.get(c.id)?.get(data)?.modalidade === 'HOME') homePorDia[data]++;
+    }
+  }
 
-    for (const [semana, restante] of porSemana) {
-      let falta = restante;
-      if (falta <= 0) continue;
-      const disponiveis = presenciais.get(c.id) ?? [];
-      for (const data of [...disponiveis]) {
-        if (falta <= 0) break;
-        const dia = Number(data.slice(8));
-        if (semanaDoMes(dia) !== semana) continue;
-        if (ho.diasProibidos.includes(diaSemana(ano, mes, dia))) continue;
-        if (fixados.get(c.id)?.has(data)) continue; // dia preso a uma unidade
-        definir(c.id, data, 'HOME', null);
-        presenciais.set(c.id, (presenciais.get(c.id) ?? []).filter(x => x !== data));
-        falta--;
+  const comCota = colaboradores
+    .filter(c => c.elegHome && planoPorColab.get(c.id)?.homeOffice?.modo === 'COTA')
+    .slice()
+    .sort((a, b) => ordemHomeOffice(a.cargo) - ordemHomeOffice(b.cargo) || a.id - b.id);
+
+  for (const semana of semanasDoMes) {
+    // Uma rodada por vez: cada pessoa pega um dia, depois volta para o fim da
+    // fila. Servir a cota inteira de uma pessoa antes da próxima daria os
+    // melhores dias a quem viesse primeiro.
+    const restante = new Map<number, number>();
+    for (const c of comCota) restante.set(c.id, cotaRestante.get(c.id)?.get(semana) ?? 0);
+
+    let algoMudou = true;
+    while (algoMudou) {
+      algoMudou = false;
+      for (const c of comCota) {
+        if ((restante.get(c.id) ?? 0) <= 0) continue;
+        const ho = planoPorColab.get(c.id)!.homeOffice;
+
+        const elegiveis = (presenciais.get(c.id) ?? []).filter(data => {
+          const dia = Number(data.slice(8));
+          if (semanaDoMes(dia) !== semana) return false;
+          if (ho.diasProibidos.includes(diaSemana(ano, mes, dia))) return false;
+          if (fixados.get(c.id)?.has(data)) return false; // preso a uma unidade ou posto
+          return true;
+        });
+        if (elegiveis.length === 0) continue;
+
+        const melhor = elegiveis.reduce((a, b) => {
+          if (homePorDia[a] !== homePorDia[b]) return homePorDia[a] < homePorDia[b] ? a : b;
+          const prefA = ho.diasPreferencia.includes(diaSemana(ano, mes, Number(a.slice(8))));
+          const prefB = ho.diasPreferencia.includes(diaSemana(ano, mes, Number(b.slice(8))));
+          if (prefA !== prefB) return prefA ? a : b;
+          return a < b ? a : b;
+        });
+
+        definir(c.id, melhor, 'HOME', null);
+        homePorDia[melhor]++;
+        presenciais.set(c.id, (presenciais.get(c.id) ?? []).filter(x => x !== melhor));
+        restante.set(c.id, (restante.get(c.id) ?? 0) - 1);
+        algoMudou = true;
       }
+    }
+
+    for (const c of comCota) {
+      const falta = restante.get(c.id) ?? 0;
       if (falta > 0) {
         alertas.push({
           nivel: 'aviso', colaboradorId: c.id, colaborador: c.nome,
@@ -321,9 +438,7 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       idsUnidades.map(id => [id, {} as Record<number, number>])
     );
     const contaEquipe = (unidadeId: number, equipeId: number) => {
-      for (const id of cadeia(unidadeId)) {
-        porEquipe[id][equipeId] = (porEquipe[id][equipeId] ?? 0) + 1;
-      }
+      porEquipe[unidadeId][equipeId] = (porEquipe[unidadeId][equipeId] ?? 0) + 1;
     };
 
     // Travas e unidades fixas já ocupam posição e contam pra meta. A ocupação
@@ -332,7 +447,7 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     for (const c of colaboradores) {
       const decidido = escala.get(c.id)?.get(data);
       if (!decidido || decidido.modalidade !== 'UNIDADE' || decidido.unidadeId === null) continue;
-      for (const id of cadeia(decidido.unidadeId)) ocupacao[data][id]++;
+      ocupacao[data][decidido.unidadeId]++;
       alocado[c.id][decidido.unidadeId]++;
       contaEquipe(decidido.unidadeId, c.equipeId);
     }
@@ -359,16 +474,12 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       const nomes = colaboradores
         .filter(c => {
           const a = escala.get(c.id)?.get(data);
-          return a?.modalidade === 'UNIDADE' && a.unidadeId !== null && cadeia(a.unidadeId).includes(u.id);
+          return a?.modalidade === 'UNIDADE' && a.unidadeId === u.id;
         })
         .map(c => c.nome);
-      const postos = unidades.filter(x => x.paiId === u.id);
-      const detalhePostos = postos.length
-        ? ` Inclui quem está em ${postos.map(x => x.nome).join(', ')}, que ocupa lugar aqui.`
-        : '';
       conflitos.push({
         nivel: 'erro', data,
-        msg: `${u.nome} em ${formatarData(data)} tem ${ocupacao[data][u.id]} pessoas fixadas para ${capacidade[u.id]} posições.${detalhePostos} Revise as travas e unidades fixas de: ${nomes.slice(0, 6).join(', ')}${nomes.length > 6 ? '…' : ''}.`,
+        msg: `${u.nome} em ${formatarData(data)} tem ${ocupacao[data][u.id]} pessoas fixadas para ${capacidade[u.id]} posições. Revise as travas e unidades fixas de: ${nomes.slice(0, 6).join(', ')}${nomes.length > 6 ? '…' : ''}.`,
       });
     }
 
@@ -379,9 +490,15 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
         const maior = faltas.reduce((a, b) => (b.falta > a.falta ? b : a), faltas[0]);
         return { colab: c, preferida: maior.id, urgencia: maior.falta, flex: faltas.filter(f => f.falta > 0).length };
       })
-      // Menos flexível primeiro (quem só cabe numa unidade), depois quem está
-      // mais atrasado na meta. Id como último critério mantém determinismo.
-      .sort((a, b) => a.flex - b.flex || b.urgencia - a.urgencia || a.colab.id - b.colab.id);
+      // Menos flexível primeiro (quem só cabe numa unidade), depois o cargo com
+      // prioridade presencial — técnico antes de analista, porque é quem precisa
+      // estar perto do equipamento —, depois quem está mais atrasado na meta.
+      // Id como último critério mantém a geração determinística.
+      .sort((a, b) =>
+        a.flex - b.flex
+        || ordemPresencial(a.colab.cargo) - ordemPresencial(b.colab.cargo)
+        || b.urgencia - a.urgencia
+        || a.colab.id - b.colab.id);
 
     const concentracao: Record<number, Record<number, number>> = Object.fromEntries(
       idsUnidades.map(id => [id, {} as Record<number, number>])
@@ -390,17 +507,12 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     // Um posto interno só aceita mais alguém se ele E o prédio que o contém
     // tiverem lugar. É a diferença entre "sobra cadeira no Corpo Clínico" e
     // "sobra cadeira no Morumbi": as duas precisam ser verdade.
-    const temLugar = (id: number) => cadeia(id).every(x => ocupacao[data][x] < capacidade[x]);
+    const temLugar = (id: number) => ocupacao[data][id] < capacidade[id];
 
-    /**
-     * Cota da equipe, checada em toda a cadeia. Um técnico entrando no Corpo
-     * Clínico consome cota de técnico no posto e no Morumbi — senão a cota do
-     * prédio seria contornável só usando o posto.
-     */
-    const dentroDaCota = (id: number, equipeId: number) => cadeia(id).every(x => {
-      const limite = cotaDe(x, equipeId, dowDoDia);
-      return limite === null || (porEquipe[x][equipeId] ?? 0) < limite;
-    });
+    const dentroDaCota = (id: number, equipeId: number) => {
+      const limite = cotaDe(id, equipeId, dowDoDia);
+      return limite === null || (porEquipe[id][equipeId] ?? 0) < limite;
+    };
 
     const cabe = (id: number, equipeId: number) => temLugar(id) && dentroDaCota(id, equipeId);
 
@@ -415,7 +527,7 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
         // Balanceamento só desempata quando não custa a meta da pessoa.
         if (id !== preferida && alternativa !== undefined && conc > LIMITE_CONCENTRACAO_EQUIPE) continue;
         definir(colab.id, data, 'UNIDADE', id);
-        for (const x of cadeia(id)) ocupacao[data][x]++;
+        ocupacao[data][id]++;
         alocado[colab.id][id]++;
         contaEquipe(id, colab.equipeId);
         concentracao[id][colab.equipeId] = conc + 1;
@@ -456,10 +568,7 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       return a && a.modalidade !== 'DESCANSO' && a.modalidade !== 'FERIADO';
     });
     if (alguemTrabalha && coberturaMinima > 0) {
-      // Só as unidades principais. Cobertura mínima é sobre manter um prédio
-      // atendido; exigi-la de um posto de uma vaga geraria aviso todo dia em que
-      // ele estivesse legitimamente vazio, e o ruído esconderia o aviso real.
-      for (const u of unidades.filter(x => x.paiId === null)) {
+      for (const u of unidades) {
         if (ocupacao[data][u.id] < coberturaMinima) {
           alertas.push({
             nivel: 'aviso', data,
@@ -496,7 +605,10 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     for (const data of datas) {
       const a = dias.get(data);
       if (!a) continue;
-      alocacoes.push({ colaboradorId: c.id, data, modalidade: a.modalidade, unidadeId: a.unidadeId, travado: a.travado });
+      alocacoes.push({
+        colaboradorId: c.id, data, modalidade: a.modalidade,
+        unidadeId: a.unidadeId, travado: a.travado, postoId: a.postoId ?? null,
+      });
     }
   }
 

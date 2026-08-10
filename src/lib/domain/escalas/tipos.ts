@@ -30,12 +30,32 @@ export interface Unidade {
   capacidadeReservadas: number;
   ordem: number;
   ativa: boolean;
-  /**
-   * Unidade que contém esta, quando é um posto interno (o Corpo Clínico dentro
-   * do Morumbi). Quem ocupa a sub-unidade ocupa também um lugar no pai: está
-   * fisicamente lá. Hierarquia de um nível só — garantido por trigger no banco.
-   */
-  paiId: number | null;
+}
+
+/**
+ * Função exercida dentro de uma unidade — o Corpo Clínico dentro do Morumbi.
+ *
+ * Não é lugar concorrente da unidade: quem está no posto ocupa uma posição
+ * normal do Morumbi. O posto só registra o que a pessoa faz ali, então não
+ * entra na capacidade nem na distribuição percentual.
+ */
+export interface Posto {
+  id: number;
+  unidadeId: number;
+  nome: string;
+  vagas: number;
+  ativo: boolean;
+}
+
+/**
+ * Atribuição do posto no plano do mês: N dias úteis contíguos a partir da
+ * segunda-feira. `semana` nula deixa o motor escolher, que é o que permite
+ * rodiziar o posto entre as pessoas sem alocação manual.
+ */
+export interface PostoDoPlano {
+  postoId: number;
+  dias: number;
+  semana: number | null;
 }
 
 export interface Equipe {
@@ -98,6 +118,8 @@ export interface PlanoMensal {
   distribuicao: Record<number, number>;
   /** dia da semana (0-6) -> unidadeId travado. */
   unidadesFixas: Record<number, number>;
+  /** Postos que esta pessoa cobre no mês. */
+  postos: PostoDoPlano[];
 }
 
 export interface CapacidadeOverride {
@@ -141,6 +163,8 @@ export interface Alocacao {
   modalidade: Modalidade;
   unidadeId: number | null;
   travado: boolean;
+  /** Preenchido quando a pessoa está cobrindo um posto naquele dia. */
+  postoId: number | null;
 }
 
 export interface Aviso {
@@ -171,6 +195,7 @@ export interface GerarEscalaInput {
   unidades: Unidade[];
   /** Só id e nome interessam ao motor — o nome entra nas mensagens de conflito. */
   equipes: { id: number; nome: string }[];
+  postos: Posto[];
   colaboradores: Colaborador[];
   planos: PlanoMensal[];
   ausencias: Ausencia[];

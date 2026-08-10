@@ -70,7 +70,7 @@ A precedência, documentada em `REGRAS_MOTOR` e exibida na própria interface:
 As nove primeiras são rígidas e nunca são violadas; as demais são otimizadas no
 que sobra.
 
-Rode `npm test` para as 43 asserções do motor: regimes, ciclo 12x36, cotas de
+Rode `npm test` para as 48 asserções do motor: regimes, ciclo 12x36, cotas de
 home office e de equipe, capacidade, sub-unidades, travas, ausências entre meses
 e determinismo.
 
@@ -79,8 +79,8 @@ e determinismo.
 ### 1. Crie o projeto no Supabase
 
 Em [supabase.com](https://supabase.com), crie um projeto. Em **SQL Editor**,
-rode os arquivos de `supabase/migrations/` na ordem numérica (0001, 0002, 0003,
-0004) — cada um depende dos anteriores. Abra cada arquivo, copie o **conteúdo
+rode os arquivos de `supabase/migrations/` na ordem numérica — cada um depende
+dos anteriores. Abra cada arquivo, copie o **conteúdo
 inteiro** e cole no editor; o nome do arquivo não é o comando.
 
 Em **Authentication → Providers**, deixe **Email** habilitado. Para testar sem
@@ -147,10 +147,15 @@ terceiro e escrita na escala por quem não é Planejamento.
 
 - **Unidades são dados, não código.** A conta cadastra quantas quiser, com cor,
   sigla e capacidade próprias; o rateio por maior resto funciona para N unidades.
-- **Sub-unidade é posto, não vizinha.** O Corpo Clínico dentro do Morumbi ocupa
-  lugar nos dois: quem atende os médicos está usando cadeira no prédio. Por isso
-  o prédio cheio bloqueia o posto mesmo com vaga nele. Hierarquia de um nível,
-  garantida por trigger.
+- **Posto é função, não lugar.** O Corpo Clínico não concorre com o Morumbi:
+  quem o cobre ocupa uma posição normal do Morumbi e a escala só registra o que
+  a pessoa faz ali. Por isso capacidade e rateio não mudam. A cobertura é
+  semanal e contígua — 5 dias é a semana inteira, 3 é de segunda a quarta.
+- **Home office é distribuído, não guloso.** A escolha dos dias é global: cada
+  pessoa com cota pega, por vez, o dia menos cheio da semana. Antes cada uma
+  pegava os próprios dias preferidos e meio time acabava em casa na sexta.
+- **Prioridade por cargo:** analista tem preferência no home office, técnico na
+  posição presencial — é quem precisa estar perto do equipamento.
 - **Cota por equipe é teto, não reserva ociosa.** Quando as cotas de uma unidade
   somam a capacidade livre, o teto vira garantia — um analista não ocupa o lugar
   que sobrou de técnico. Quem quer só limitar deixa folga; quem quer garantir faz

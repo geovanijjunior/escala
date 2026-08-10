@@ -72,6 +72,36 @@ export async function salvarPlano(formData: FormData) {
     }
   }
 
+  // ── Postos: só valem se a pessoa de fato vai à unidade do posto no mês.
+  // Cobrar o Corpo Clínico de quem tem 0% de Morumbi seria escala impossível.
+  const { data: postosDaConta } = await supabase
+    .from('postos').select('id, nome, unidade_id').eq('ativo', true);
+
+  const postos: { posto_id: number; dias: number; semana: number | null }[] = [];
+  for (const po of (postosDaConta ?? []) as { id: number; nome: string; unidade_id: number }[]) {
+    if (String(formData.get(`posto_${po.id}`) ?? '') !== 'on') continue;
+
+    const dias = Number(formData.get(`posto_dias_${po.id}`) ?? 0);
+    if (!Number.isInteger(dias) || dias < 1 || dias > 5) {
+      erro(competencia, `Informe de 1 a 5 dias para o posto ${po.nome}.`, colaboradorId);
+    }
+
+    const semanaBruta = String(formData.get(`posto_semana_${po.id}`) ?? '').trim();
+    const semana = semanaBruta === '' ? null : Number(semanaBruta);
+    if (semana !== null && (!Number.isInteger(semana) || semana < 1 || semana > 6)) {
+      erro(competencia, `Semana inválida para o posto ${po.nome}.`, colaboradorId);
+    }
+
+    const vaiNaUnidade = distribuicao.some(d => d.unidade_id === po.unidade_id && d.percentual > 0)
+      || unidadesFixas.some(f => f.unidade_id === po.unidade_id);
+    if (!vaiNaUnidade) {
+      const nomeUnidade = unidades.find(u => u.id === po.unidade_id)?.nome ?? 'a unidade do posto';
+      erro(competencia, `Para cobrir ${po.nome} é preciso que a pessoa tenha presença em ${nomeUnidade} — hoje a distribuição dela é 0% ali.`, colaboradorId);
+    }
+
+    postos.push({ posto_id: po.id, dias, semana });
+  }
+
   const cicloBruto = String(formData.get('ciclo') ?? '');
   const ciclo = cicloBruto === 'IMPAR' || cicloBruto === 'PAR' ? cicloBruto : null;
 
@@ -112,6 +142,12 @@ export async function salvarPlano(formData: FormData) {
   await supabase.from('plano_unidade_fixa').delete().eq('plano_id', plano.id);
   if (unidadesFixas.length) {
     await supabase.from('plano_unidade_fixa').insert(unidadesFixas.map(f => ({ ...f, plano_id: plano.id })));
+  }
+  await supabase.from('plano_posto').delete().eq('plano_id', plano.id);
+  if (postos.length) {
+    await supabase.from('plano_posto').insert(
+      postos.map(x => ({ ...x, plano_id: plano.id, conta_id: sessao.conta.id }))
+    );
   }
 
   await registrarLog(

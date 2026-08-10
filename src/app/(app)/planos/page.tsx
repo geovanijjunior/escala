@@ -80,6 +80,7 @@ export default async function PlanosPage({ searchParams }: { searchParams: Promi
           plano={planoPorColab.get(colabEmEdicao.id) ?? null}
           ausencias={ausenciasPorColab.get(colabEmEdicao.id) ?? []}
           unidades={ctx.unidades.filter(u => u.ativa)}
+          postos={ctx.postos}
           competencia={competencia}
           pendencias={pendenciasPorColab.get(colabEmEdicao.id) ?? []}
           fecharHref={`/planos${comFiltros(busca, { colab: null })}`}

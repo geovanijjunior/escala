@@ -7,8 +7,8 @@ import { DIAS_ABREV, dowDeIso, formatarData } from '@/lib/domain/escalas/datas';
 import { REGRAS_MOTOR } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import {
-  removerCapacidade, removerCotaEquipe, removerFeriado, salvarCapacidade, salvarCotaEquipe,
-  salvarEquipe, salvarFeriado, salvarParametros, salvarUnidade,
+  removerCapacidade, removerCotaEquipe, removerFeriado, removerPosto, salvarCapacidade,
+  salvarCotaEquipe, salvarEquipe, salvarFeriado, salvarParametros, salvarPosto, salvarUnidade,
 } from '@/app/actions-cadastros';
 import { Abas, Aviso, Badge, Bloco, Vazio } from '@/components/Ui';
 import { Volta } from '@/components/Volta';
@@ -21,7 +21,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
   if (sessao.papel !== 'planejamento') redirect('/');
 
   const supabase = await createClient();
-  const [unidades, equipes, config, feriados, logs, capRes, perfisRes, cotaRes] = await Promise.all([
+  const [unidades, equipes, config, feriados, logs, capRes, perfisRes, cotaRes, postoRes] = await Promise.all([
     listarUnidades(),
     listarEquipes(),
     getConfig(sessao.conta.id),
@@ -30,10 +30,12 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
     supabase.from('capacidades').select('*'),
     supabase.from('perfis').select('id, nome, papel').order('nome'),
     supabase.from('cotas_equipe').select('*'),
+    supabase.from('postos').select('*').order('nome'),
   ]);
   const capacidades = (capRes.data ?? []) as { id: number; unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
   const perfis = (perfisRes.data ?? []) as { id: string; nome: string; papel: string | null }[];
   const cotas = (cotaRes.data ?? []) as { id: number; unidade_id: number; equipe_id: number; dow: number | null; limite: number }[];
+  const postos = (postoRes.data ?? []) as { id: number; unidade_id: number; nome: string; vagas: number; ativo: boolean }[];
 
   const aba = texto(busca, 'aba') || 'unidades';
   const href = (a: string) => `/parametros${comFiltros(busca, { aba: a })}`;
@@ -84,24 +86,9 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                     </tr>
                   </thead>
                   <tbody>
-                    {/* Postos internos logo abaixo do prédio a que pertencem —
-                        a ordem alfabética separaria o Corpo Clínico do Morumbi. */}
-                    {unidades
-                      .filter(u => u.paiId === null)
-                      .flatMap(pai => [pai, ...unidades.filter(f => f.paiId === pai.id)])
-                      .map(u => (
+                    {unidades.map(u => (
                       <tr key={u.id}>
-                        <td className="font-medium" style={{ color: u.cor }}>
-                          {u.paiId !== null && (
-                            <span aria-hidden className="mr-1.5" style={{ color: 'var(--muted)' }}>└</span>
-                          )}
-                          {u.nome}
-                          {u.paiId !== null && (
-                            <span className="ml-1.5 text-[10.5px] font-normal" style={{ color: 'var(--muted)' }}>
-                              posto interno · ocupa lugar em {unidades.find(x => x.id === u.paiId)?.nome}
-                            </span>
-                          )}
-                        </td>
+                        <td className="font-medium" style={{ color: u.cor }}>{u.nome}</td>
                         <td><Badge cor={u.cor} bg={u.bg}>{u.sigla}</Badge></td>
                         <td className="text-right esc-num">{u.capacidadeTotal}</td>
                         <td className="text-right esc-num">{u.capacidadeReservadas}</td>
@@ -141,16 +128,6 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               <label className="block">
                 <span className="esc-rotulo">Ordem</span>
                 <input type="number" name="ordem" defaultValue={editandoUnidade?.ordem ?? unidades.length + 1} className="esc-input esc-num" />
-              </label>
-              <label className="block">
-                <span className="esc-rotulo">Fica dentro de</span>
-                <select name="paiId" defaultValue={editandoUnidade?.paiId ?? ''} className="esc-input">
-                  <option value="">— unidade principal —</option>
-                  {unidades
-                    .filter(u => u.paiId === null && u.id !== editandoUnidade?.id)
-                    .map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
-                </select>
-                <span className="esc-ajuda mt-1 block">Para postos internos, como o Corpo Clínico no Morumbi.</span>
               </label>
               <label className="block">
                 <span className="esc-rotulo">Capacidade total</span>
@@ -326,7 +303,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   <span className="esc-rotulo">Unidade</span>
                   <select name="unidadeId" required className="esc-input w-44">
                     {unidades.map(u => (
-                      <option key={u.id} value={u.id}>{u.paiId !== null ? `↳ ${u.nome}` : u.nome}</option>
+                      <option key={u.id} value={u.id}>{u.nome}</option>
                     ))}
                   </select>
                 </label>
@@ -360,8 +337,71 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   Nenhum dia marcado significa <strong style={{ color: 'var(--text)' }}>todos os dias</strong>; marcar um dia
                   cria uma exceção que vence a cota geral naquele dia. Quando as cotas de uma unidade somam a capacidade
                   livre dela, o teto vira garantia: um analista deixa de ocupar o lugar que sobrou de técnico.
-                  Num posto interno a cota conta também na unidade que o contém.
                 </p>
+              </form>
+            </Bloco>
+          )}
+
+          {unidades.length > 0 && (
+            <Bloco
+              id="bloco-postos"
+              titulo="Postos dentro das unidades"
+              desc="Uma função exercida dentro da unidade — o Corpo Clínico dentro do Morumbi. Não é outra unidade: quem cobre o posto ocupa uma posição normal do Morumbi, então capacidade e rateio não mudam. Quem cobre e por quantos dias é definido no plano do mês de cada pessoa."
+            >
+              <div className="overflow-x-auto">
+                <table className="esc-tabela">
+                  <thead>
+                    <tr><th>Posto</th><th>Dentro de</th><th className="text-right">Vagas simultâneas</th><th>Situação</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    {postos.length === 0 && (
+                      <tr><td colSpan={5} className="text-center py-6" style={{ color: 'var(--muted)' }}>
+                        Nenhum posto cadastrado.
+                      </td></tr>
+                    )}
+                    {postos.map(po => (
+                      <tr key={po.id}>
+                        <td className="font-medium">{po.nome}</td>
+                        <td style={{ color: 'var(--muted)' }}>{unidades.find(u => u.id === po.unidade_id)?.nome ?? '—'}</td>
+                        <td className="text-right esc-num">{po.vagas}</td>
+                        <td>
+                          {po.ativo
+                            ? <Badge cor="var(--green)" bg="var(--green-bg)">Ativo</Badge>
+                            : <Badge cor="var(--muted)" bg="var(--bg)">Inativo</Badge>}
+                        </td>
+                        <td className="text-right">
+                          <form action={removerPosto} className="inline">
+                            <Volta busca={busca} ancora="bloco-postos" />
+                            <input type="hidden" name="id" value={po.id} />
+                            <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
+                          </form>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <form action={salvarPosto} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
+                <Volta busca={busca} ancora="bloco-postos" />
+                <label className="block">
+                  <span className="esc-rotulo">Nome do posto</span>
+                  <input name="nome" required className="esc-input w-52" placeholder="Corpo Clínico" />
+                </label>
+                <label className="block">
+                  <span className="esc-rotulo">Dentro da unidade</span>
+                  <select name="unidadeId" required className="esc-input w-44">
+                    {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="esc-rotulo">Vagas simultâneas</span>
+                  <input type="number" name="vagas" min={1} defaultValue={1} className="esc-input w-32 esc-num" />
+                </label>
+                <label className="flex items-center gap-2 text-[12.5px] pb-2">
+                  <input type="checkbox" name="ativo" defaultChecked /> Ativo
+                </label>
+                <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Adicionar posto</button>
               </form>
             </Bloco>
           )}

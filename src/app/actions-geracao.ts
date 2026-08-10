@@ -104,6 +104,7 @@ export async function gerarEscalaDoMes(formData: FormData) {
     data: a.data,
     modalidade: a.modalidade,
     unidade_id: a.unidadeId,
+    posto_id: a.postoId,
     travado: travadas.has(`${a.colaboradorId}|${a.data}`),
   }));
 
