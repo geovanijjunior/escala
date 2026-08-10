@@ -82,9 +82,24 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                     </tr>
                   </thead>
                   <tbody>
-                    {unidades.map(u => (
+                    {/* Postos internos logo abaixo do prédio a que pertencem —
+                        a ordem alfabética separaria o Corpo Clínico do Morumbi. */}
+                    {unidades
+                      .filter(u => u.paiId === null)
+                      .flatMap(pai => [pai, ...unidades.filter(f => f.paiId === pai.id)])
+                      .map(u => (
                       <tr key={u.id}>
-                        <td className="font-medium" style={{ color: u.cor }}>{u.nome}</td>
+                        <td className="font-medium" style={{ color: u.cor }}>
+                          {u.paiId !== null && (
+                            <span aria-hidden className="mr-1.5" style={{ color: 'var(--muted)' }}>└</span>
+                          )}
+                          {u.nome}
+                          {u.paiId !== null && (
+                            <span className="ml-1.5 text-[10.5px] font-normal" style={{ color: 'var(--muted)' }}>
+                              posto interno · ocupa lugar em {unidades.find(x => x.id === u.paiId)?.nome}
+                            </span>
+                          )}
+                        </td>
                         <td><Badge cor={u.cor} bg={u.bg}>{u.sigla}</Badge></td>
                         <td className="text-right esc-num">{u.capacidadeTotal}</td>
                         <td className="text-right esc-num">{u.capacidadeReservadas}</td>
@@ -124,6 +139,16 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               <label className="block">
                 <span className="esc-rotulo">Ordem</span>
                 <input type="number" name="ordem" defaultValue={editandoUnidade?.ordem ?? unidades.length + 1} className="esc-input esc-num" />
+              </label>
+              <label className="block">
+                <span className="esc-rotulo">Fica dentro de</span>
+                <select name="paiId" defaultValue={editandoUnidade?.paiId ?? ''} className="esc-input">
+                  <option value="">— unidade principal —</option>
+                  {unidades
+                    .filter(u => u.paiId === null && u.id !== editandoUnidade?.id)
+                    .map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                </select>
+                <span className="esc-ajuda mt-1 block">Para postos internos, como o Corpo Clínico no Morumbi.</span>
               </label>
               <label className="block">
                 <span className="esc-rotulo">Capacidade total</span>

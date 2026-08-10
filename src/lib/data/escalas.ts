@@ -15,6 +15,7 @@ import type { StatusSolicitacao, TipoOcorrencia, TipoSolicitacao } from '@/lib/d
 interface LinhaUnidade {
   id: number; codigo: string; nome: string; sigla: string; cor: string; bg: string;
   capacidade_total: number; capacidade_reservadas: number; ordem: number; ativa: boolean;
+  pai_id: number | null;
 }
 
 interface LinhaColaborador {
@@ -79,7 +80,7 @@ export interface Ocorrencia {
 const paraUnidade = (u: LinhaUnidade): Unidade => ({
   id: u.id, codigo: u.codigo, nome: u.nome, sigla: u.sigla, cor: u.cor, bg: u.bg,
   capacidadeTotal: u.capacidade_total, capacidadeReservadas: u.capacidade_reservadas,
-  ordem: u.ordem, ativa: u.ativa,
+  ordem: u.ordem, ativa: u.ativa, paiId: u.pai_id ?? null,
 });
 
 const paraColaborador = (c: LinhaColaborador): Colaborador => ({

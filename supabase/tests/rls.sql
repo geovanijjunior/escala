@@ -13,16 +13,21 @@
 \pset pager off
 
 -- Um papel sem BYPASSRLS, para as policies realmente valerem.
--- `drop owned by` antes do drop do papel: sem isso a segunda execução falha,
--- porque os grants da rodada anterior ainda dependem do papel.
+--
+-- O papel é reaproveitado em vez de recriado. Duas armadilhas justificam isso:
+-- na segunda execução os grants da rodada anterior impedem o `drop role`, e
+-- papéis são objetos do CLUSTER, não do banco — se o mesmo papel tiver grants
+-- em outro banco (um segundo ambiente de teste na mesma instância), o drop
+-- falha com "38 objects in database X" e a suíte inteira aborta. `drop owned
+-- by` limpa só o que é deste banco, que é exatamente o escopo desejado.
 do $$ begin
   if exists (select 1 from pg_roles where rolname = 'app_user') then
     execute 'drop owned by app_user';
-    execute 'drop role app_user';
+  else
+    execute 'create role app_user nologin';
   end if;
 end $$;
 
-create role app_user nologin;
 grant usage on schema public, auth to app_user;
 grant select, insert, update, delete on all tables in schema public to app_user;
 grant select on auth.users to app_user;

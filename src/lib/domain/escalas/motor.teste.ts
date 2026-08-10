@@ -9,8 +9,8 @@ const ok = (cond: boolean, nome: string, extra = '') => {
 };
 
 const unidades: Unidade[] = [
-  { id: 1, codigo: 'MOR', nome: 'Morumbi', sigla: 'MOR', cor: '#000', bg: '#fff', capacidadeTotal: 4, capacidadeReservadas: 0, ordem: 1, ativa: true },
-  { id: 2, codigo: 'PAU', nome: 'Paulista', sigla: 'PAU', cor: '#000', bg: '#fff', capacidadeTotal: 4, capacidadeReservadas: 0, ordem: 2, ativa: true },
+  { id: 1, codigo: 'MOR', nome: 'Morumbi', sigla: 'MOR', cor: '#000', bg: '#fff', capacidadeTotal: 4, capacidadeReservadas: 0, ordem: 1, ativa: true, paiId: null },
+  { id: 2, codigo: 'PAU', nome: 'Paulista', sigla: 'PAU', cor: '#000', bg: '#fff', capacidadeTotal: 4, capacidadeReservadas: 0, ordem: 2, ativa: true, paiId: null },
 ];
 
 const mkColab = (id: number, over: Partial<Colaborador> = {}): Colaborador => ({
@@ -151,5 +151,77 @@ const base = {
   ok(r.ocupacao['2026-08-04'][1] === 3, 'no dia seguinte volta a capacidade padrão');
 }
 
+
+// ── Sub-unidade: um posto dentro de outra unidade (Corpo Clínico no Morumbi)
+{
+  const comPosto: Unidade[] = [
+    ...unidades,
+    { id: 3, codigo: 'CCL', nome: 'Corpo Clínico', sigla: 'CCL', cor: '#000', bg: '#fff', capacidadeTotal: 1, capacidadeReservadas: 0, ordem: 3, ativa: true, paiId: 1 },
+  ];
+  const baseP = { ...base, unidades: comPosto };
+
+  // Quem está no posto ocupa lugar também no prédio que o contém.
+  {
+    const r = gerarEscala({
+      ...baseP,
+      colaboradores: [mkColab(1)],
+      planos: [mkPlano(1, { distribuicao: { 1: 0, 2: 0, 3: 100 } })],
+    });
+    const seg = r.alocacoes.find(a => a.data === '2026-08-03');
+    ok(seg?.unidadeId === 3, 'posto interno recebe a alocação', String(seg?.unidadeId));
+    ok(r.ocupacao['2026-08-03'][3] === 1, 'ocupação contada no posto', String(r.ocupacao['2026-08-03'][3]));
+    ok(r.ocupacao['2026-08-03'][1] === 1, 'ocupação sobe para a unidade pai', String(r.ocupacao['2026-08-03'][1]));
+  }
+
+  // O posto tem 1 vaga: o segundo candidato não entra nele.
+  {
+    const r = gerarEscala({
+      ...baseP,
+      colaboradores: [mkColab(1), mkColab(2)],
+      planos: [
+        mkPlano(1, { distribuicao: { 1: 0, 2: 0, 3: 100 } }),
+        mkPlano(2, { distribuicao: { 1: 0, 2: 0, 3: 100 } }),
+      ],
+    });
+    const noPosto = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 3);
+    ok(noPosto.length === 1, 'posto de 1 vaga não recebe 2 pessoas', String(noPosto.length));
+  }
+
+  // Prédio lotado bloqueia o posto mesmo com vaga nele.
+  {
+    const apertado: Unidade[] = [
+      { ...comPosto[0], capacidadeTotal: 2 },
+      comPosto[1],
+      { ...comPosto[2], capacidadeTotal: 5 },
+    ];
+    const r = gerarEscala({
+      ...base,
+      unidades: apertado,
+      colaboradores: [mkColab(1), mkColab(2), mkColab(3)],
+      planos: [
+        mkPlano(1, { distribuicao: { 1: 0, 2: 0, 3: 100 } }),
+        mkPlano(2, { distribuicao: { 1: 0, 2: 0, 3: 100 } }),
+        mkPlano(3, { distribuicao: { 1: 0, 2: 0, 3: 100 } }),
+      ],
+    });
+    const dentro = r.ocupacao['2026-08-03'][1];
+    ok(dentro <= 2, 'pai de 2 lugares não é estourado pelo posto', String(dentro));
+    const terceiro = r.alocacoes.find(a => a.data === '2026-08-03' && a.colaboradorId === 3);
+    ok(terceiro?.unidadeId !== 3, 'terceira pessoa não entra no posto com o pai cheio', String(terceiro?.unidadeId));
+  }
+
+  // Cobertura mínima não cobra presença de posto interno.
+  {
+    const r = gerarEscala({
+      ...baseP,
+      coberturaMinima: 1,
+      colaboradores: [mkColab(1)],
+      planos: [mkPlano(1, { distribuicao: { 1: 100, 2: 0, 3: 0 } })],
+    });
+    const sobrePosto = r.alertas.filter(a => a.msg.includes('Corpo Clínico'));
+    ok(sobrePosto.length === 0, 'posto interno fora da cobertura mínima', String(sobrePosto.length));
+  }
+}
+
 console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`);
-process.exit(falhas === 0 ? 0 : 1);
+if (falhas > 0) process.exit(1);

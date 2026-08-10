@@ -30,6 +30,12 @@ export interface Unidade {
   capacidadeReservadas: number;
   ordem: number;
   ativa: boolean;
+  /**
+   * Unidade que contém esta, quando é um posto interno (o Corpo Clínico dentro
+   * do Morumbi). Quem ocupa a sub-unidade ocupa também um lugar no pai: está
+   * fisicamente lá. Hierarquia de um nível só — garantido por trigger no banco.
+   */
+  paiId: number | null;
 }
 
 export interface Equipe {

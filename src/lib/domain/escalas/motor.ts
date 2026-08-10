@@ -87,6 +87,17 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     return Math.max(0, cfg.total - cfg.reservadas);
   };
 
+  // ── Sub-unidades: um posto dentro de outra unidade (Corpo Clínico no Morumbi).
+  // Quem ocupa o posto está fisicamente no prédio, então consome lugar nos dois.
+  // Sem isso o Morumbi mostraria um lugar livre que não existe.
+  const paiDe = new Map<number, number | null>(unidades.map(u => [u.id, u.paiId]));
+
+  /** A unidade e, se for um posto interno, a que a contém. Um nível só. */
+  const cadeia = (id: number): number[] => {
+    const pai = paiDe.get(id) ?? null;
+    return pai !== null && paiDe.has(pai) ? [id, pai] : [id];
+  };
+
   const conflitos: Aviso[] = [];
   const alertas: Aviso[] = [];
   const datas: string[] = [];
@@ -288,11 +299,13 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     const data = datas[d - 1];
     const capacidade = capacidadeDia[data];
 
-    // Travas e unidades fixas já ocupam posição e contam pra meta.
+    // Travas e unidades fixas já ocupam posição e contam pra meta. A ocupação
+    // sobe para a unidade pai; a meta, não — a meta é do posto onde a pessoa
+    // efetivamente ficou, e somar nos dois contaria o mesmo dia duas vezes.
     for (const c of colaboradores) {
       const decidido = escala.get(c.id)?.get(data);
       if (!decidido || decidido.modalidade !== 'UNIDADE' || decidido.unidadeId === null) continue;
-      ocupacao[data][decidido.unidadeId]++;
+      for (const id of cadeia(decidido.unidadeId)) ocupacao[data][id]++;
       alocado[c.id][decidido.unidadeId]++;
     }
 
@@ -303,12 +316,16 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       const nomes = colaboradores
         .filter(c => {
           const a = escala.get(c.id)?.get(data);
-          return a?.modalidade === 'UNIDADE' && a.unidadeId === u.id;
+          return a?.modalidade === 'UNIDADE' && a.unidadeId !== null && cadeia(a.unidadeId).includes(u.id);
         })
         .map(c => c.nome);
+      const postos = unidades.filter(x => x.paiId === u.id);
+      const detalhePostos = postos.length
+        ? ` Inclui quem está em ${postos.map(x => x.nome).join(', ')}, que ocupa lugar aqui.`
+        : '';
       conflitos.push({
         nivel: 'erro', data,
-        msg: `${u.nome} em ${formatarData(data)} tem ${ocupacao[data][u.id]} pessoas fixadas para ${capacidade[u.id]} posições. Revise as travas e unidades fixas de: ${nomes.slice(0, 6).join(', ')}${nomes.length > 6 ? '…' : ''}.`,
+        msg: `${u.nome} em ${formatarData(data)} tem ${ocupacao[data][u.id]} pessoas fixadas para ${capacidade[u.id]} posições.${detalhePostos} Revise as travas e unidades fixas de: ${nomes.slice(0, 6).join(', ')}${nomes.length > 6 ? '…' : ''}.`,
       });
     }
 
@@ -327,18 +344,23 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       idsUnidades.map(id => [id, {} as Record<number, number>])
     );
 
+    // Um posto interno só aceita mais alguém se ele E o prédio que o contém
+    // tiverem lugar. É a diferença entre "sobra cadeira no Corpo Clínico" e
+    // "sobra cadeira no Morumbi": as duas precisam ser verdade.
+    const cabe = (id: number) => cadeia(id).every(x => ocupacao[data][x] < capacidade[x]);
+
     for (const { colab, preferida } of candidatos) {
       const ordem = [preferida, ...idsUnidades.filter(id => id !== preferida)];
       let colocado = false;
 
       for (const id of ordem) {
-        if (ocupacao[data][id] >= capacidade[id]) continue;
+        if (!cabe(id)) continue;
         const conc = concentracao[id][colab.equipeId] ?? 0;
-        const alternativa = ordem.find(x => x !== id && ocupacao[data][x] < capacidade[x]);
+        const alternativa = ordem.find(x => x !== id && cabe(x));
         // Balanceamento só desempata quando não custa a meta da pessoa.
         if (id !== preferida && alternativa !== undefined && conc > LIMITE_CONCENTRACAO_EQUIPE) continue;
         definir(colab.id, data, 'UNIDADE', id);
-        ocupacao[data][id]++;
+        for (const x of cadeia(id)) ocupacao[data][x]++;
         alocado[colab.id][id]++;
         concentracao[id][colab.equipeId] = conc + 1;
         colocado = true;
@@ -361,7 +383,10 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       return a && a.modalidade !== 'DESCANSO' && a.modalidade !== 'FERIADO';
     });
     if (alguemTrabalha && coberturaMinima > 0) {
-      for (const u of unidades) {
+      // Só as unidades principais. Cobertura mínima é sobre manter um prédio
+      // atendido; exigi-la de um posto de uma vaga geraria aviso todo dia em que
+      // ele estivesse legitimamente vazio, e o ruído esconderia o aviso real.
+      for (const u of unidades.filter(x => x.paiId === null)) {
         if (ocupacao[data][u.id] < coberturaMinima) {
           alertas.push({
             nivel: 'aviso', data,

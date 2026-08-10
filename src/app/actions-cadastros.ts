@@ -118,6 +118,7 @@ export async function salvarUnidade(formData: FormData) {
   const sigla = texto(formData, 'sigla').toUpperCase();
   const total = Number(formData.get('capacidadeTotal'));
   const reservadas = Number(formData.get('capacidadeReservadas'));
+  const paiId = Number(formData.get('paiId') ?? 0) || null;
 
   if (!nome || !codigo || !sigla) voltarComErro(PARAMS, formData, 'Nome, código e sigla são obrigatórios.');
   if (!Number.isInteger(total) || total < 0) voltarComErro(PARAMS, formData, 'Capacidade total inválida.');
@@ -136,6 +137,9 @@ export async function salvarUnidade(formData: FormData) {
     capacidade_reservadas: reservadas,
     ordem: Number(formData.get('ordem') ?? 0),
     ativa: marcado(formData, 'ativa'),
+    // Posto interno (Corpo Clínico dentro do Morumbi). O banco garante o nível
+    // único e recusa ciclo; aqui só barramos o caso óbvio de apontar para si.
+    pai_id: paiId && paiId !== id ? paiId : null,
   };
 
   const { error } = id
@@ -143,7 +147,8 @@ export async function salvarUnidade(formData: FormData) {
     : await supabase.from('unidades').insert(registro);
   if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a unidade: ${error.message}`);
 
-  await registrarLog(sessao, id ? 'Unidade atualizada' : 'Unidade criada', `${nome} · ${total - reservadas} posições operacionais`);
+  const dentroDe = paiId ? ` · posto interno de ${(await supabase.from('unidades').select('nome').eq('id', paiId).single()).data?.nome ?? paiId}` : '';
+  await registrarLog(sessao, id ? 'Unidade atualizada' : 'Unidade criada', `${nome} · ${total - reservadas} posições operacionais${dentroDe}`);
   revalidatePath('/', 'layout');
   voltar(PARAMS, formData);
 }
