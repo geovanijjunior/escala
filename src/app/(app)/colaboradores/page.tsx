@@ -8,6 +8,7 @@ import { CARGOS } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import { salvarColaborador } from '@/app/actions-cadastros';
 import { Aviso, Badge, Bloco, Pill, Vazio } from '@/components/Ui';
+import { Volta } from '@/components/Volta';
 import { FiltrosAuto } from '@/components/FiltrosAuto';
 import type { Colaborador } from '@/lib/domain/escalas/tipos';
 
@@ -83,6 +84,7 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
               unidades={unidades}
               perfis={perfis}
               fecharHref={`/colaboradores${comFiltros(busca, { novo: null, id: null })}`}
+              busca={busca}
             />
           )}
 
@@ -188,21 +190,24 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
 }
 
 function Formulario({
-  colaborador: c, equipes, unidades, perfis, fecharHref,
+  colaborador: c, equipes, unidades, perfis, fecharHref, busca,
 }: {
   colaborador: Colaborador | null;
   equipes: { id: number; nome: string; regime: string; turno: string }[];
   unidades: { id: number; nome: string; ativa: boolean }[];
   perfis: { id: string; nome: string; email: string; papel: string | null }[];
   fecharHref: string;
+  busca: Busca;
 }) {
   return (
     <Bloco
+      id="editor-colaborador"
       titulo={c ? `Editar ${c.nome}` : 'Novo colaborador'}
       desc="Regime e turno vêm da equipe escolhida; o turno pode ser sobreposto caso a caso."
       acoes={<Link href={fecharHref} className="esc-btn esc-btn-ghost esc-btn-sm">Fechar</Link>}
     >
       <form action={salvarColaborador} className="px-4 py-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Volta busca={busca} ancora="editor-colaborador" />
         {c && <input type="hidden" name="id" value={c.id} />}
 
         <label className="block">

@@ -222,6 +222,27 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
                 </>
               }
             >
+              {/* A edição manual existia desde sempre, mas ficava escondida atrás
+                  de um clique num dia do calendário — ninguém adivinha. */}
+              {geracao.status === 'rascunho' && (
+                <div
+                  className="px-4 py-3 border-b text-[12.5px] leading-relaxed"
+                  style={{ borderColor: 'var(--line)', background: 'var(--brand-50)' }}
+                >
+                  <strong>Ainda é rascunho — os colaboradores não enxergam esta escala.</strong>{' '}
+                  É a hora de ajustar à mão: em{' '}
+                  <Link
+                    href={`/calendario?competencia=${competencia}`}
+                    className="font-semibold underline"
+                    style={{ color: 'var(--brand-700)' }}
+                  >
+                    Revisar no calendário
+                  </Link>{' '}
+                  você abre qualquer dia e move uma pessoa para outra unidade ou modalidade. O ajuste fica{' '}
+                  <strong>travado</strong>: sobrevive a uma nova geração e só sai se você destravar. Publique
+                  quando estiver do jeito que precisa.
+                </div>
+              )}
               <ListaAvisos itens={[...geracao.conflitos, ...geracao.alertas]} limite={20} />
             </Bloco>
           )}
