@@ -26,9 +26,11 @@ const mkPlano = (colaboradorId: number, over: Partial<PlanoMensal> = {}): PlanoM
   distribuicao: { 1: 100, 2: 0 }, unidadesFixas: {}, ...over,
 });
 
+const equipes = [{ id: 1, nome: 'Técnicos 12x36' }, { id: 2, nome: 'Analistas' }];
+
 const base = {
-  ano: 2026, mes: 7, unidades, ausencias: [], capacidades: [], feriados: {},
-  pins: [], cicloAncora: '2026-01-01', toleranciaAderencia: 1, coberturaMinima: 0,
+  ano: 2026, mes: 7, unidades, equipes, ausencias: [], capacidades: [], cotasEquipe: [],
+  feriados: {}, pins: [], cicloAncora: '2026-01-01', toleranciaAderencia: 1, coberturaMinima: 0,
 };
 
 // ── 1. 5x2 não trabalha fim de semana e respeita feriado
@@ -220,6 +222,89 @@ const base = {
     });
     const sobrePosto = r.alertas.filter(a => a.msg.includes('Corpo Clínico'));
     ok(sobrePosto.length === 0, 'posto interno fora da cobertura mínima', String(sobrePosto.length));
+  }
+}
+
+// ── Cota por equipe: teto de pessoas de uma equipe numa unidade
+{
+  // 4 técnicos (equipe 1) querendo o Morumbi, que tem 4 lugares mas cota 2.
+  {
+    const r = gerarEscala({
+      ...base,
+      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, limite: 2 }],
+      colaboradores: [1, 2, 3, 4].map(id => mkColab(id, { equipeId: 1 })),
+      planos: [1, 2, 3, 4].map(id => mkPlano(id, { distribuicao: { 1: 100, 2: 0 } })),
+    });
+    const noMor = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1);
+    ok(noMor.length === 2, 'cota de 2 limita a equipe mesmo com 4 lugares', String(noMor.length));
+    const foram = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 2);
+    ok(foram.length === 2, 'os excedentes vão para a outra unidade', String(foram.length));
+  }
+
+  // Equipe sem cota cadastrada não é limitada.
+  {
+    const r = gerarEscala({
+      ...base,
+      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, limite: 2 }],
+      colaboradores: [1, 2, 3].map(id => mkColab(id, { equipeId: 2 })),
+      planos: [1, 2, 3].map(id => mkPlano(id, { distribuicao: { 1: 100, 2: 0 } })),
+    });
+    const noMor = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1);
+    ok(noMor.length === 3, 'equipe sem cota não é limitada', String(noMor.length));
+  }
+
+  // Cota por dia da semana tem precedência sobre a geral.
+  {
+    const r = gerarEscala({
+      ...base,
+      cotasEquipe: [
+        { unidadeId: 1, equipeId: 1, dow: null, limite: 3 },
+        { unidadeId: 1, equipeId: 1, dow: 1, limite: 1 }, // segunda
+      ],
+      colaboradores: [1, 2, 3].map(id => mkColab(id, { equipeId: 1 })),
+      planos: [1, 2, 3].map(id => mkPlano(id, { distribuicao: { 1: 100, 2: 0 } })),
+    });
+    const seg = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1); // segunda
+    const ter = r.alocacoes.filter(a => a.data === '2026-08-04' && a.unidadeId === 1); // terça
+    ok(seg.length === 1, 'cota da segunda (1) vence a geral (3)', String(seg.length));
+    ok(ter.length === 3, 'terça usa a cota geral (3)', String(ter.length));
+  }
+
+  // Cotas que fecham a capacidade viram garantia: analista não toma lugar de técnico.
+  {
+    const r = gerarEscala({
+      ...base,
+      cotasEquipe: [
+        { unidadeId: 1, equipeId: 1, dow: null, limite: 3 }, // técnicos
+        { unidadeId: 1, equipeId: 2, dow: null, limite: 1 }, // analistas
+      ],
+      colaboradores: [
+        mkColab(1, { equipeId: 2 }), mkColab(2, { equipeId: 2 }), mkColab(3, { equipeId: 2 }),
+        mkColab(4, { equipeId: 1 }),
+      ],
+      planos: [1, 2, 3, 4].map(id => mkPlano(id, { distribuicao: { 1: 100, 2: 0 } })),
+    });
+    const analistas = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1 && a.colaboradorId <= 3);
+    const tecnico = r.alocacoes.find(a => a.data === '2026-08-03' && a.colaboradorId === 4);
+    ok(analistas.length === 1, 'analistas param na cota de 1', String(analistas.length));
+    ok(tecnico?.unidadeId === 1, 'lugar do técnico continua disponível para ele', String(tecnico?.unidadeId));
+  }
+
+  // Cota estourada por trava é conflito, não é contornada silenciosamente.
+  {
+    const r = gerarEscala({
+      ...base,
+      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, limite: 1 }],
+      colaboradores: [mkColab(1, { equipeId: 1 }), mkColab(2, { equipeId: 1 })],
+      planos: [mkPlano(1), mkPlano(2)],
+      pins: [
+        { colaboradorId: 1, data: '2026-08-03', modalidade: 'UNIDADE' as const, unidadeId: 1 },
+        { colaboradorId: 2, data: '2026-08-03', modalidade: 'UNIDADE' as const, unidadeId: 1 },
+      ],
+    });
+    const sobreCota = r.conflitos.filter(c => c.msg.includes('cota de 1'));
+    ok(sobreCota.length === 1, 'trava que estoura a cota vira conflito', String(sobreCota.length));
+    ok(sobreCota[0]?.msg.includes('Técnicos 12x36'), 'conflito nomeia a equipe', sobreCota[0]?.msg ?? '');
   }
 }
 

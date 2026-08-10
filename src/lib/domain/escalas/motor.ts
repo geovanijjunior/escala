@@ -87,6 +87,22 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     return Math.max(0, cfg.total - cfg.reservadas);
   };
 
+  const nomeDaEquipe = new Map(input.equipes.map(e => [e.id, e.nome]));
+
+  // ── Cota por equipe: teto de pessoas de uma equipe numa unidade.
+  // O dia da semana específico tem precedência sobre a cota geral; par sem cota
+  // cadastrada não tem teto próprio, só a capacidade da unidade limita.
+  const cotaGeral = new Map<string, number>();
+  const cotaSemanal = new Map<string, number>();
+  for (const c of input.cotasEquipe) {
+    if (c.dow === null) cotaGeral.set(`${c.unidadeId}|${c.equipeId}`, c.limite);
+    else cotaSemanal.set(`${c.unidadeId}|${c.equipeId}|${c.dow}`, c.limite);
+  }
+  const cotaDe = (unidadeId: number, equipeId: number, dow: number): number | null =>
+    cotaSemanal.get(`${unidadeId}|${equipeId}|${dow}`)
+    ?? cotaGeral.get(`${unidadeId}|${equipeId}`)
+    ?? null;
+
   // ── Sub-unidades: um posto dentro de outra unidade (Corpo Clínico no Morumbi).
   // Quem ocupa o posto está fisicamente no prédio, então consome lugar nos dois.
   // Sem isso o Morumbi mostraria um lugar livre que não existe.
@@ -298,6 +314,17 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
   for (let d = 1; d <= nDias; d++) {
     const data = datas[d - 1];
     const capacidade = capacidadeDia[data];
+    const dowDoDia = diaSemana(ano, mes, d);
+
+    /** unidadeId -> equipeId -> pessoas dessa equipe já colocadas no dia. */
+    const porEquipe: Record<number, Record<number, number>> = Object.fromEntries(
+      idsUnidades.map(id => [id, {} as Record<number, number>])
+    );
+    const contaEquipe = (unidadeId: number, equipeId: number) => {
+      for (const id of cadeia(unidadeId)) {
+        porEquipe[id][equipeId] = (porEquipe[id][equipeId] ?? 0) + 1;
+      }
+    };
 
     // Travas e unidades fixas já ocupam posição e contam pra meta. A ocupação
     // sobe para a unidade pai; a meta, não — a meta é do posto onde a pessoa
@@ -307,6 +334,22 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       if (!decidido || decidido.modalidade !== 'UNIDADE' || decidido.unidadeId === null) continue;
       for (const id of cadeia(decidido.unidadeId)) ocupacao[data][id]++;
       alocado[c.id][decidido.unidadeId]++;
+      contaEquipe(decidido.unidadeId, c.equipeId);
+    }
+
+    // Cota estourada só com o que foi fixado: o motor não desfaz decisão rígida,
+    // então isso é conflito para o Planejamento resolver, não algo a contornar.
+    for (const u of unidades) {
+      for (const [equipeStr, usados] of Object.entries(porEquipe[u.id])) {
+        const equipeId = Number(equipeStr);
+        const limite = cotaDe(u.id, equipeId, dowDoDia);
+        if (limite === null || usados <= limite) continue;
+        const nomeEquipe = nomeDaEquipe.get(equipeId) ?? `equipe ${equipeId}`;
+        conflitos.push({
+          nivel: 'erro', data,
+          msg: `${u.nome} em ${formatarData(data)} tem ${usados} pessoa(s) de ${nomeEquipe} fixadas para uma cota de ${limite}. Revise as travas e unidades fixas dessa equipe.`,
+        });
+      }
     }
 
     // Um dia pode estourar só com o que foi fixado — precisa ser reportado, já
@@ -347,21 +390,34 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     // Um posto interno só aceita mais alguém se ele E o prédio que o contém
     // tiverem lugar. É a diferença entre "sobra cadeira no Corpo Clínico" e
     // "sobra cadeira no Morumbi": as duas precisam ser verdade.
-    const cabe = (id: number) => cadeia(id).every(x => ocupacao[data][x] < capacidade[x]);
+    const temLugar = (id: number) => cadeia(id).every(x => ocupacao[data][x] < capacidade[x]);
+
+    /**
+     * Cota da equipe, checada em toda a cadeia. Um técnico entrando no Corpo
+     * Clínico consome cota de técnico no posto e no Morumbi — senão a cota do
+     * prédio seria contornável só usando o posto.
+     */
+    const dentroDaCota = (id: number, equipeId: number) => cadeia(id).every(x => {
+      const limite = cotaDe(x, equipeId, dowDoDia);
+      return limite === null || (porEquipe[x][equipeId] ?? 0) < limite;
+    });
+
+    const cabe = (id: number, equipeId: number) => temLugar(id) && dentroDaCota(id, equipeId);
 
     for (const { colab, preferida } of candidatos) {
       const ordem = [preferida, ...idsUnidades.filter(id => id !== preferida)];
       let colocado = false;
 
       for (const id of ordem) {
-        if (!cabe(id)) continue;
+        if (!cabe(id, colab.equipeId)) continue;
         const conc = concentracao[id][colab.equipeId] ?? 0;
-        const alternativa = ordem.find(x => x !== id && cabe(x));
+        const alternativa = ordem.find(x => x !== id && cabe(x, colab.equipeId));
         // Balanceamento só desempata quando não custa a meta da pessoa.
         if (id !== preferida && alternativa !== undefined && conc > LIMITE_CONCENTRACAO_EQUIPE) continue;
         definir(colab.id, data, 'UNIDADE', id);
         for (const x of cadeia(id)) ocupacao[data][x]++;
         alocado[colab.id][id]++;
+        contaEquipe(id, colab.equipeId);
         concentracao[id][colab.equipeId] = conc + 1;
         colocado = true;
         break;
@@ -369,10 +425,27 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
 
       if (!colocado) {
         definir(colab.id, data, 'EXTERNO', null);
-        const detalhe = unidades.map(u => `${u.nome} ${ocupacao[data][u.id]}/${capacidade[u.id]}`).join(', ');
+
+        // Distingue lotação de cota: dizer "sem posição" mostrando "Morumbi
+        // 3/10" faria o Planejamento procurar o problema no lugar errado.
+        const detalhe = unidades.map(u => {
+          const lotada = !temLugar(u.id);
+          const limite = cotaDe(u.id, colab.equipeId, dowDoDia);
+          const barrouCota = !lotada && limite !== null && (porEquipe[u.id][colab.equipeId] ?? 0) >= limite;
+          const base = `${u.nome} ${ocupacao[data][u.id]}/${capacidade[u.id]}`;
+          return barrouCota ? `${base} — cota da equipe cheia (${limite})` : base;
+        }).join(', ');
+
+        const soPorCota = unidades.some(u => {
+          const limite = cotaDe(u.id, colab.equipeId, dowDoDia);
+          return temLugar(u.id) && limite !== null && (porEquipe[u.id][colab.equipeId] ?? 0) >= limite;
+        });
+
         conflitos.push({
           nivel: 'erro', colaboradorId: colab.id, colaborador: colab.nome, data,
-          msg: `Sem posição disponível em nenhuma unidade (${detalhe}). Alocado como Trabalho Externo.`,
+          msg: soPorCota
+            ? `Há lugar físico, mas a cota da equipe está cheia em toda unidade elegível (${detalhe}). Alocado como Trabalho Externo.`
+            : `Sem posição disponível em nenhuma unidade (${detalhe}). Alocado como Trabalho Externo.`,
         });
       }
     }

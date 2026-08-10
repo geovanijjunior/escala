@@ -7,8 +7,8 @@ import { DIAS_ABREV, dowDeIso, formatarData } from '@/lib/domain/escalas/datas';
 import { REGRAS_MOTOR } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import {
-  removerCapacidade, removerFeriado, salvarCapacidade, salvarEquipe, salvarFeriado, salvarParametros,
-  salvarUnidade,
+  removerCapacidade, removerCotaEquipe, removerFeriado, salvarCapacidade, salvarCotaEquipe,
+  salvarEquipe, salvarFeriado, salvarParametros, salvarUnidade,
 } from '@/app/actions-cadastros';
 import { Abas, Aviso, Badge, Bloco, Vazio } from '@/components/Ui';
 import { Volta } from '@/components/Volta';
@@ -21,7 +21,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
   if (sessao.papel !== 'planejamento') redirect('/');
 
   const supabase = await createClient();
-  const [unidades, equipes, config, feriados, logs, capRes, perfisRes] = await Promise.all([
+  const [unidades, equipes, config, feriados, logs, capRes, perfisRes, cotaRes] = await Promise.all([
     listarUnidades(),
     listarEquipes(),
     getConfig(sessao.conta.id),
@@ -29,9 +29,11 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
     listarLogs(50),
     supabase.from('capacidades').select('*'),
     supabase.from('perfis').select('id, nome, papel').order('nome'),
+    supabase.from('cotas_equipe').select('*'),
   ]);
   const capacidades = (capRes.data ?? []) as { id: number; unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
   const perfis = (perfisRes.data ?? []) as { id: string; nome: string; papel: string | null }[];
+  const cotas = (cotaRes.data ?? []) as { id: number; unidade_id: number; equipe_id: number; dow: number | null; limite: number }[];
 
   const aba = texto(busca, 'aba') || 'unidades';
   const href = (a: string) => `/parametros${comFiltros(busca, { aba: a })}`;
@@ -269,6 +271,96 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   Marque quantos dias quiser — todos recebem os mesmos valores de uma vez.
                   Total em branco mantém a capacidade padrão da unidade, para quando só as reservadas mudam.
                   Salvar de novo um dia já cadastrado substitui o valor anterior; para voltar ao padrão, use <strong style={{ color: 'var(--text)' }}>Remover</strong> na linha.
+                </p>
+              </form>
+            </Bloco>
+          )}
+
+          {unidades.length > 0 && equipes.length > 0 && (
+            <Bloco
+              id="bloco-cotas"
+              titulo="Cota de posições por equipe"
+              desc="Reparte as posições de uma unidade entre as equipes: no Morumbi, 5 para técnicos 12x36 e 3 para analistas. Equipe sem cota aqui não tem teto próprio — só a capacidade da unidade a limita."
+            >
+              <div className="overflow-x-auto">
+                <table className="esc-tabela">
+                  <thead>
+                    <tr>
+                      <th>Unidade</th><th>Equipe</th><th>Quando</th>
+                      <th className="text-right">Até</th><th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cotas.length === 0 && (
+                      <tr><td colSpan={5} className="text-center py-6" style={{ color: 'var(--muted)' }}>
+                        Nenhuma cota — qualquer equipe pode ocupar qualquer posição livre.
+                      </td></tr>
+                    )}
+                    {cotas
+                      .slice()
+                      .sort((a, b) => a.unidade_id - b.unidade_id || a.equipe_id - b.equipe_id || (a.dow ?? -1) - (b.dow ?? -1))
+                      .map(c => (
+                        <tr key={c.id}>
+                          <td>{unidades.find(u => u.id === c.unidade_id)?.nome ?? '—'}</td>
+                          <td className="font-medium">{equipes.find(e => e.id === c.equipe_id)?.nome ?? '—'}</td>
+                          <td style={{ color: 'var(--muted)' }}>
+                            {c.dow === null ? 'Todos os dias' : `Toda ${DIAS_ABREV[c.dow].toLowerCase()}`}
+                          </td>
+                          <td className="text-right esc-num font-semibold">{c.limite}</td>
+                          <td className="text-right">
+                            <form action={removerCotaEquipe} className="inline">
+                              <Volta busca={busca} ancora="bloco-cotas" />
+                              <input type="hidden" name="id" value={c.id} />
+                              <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
+                            </form>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <form action={salvarCotaEquipe} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
+                <Volta busca={busca} ancora="bloco-cotas" />
+                <label className="block">
+                  <span className="esc-rotulo">Unidade</span>
+                  <select name="unidadeId" required className="esc-input w-44">
+                    {unidades.map(u => (
+                      <option key={u.id} value={u.id}>{u.paiId !== null ? `↳ ${u.nome}` : u.nome}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="esc-rotulo">Equipe</span>
+                  <select name="equipeId" required className="esc-input w-48">
+                    {equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                  </select>
+                </label>
+                <fieldset className="block">
+                  <legend className="esc-rotulo">Dias da semana</legend>
+                  <div className="flex gap-1">
+                    {UTEIS.map(d => (
+                      <label
+                        key={d}
+                        className="flex items-center gap-1.5 px-2 py-[7px] rounded-md border cursor-pointer text-[12px] select-none"
+                        style={{ borderColor: 'var(--line-2)' }}
+                      >
+                        <input type="checkbox" name="dow" value={d} />
+                        {DIAS_ABREV[d]}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <label className="block">
+                  <span className="esc-rotulo">Até quantas pessoas</span>
+                  <input type="number" name="limite" min={0} required className="esc-input w-32 esc-num" />
+                </label>
+                <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar cota</button>
+                <p className="text-[11.5px] w-full" style={{ color: 'var(--muted)' }}>
+                  Nenhum dia marcado significa <strong style={{ color: 'var(--text)' }}>todos os dias</strong>; marcar um dia
+                  cria uma exceção que vence a cota geral naquele dia. Quando as cotas de uma unidade somam a capacidade
+                  livre dela, o teto vira garantia: um analista deixa de ocupar o lugar que sobrou de técnico.
+                  Num posto interno a cota conta também na unidade que o contém.
                 </p>
               </form>
             </Bloco>

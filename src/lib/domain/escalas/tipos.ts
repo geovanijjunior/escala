@@ -108,6 +108,26 @@ export interface CapacidadeOverride {
   reservadas: number;
 }
 
+/**
+ * Teto de pessoas de uma equipe numa unidade — "no Morumbi cabem 5 técnicos
+ * 12x36 e 3 analistas".
+ *
+ * `dow` nulo vale para todos os dias; um dia da semana específico tem
+ * precedência sobre o geral. Par (unidade, equipe) sem cota não tem teto
+ * próprio: só a capacidade da unidade limita, então quem não precisa da regra
+ * não cadastra nada.
+ *
+ * É um teto, não uma reserva ociosa. Quando as cotas somam a capacidade livre
+ * da unidade, o teto vira garantia na prática: se os analistas já bateram 3, um
+ * quarto analista não ocupa o lugar que sobrou de técnico.
+ */
+export interface CotaEquipe {
+  unidadeId: number;
+  equipeId: number;
+  dow: number | null;
+  limite: number;
+}
+
 export interface Pin {
   colaboradorId: number;
   data: string;
@@ -149,10 +169,13 @@ export interface GerarEscalaInput {
   /** 0-11, como em Date. */
   mes: number;
   unidades: Unidade[];
+  /** Só id e nome interessam ao motor — o nome entra nas mensagens de conflito. */
+  equipes: { id: number; nome: string }[];
   colaboradores: Colaborador[];
   planos: PlanoMensal[];
   ausencias: Ausencia[];
   capacidades: CapacidadeOverride[];
+  cotasEquipe: CotaEquipe[];
   feriados: Record<string, string>;
   pins: Pin[];
   /** Mês âncora do ciclo 12x36 no formato YYYY-MM-DD (dia 1º). */

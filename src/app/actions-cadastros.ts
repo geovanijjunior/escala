@@ -327,3 +327,79 @@ export async function salvarParametros(formData: FormData) {
   revalidatePath('/', 'layout');
   voltar(PARAMS, formData);
 }
+
+/* ============================================================
+   COTA DE POSIÇÕES POR EQUIPE
+   ============================================================ */
+
+/**
+ * Teto de pessoas de uma equipe numa unidade — "no Morumbi cabem 5 técnicos
+ * 12x36 e 3 analistas".
+ *
+ * Aceita vários dias da semana de uma vez, e "todos os dias" quando nenhum é
+ * marcado. Salvar de novo o mesmo par substitui o valor: os índices únicos do
+ * banco são parciais, então o upsert do PostgREST não os alcança e o caminho é
+ * apagar antes de inserir.
+ */
+export async function salvarCotaEquipe(formData: FormData) {
+  const sessao = await getSessao();
+  exigirPlanejamento(sessao.papel, PARAMS);
+
+  const unidadeId = Number(formData.get('unidadeId'));
+  const equipeId = Number(formData.get('equipeId'));
+  const limiteBruto = texto(formData, 'limite');
+  const dows = formData.getAll('dow')
+    .map(v => Number(v))
+    .filter(n => Number.isInteger(n) && n >= 0 && n <= 6);
+
+  if (!unidadeId || !equipeId) voltarComErro(PARAMS, formData, 'Escolha a unidade e a equipe.');
+  const limite = Number(limiteBruto);
+  if (limiteBruto === '' || !Number.isInteger(limite) || limite < 0) {
+    voltarComErro(PARAMS, formData, 'Informe a cota como um número inteiro de posições (0 impede a equipe de usar a unidade).');
+  }
+
+  const supabase = await createClient();
+  const [{ data: unidade }, { data: equipe }] = await Promise.all([
+    supabase.from('unidades').select('nome, capacidade_total, capacidade_reservadas').eq('id', unidadeId).single(),
+    supabase.from('equipes').select('nome').eq('id', equipeId).single(),
+  ]);
+  if (!unidade || !equipe) voltarComErro(PARAMS, formData, 'Unidade ou equipe não encontrada.');
+
+  const operacionais = unidade.capacidade_total - unidade.capacidade_reservadas;
+  if (limite > operacionais) {
+    voltarComErro(PARAMS, formData, `A cota de ${limite} passa das ${operacionais} posições operacionais de ${unidade.nome}.`);
+  }
+
+  const filtro = supabase.from('cotas_equipe').delete().eq('unidade_id', unidadeId).eq('equipe_id', equipeId);
+  await (dows.length > 0 ? filtro.in('dow', dows) : filtro.is('dow', null));
+
+  const base = { conta_id: sessao.conta.id, unidade_id: unidadeId, equipe_id: equipeId, limite };
+  const linhas: (typeof base & { dow: number | null })[] = dows.length > 0
+    ? dows.map(dow => ({ ...base, dow }))
+    : [{ ...base, dow: null }];
+
+  const { error } = await supabase.from('cotas_equipe').insert(linhas);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a cota: ${error.message}`);
+
+  const quando = dows.length > 0 ? dows.map(d => DIAS_ABREV[d]).join(', ') : 'todos os dias';
+  await registrarLog(sessao, 'Cota por equipe ajustada', `${equipe.nome} em ${unidade.nome} · ${quando} · até ${limite}`);
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData);
+}
+
+/** Remove a cota: a equipe volta a ser limitada só pela capacidade da unidade. */
+export async function removerCotaEquipe(formData: FormData) {
+  const sessao = await getSessao();
+  exigirPlanejamento(sessao.papel, PARAMS);
+
+  const id = Number(formData.get('id'));
+  if (!id) voltarComErro(PARAMS, formData, 'Cota inválida.');
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('cotas_equipe').delete().eq('id', id);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a cota: ${error.message}`);
+
+  await registrarLog(sessao, 'Cota por equipe removida', `#${id}`);
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData);
+}

@@ -165,6 +165,7 @@ export interface ContextoMes {
   planos: PlanoMensal[];
   ausencias: Ausencia[];
   capacidades: { unidadeId: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
+  cotasEquipe: { unidadeId: number; equipeId: number; dow: number | null; limite: number }[];
   feriados: Record<string, string>;
   pins: { colaboradorId: number; data: string; modalidade: Modalidade; unidadeId: number | null }[];
   config: ConfigEscalas;
@@ -176,7 +177,7 @@ export async function carregarContextoMes(competencia: string, contaId: string):
   const primeiro = competencia;
   const ultimo = iso(ano, mes, diasNoMes(ano, mes));
 
-  const [unidades, equipes, colaboradores, config, planosRes, ausRes, capRes, ferRes, pinRes] = await Promise.all([
+  const [unidades, equipes, colaboradores, config, planosRes, ausRes, capRes, cotaRes, ferRes, pinRes] = await Promise.all([
     listarUnidades(),
     listarEquipes(),
     listarColaboradores(),
@@ -192,6 +193,7 @@ export async function carregarContextoMes(competencia: string, contaId: string):
       .lte('inicio', ultimo)
       .gte('inicio', addDias(primeiro, -365)),
     supabase.from('capacidades').select('*'),
+    supabase.from('cotas_equipe').select('*'),
     supabase.from('feriados').select('data, nome').gte('data', primeiro).lte('data', ultimo),
     supabase.from('pins').select('*').gte('data', primeiro).lte('data', ultimo),
   ]);
@@ -213,6 +215,8 @@ export async function carregarContextoMes(competencia: string, contaId: string):
     ausencias,
     capacidades: ((capRes.data ?? []) as { unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[])
       .map(c => ({ unidadeId: c.unidade_id, dow: c.dow, data: c.data, total: c.total, reservadas: c.reservadas })),
+    cotasEquipe: ((cotaRes.data ?? []) as { unidade_id: number; equipe_id: number; dow: number | null; limite: number }[])
+      .map(c => ({ unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, limite: c.limite })),
     feriados: Object.fromEntries(((ferRes.data ?? []) as { data: string; nome: string }[]).map(f => [f.data, f.nome])),
     pins: ((pinRes.data ?? []) as { colaborador_id: number; data: string; modalidade: Modalidade; unidade_id: number | null }[])
       .map(p => ({ colaboradorId: p.colaborador_id, data: p.data, modalidade: p.modalidade, unidadeId: p.unidade_id })),
@@ -225,10 +229,12 @@ export function simular(ctx: ContextoMes, pinsExtras: ContextoMes['pins'] = []):
     ano: ctx.ano,
     mes: ctx.mes,
     unidades: ctx.unidades,
+    equipes: ctx.equipes,
     colaboradores: ctx.colaboradores,
     planos: ctx.planos,
     ausencias: ctx.ausencias,
     capacidades: ctx.capacidades,
+    cotasEquipe: ctx.cotasEquipe,
     feriados: ctx.feriados,
     pins: [...ctx.pins, ...pinsExtras],
     cicloAncora: ctx.config.cicloAncora,

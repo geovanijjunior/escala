@@ -61,24 +61,26 @@ A precedência, documentada em `REGRAS_MOTOR` e exibida na própria interface:
 5. Home office fixo
 6. Unidade fixa por dia da semana
 7. Capacidade da unidade
-8. Cota semanal de home office
-9. Distribuição percentual (maior resto)
-10. Preferência de home office
-11. Balanceamento e cobertura mínima
+8. Cota de posições por equipe
+9. Cota semanal de home office
+10. Distribuição percentual (maior resto)
+11. Preferência de home office
+12. Balanceamento e cobertura mínima
 
-As sete primeiras são rígidas e nunca são violadas; as demais são otimizadas no
+As nove primeiras são rígidas e nunca são violadas; as demais são otimizadas no
 que sobra.
 
-Rode `npm test` para as 27 asserções do motor: regimes, ciclo 12x36, cotas,
-capacidade, travas, ausências entre meses e determinismo.
+Rode `npm test` para as 43 asserções do motor: regimes, ciclo 12x36, cotas de
+home office e de equipe, capacidade, sub-unidades, travas, ausências entre meses
+e determinismo.
 
 ## Rodando localmente
 
 ### 1. Crie o projeto no Supabase
 
 Em [supabase.com](https://supabase.com), crie um projeto. Em **SQL Editor**,
-rode os arquivos de `supabase/migrations/` na ordem numérica (0001, depois
-0002) — o segundo depende do primeiro. Abra cada arquivo, copie o **conteúdo
+rode os arquivos de `supabase/migrations/` na ordem numérica (0001, 0002, 0003,
+0004) — cada um depende dos anteriores. Abra cada arquivo, copie o **conteúdo
 inteiro** e cole no editor; o nome do arquivo não é o comando.
 
 Em **Authentication → Providers**, deixe **Email** habilitado. Para testar sem
@@ -123,7 +125,8 @@ organização com você como Planejamento.
 Cada organização é uma **conta**. `perfis` pertencem a uma conta e têm um
 `papel`. Todas as tabelas do domínio — `unidades`, `equipes`, `colaboradores`,
 `planos`, `ausencias`, `geracoes`, `alocacoes`, `pins`, `solicitacoes`,
-`ocorrencias`, `logs` — são isoladas por `conta_id` via Row Level Security.
+`cotas_equipe`, `ocorrencias`, `logs` — são isoladas por `conta_id` via Row
+Level Security.
 
 O recorte por papel também é do banco, não da tela: o gestor lê apenas
 colaboradores das equipes que gerencia, o colaborador lê apenas a própria linha,
@@ -144,6 +147,14 @@ terceiro e escrita na escala por quem não é Planejamento.
 
 - **Unidades são dados, não código.** A conta cadastra quantas quiser, com cor,
   sigla e capacidade próprias; o rateio por maior resto funciona para N unidades.
+- **Sub-unidade é posto, não vizinha.** O Corpo Clínico dentro do Morumbi ocupa
+  lugar nos dois: quem atende os médicos está usando cadeira no prédio. Por isso
+  o prédio cheio bloqueia o posto mesmo com vaga nele. Hierarquia de um nível,
+  garantida por trigger.
+- **Cota por equipe é teto, não reserva ociosa.** Quando as cotas de uma unidade
+  somam a capacidade livre, o teto vira garantia — um analista não ocupa o lugar
+  que sobrou de técnico. Quem quer só limitar deixa folga; quem quer garantir faz
+  as cotas fecharem o total.
 - **Alocação normalizada**: uma linha por (pessoa, dia), com modalidade e unidade
   em colunas separadas. "Quem está no Morumbi dia 12" é uma consulta SQL.
 - **Ausência pertence à pessoa, não ao mês.** Um período que começa em um mês e
