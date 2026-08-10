@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { getSessao } from '@/lib/sessao';
+import { listarNotificacoes } from '@/lib/data/escalas';
+import { Notificacoes } from '@/components/Notificacoes';
 import { createClient } from '@/lib/supabase/server';
 import { NavEscalas, type GrupoNav } from '@/components/NavEscalas';
 import { ROTULO_PAPEL } from '@/lib/supabase/types';
@@ -36,7 +38,10 @@ async function contarPendencias(papel: string, usuarioId: string): Promise<numbe
 
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const sessao = await getSessao();
-  const pendentes = await contarPendencias(sessao.papel, sessao.usuario.id);
+  const [pendentes, notificacoes] = await Promise.all([
+    contarPendencias(sessao.papel, sessao.usuario.id),
+    listarNotificacoes(sessao.usuario.id, sessao.usuario.notificacoes_vistas_em),
+  ]);
 
   const grupos: GrupoNav[] =
     sessao.papel === 'colaborador'
@@ -96,7 +101,12 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
             </div>
           </Link>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <Notificacoes
+              itens={notificacoes.itens}
+              naoLidas={notificacoes.naoLidas}
+              rota="/"
+            />
             <div className="text-right leading-tight hidden sm:block">
               <div className="text-[11.5px] font-semibold">{sessao.usuario.nome}</div>
               <div className="text-[9.5px] text-white/50 uppercase tracking-wider">{ROTULO_PAPEL[sessao.papel]}</div>

@@ -15,6 +15,8 @@ export interface PerfilUsuario {
   papel: PapelEscalas;
   precisa_trocar_senha: boolean;
   bloqueado: boolean;
+  /** Instante da última vez que a pessoa abriu o sino de notificações. */
+  notificacoes_vistas_em: string;
   criado_em: string;
 }
 

@@ -173,14 +173,20 @@ terceiro e escrita na escala por quem não é Planejamento.
 - **Aprovar uma solicitação altera a escala**: troca de unidade, troca de
   plantão, folga e férias gravam a trava e ajustam a alocação do dia — e a trava
   sobrevive à próxima regeração.
+- **Notificações sem tabela de notificações.** O sino do cabeçalho é derivado de
+  `solicitacao_eventos`, que já registra cada passo com autor e horário. Quem
+  deve receber o quê já está resolvido pela RLS daquela tabela: o colaborador vê
+  os eventos dos próprios pedidos e das trocas em que é parceiro, o gestor os da
+  equipe, o planejamento os da conta. Uma tabela de notificações seria uma
+  segunda fonte de verdade a manter em sincronia. Só o estado de leitura é
+  gravado, como um instante em `perfis.notificacoes_vistas_em`.
 - **Estado de navegação na URL**: mês, filtros, dia aberto e aba vivem na query
   string, então o botão voltar funciona e dá para compartilhar o link de um dia.
 
 ## O que ainda não existe
 
-Notificações por e-mail ou push na promoção da fila e nas mudanças de status: a
-interface indica quando algo aguarda resposta, mas nada é disparado para fora do
-sistema. Importação de colaboradores por planilha e exportação em PDF também não
+Notificações por e-mail ou push: o sino no cabeçalho avisa dentro do sistema, mas
+nada é disparado para fora dele. Importação de colaboradores por planilha e exportação em PDF também não
 foram implementadas — a exportação disponível é CSV (separador `;` e BOM UTF-8,
 que é o que o Excel em português abre sem embaralhar acento).
 

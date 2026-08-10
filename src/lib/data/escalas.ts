@@ -384,3 +384,73 @@ export async function listarCompetencias(): Promise<string[]> {
   for (const g of (geracoes.data ?? []) as { competencia: string }[]) set.add(g.competencia);
   return [...set].sort();
 }
+
+/* ============================================================
+   Notificações
+   ============================================================ */
+
+export interface Notificacao {
+  id: number;
+  solicitacaoId: number;
+  etapa: string;
+  detalhe: string;
+  porNome: string;
+  em: string;
+  tipo: string;
+  data: string;
+  colaboradorNome: string;
+  naoLida: boolean;
+}
+
+/**
+ * O que mudou desde a última vez que a pessoa olhou.
+ *
+ * O direcionamento é da RLS: a policy de `solicitacao_eventos` já entrega só os
+ * eventos que este papel pode ver — os próprios pedidos e trocas para o
+ * colaborador, a equipe para o gestor, a conta para o planejamento. Por isso a
+ * consulta não filtra por destinatário: não existe destinatário a filtrar.
+ *
+ * Eventos causados pela própria pessoa ficam de fora — ninguém precisa ser
+ * avisado do que acabou de fazer.
+ */
+export async function listarNotificacoes(
+  usuarioId: string,
+  vistasEm: string,
+  limite = 20,
+): Promise<{ itens: Notificacao[]; naoLidas: number }> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('solicitacao_eventos')
+    // `colaboradores` sem dica seria ambíguo: solicitacoes aponta para essa
+    // tabela duas vezes (colaborador_id e parceiro_id), e o PostgREST recusaria
+    // a consulta inteira — no cabeçalho, isso derrubaria todas as páginas. O
+    // nome da constraint foi conferido em pg_constraint.
+    .select(
+      'id, solicitacao_id, etapa, detalhe, por_id, por_nome, em, '
+      + 'solicitacoes(tipo, data, colaboradores!solicitacoes_colaborador_id_fkey(nome))'
+    )
+    .neq('por_id', usuarioId)
+    .order('em', { ascending: false })
+    .limit(limite);
+
+  type Linha = {
+    id: number; solicitacao_id: number; etapa: string; detalhe: string;
+    por_nome: string; em: string;
+    solicitacoes: { tipo: string; data: string; colaboradores: { nome: string } | null } | null;
+  };
+
+  const itens = ((data ?? []) as unknown as Linha[]).map(e => ({
+    naoLida: e.em > vistasEm,
+    id: e.id,
+    solicitacaoId: e.solicitacao_id,
+    etapa: e.etapa,
+    detalhe: e.detalhe,
+    porNome: e.por_nome,
+    em: e.em,
+    tipo: e.solicitacoes?.tipo ?? '',
+    data: e.solicitacoes?.data ?? '',
+    colaboradorNome: e.solicitacoes?.colaboradores?.nome ?? '',
+  }));
+
+  return { itens, naoLidas: itens.filter(i => i.naoLida).length };
+}
