@@ -119,7 +119,7 @@ export async function abrirSolicitacao(formData: FormData) {
 
 type Acao =
   | 'ACEITAR_PARCEIRO' | 'RECUSAR_PARCEIRO'
-  | 'ENCAMINHAR' | 'FILA' | 'PROMOVER' | 'RECUSAR_TRIAGEM'
+  | 'ENCAMINHAR' | 'FILA' | 'PROMOVER' | 'RECUSAR_TRIAGEM' | 'APROVAR_TRIAGEM'
   | 'APROVAR' | 'RECUSAR_GESTOR';
 
 /** Transições permitidas: de onde parte, para onde vai e quem pode acionar. */
@@ -130,6 +130,10 @@ const TRANSICOES: Record<Acao, { de: string[]; para: string; etapa: string; exig
   FILA: { de: ['TRIAGEM'], para: 'FILA', etapa: 'Enviada para a lista de espera', exigeMotivo: false },
   PROMOVER: { de: ['FILA'], para: 'GESTOR', etapa: 'Promovida da lista de espera', exigeMotivo: false },
   RECUSAR_TRIAGEM: { de: ['TRIAGEM'], para: 'RECUSADA', etapa: 'Recusada na triagem', exigeMotivo: true },
+  // Aprovar sem passar pelo gestor. É prerrogativa só do Planejamento: se o
+  // gestor pudesse fazê-lo, ele estaria decidindo antes de a triagem escolher
+  // se o caso é dele — e o encaminhamento deixaria de significar alguma coisa.
+  APROVAR_TRIAGEM: { de: ['TRIAGEM'], para: 'APROVADA', etapa: 'Aprovada na triagem', exigeMotivo: false },
   APROVAR: { de: ['GESTOR'], para: 'APROVADA', etapa: 'Aprovada pelo gestor', exigeMotivo: false },
   RECUSAR_GESTOR: { de: ['GESTOR'], para: 'RECUSADA', etapa: 'Recusada pelo gestor', exigeMotivo: true },
 };
@@ -186,7 +190,7 @@ export async function decidirSolicitacao(formData: FormData) {
   if (acao === 'PROMOVER' || regra.para === 'RECUSADA' || regra.para === 'APROVADA') patch.posicao_fila = null;
 
   let resumoEfeito = '';
-  if (acao === 'APROVAR') {
+  if (acao === 'APROVAR' || acao === 'APROVAR_TRIAGEM') {
     resumoEfeito = await aplicarNaEscala(sessao, s, volta);
     patch.aplicada = resumoEfeito !== '';
   }

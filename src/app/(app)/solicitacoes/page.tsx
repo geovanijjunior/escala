@@ -215,6 +215,13 @@ function Cartao({
                 <input type="hidden" name="acao" value="ENCAMINHAR" />
                 <button type="submit" className="esc-btn esc-btn-sm">Encaminhar ao gestor</button>
               </form>
+              {/* Aprovar direto: nem todo pedido precisa da decisão do gestor, e
+                  encaminhar o que já está resolvido só atrasa a resposta. */}
+              <form action={decidirSolicitacao}>
+                <input type="hidden" name="id" value={s.id} />
+                <input type="hidden" name="acao" value="APROVAR_TRIAGEM" />
+                <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Aprovar direto</button>
+              </form>
               {tipo.fila && (
                 <form action={decidirSolicitacao}>
                   <input type="hidden" name="id" value={s.id} />
@@ -223,6 +230,12 @@ function Cartao({
                 </form>
               )}
               <FormRecusa id={s.id} acao="RECUSAR_TRIAGEM" rotulo="Recusar na triagem" />
+              <span className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
+                <strong style={{ color: 'var(--text)' }}>Aprovar direto</strong> encerra o pedido sem passar pelo gestor
+                {['TROCA_UNIDADE', 'TROCA_HORARIO', 'FOLGA', 'FERIAS'].includes(s.tipo)
+                  ? ' e já altera a escala do dia, travando a alocação.'
+                  : '. Este tipo não altera a escala — vale como registro formal.'}
+              </span>
             </>
           )}
 
