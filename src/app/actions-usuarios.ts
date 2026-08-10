@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
+import { mensagemErroAuth } from '@/lib/erros-auth';
 import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
 
 const VOLTA = '/usuarios';
@@ -55,7 +56,7 @@ export async function convidarUsuario(formData: FormData) {
     user_metadata: { nome, papel, conta_id: sessao.conta.id, precisa_trocar_senha: true },
   });
 
-  if (error) erro(error.message);
+  if (error) erro(mensagemErroAuth(error));
 
   await registrarLog(sessao, 'Usuário criado', `${nome} (${email}) · ${papel}`);
   revalidatePath(VOLTA);

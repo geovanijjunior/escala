@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { mensagemErroAuth } from '@/lib/erros-auth';
 
 export async function entrar(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim();
@@ -11,9 +12,16 @@ export async function entrar(formData: FormData) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
 
-  // Mensagem única para e-mail inexistente e senha errada: dizer qual dos dois
-  // falhou entrega a quem tenta adivinhar quais e-mails existem na base.
-  if (error || !data.user) redirect('/login?erro=' + encodeURIComponent('E-mail ou senha incorretos.'));
+  // Credencial errada tem mensagem única para e-mail inexistente e senha errada:
+  // dizer qual dos dois falhou entrega a quem tenta adivinhar quais e-mails
+  // existem na base. Erros de configuração e de limite não têm esse risco e
+  // precisam aparecer como são, ou viram "senha errada" e ninguém acha a causa.
+  if (error || !data.user) {
+    const credencialInvalida = !error || error.code === 'invalid_credentials'
+      || /invalid login credentials/i.test(error.message ?? '');
+    const msg = credencialInvalida ? 'E-mail ou senha incorretos.' : mensagemErroAuth(error);
+    redirect('/login?erro=' + encodeURIComponent(msg));
+  }
 
   const { data: perfil } = await supabase.from('perfis').select('bloqueado').eq('id', data.user.id).single();
   if (!perfil) {
@@ -45,14 +53,25 @@ export async function cadastrar(formData: FormData) {
   if (senha.length < 8) volta('A senha precisa ter ao menos 8 caracteres.');
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password: senha,
     // O trigger handle_novo_usuario lê estes campos para criar a conta.
     options: { data: { nome, organizacao } },
   });
 
-  if (error) volta(error.message);
+  if (error) volta(mensagemErroAuth(error));
+
+  // Com "Confirm email" ligado o cadastro dá certo mas não abre sessão: o
+  // Supabase espera o clique num link. Sem este aviso o usuário seria mandado
+  // para "/", o proxy o devolveria ao login e ele não saberia o que houve.
+  if (!data.session) {
+    volta(
+      'A organização foi criada, mas o Supabase está exigindo confirmação por e-mail e este sistema não envia esse link. ' +
+      'Desative "Confirm email" em Authentication → Sign In / Providers → Email e entre pela tela de login.'
+    );
+  }
+
   redirect('/');
 }
 
