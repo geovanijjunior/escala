@@ -41,8 +41,8 @@ Um perfil tem exatamente um papel, e ele é a única dimensão de permissão:
 | **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, aprovar/recusar o que chega até ele, lançar ocorrências |
 | **Colaborador** | Só a si mesmo | Consultar a própria escala publicada, abrir solicitações, aceitar/recusar convites de troca |
 
-Quem cria a organização entra como Planejamento. Os demais entram por convite,
-com o papel definido no cadastro do colaborador.
+Quem cria a organização entra como Planejamento. Os demais são criados na tela
+de **Usuários**, com o papel definido ali.
 
 ## Como o motor decide
 
@@ -105,12 +105,17 @@ organização com você como Planejamento.
 
 1. Em **Parâmetros**, cadastre as **unidades** (capacidade total e posições
    reservadas), as **equipes** (regime e gestor) e os **feriados**.
-2. Em **Colaboradores**, cadastre as pessoas e vincule cada uma ao usuário do
-   sistema correspondente — é esse vínculo que faz "Minha escala" funcionar.
-3. Em **Planos do mês**, defina distribuição por unidade, unidades fixas por dia
+2. Em **Usuários**, crie o acesso das pessoas que vão operar o sistema. Cada uma
+   recebe uma senha temporária, mostrada uma única vez — entregue a ela.
+3. Em **Colaboradores**, cadastre as pessoas da escala e vincule cada uma ao
+   usuário do sistema pelo campo *Usuário do sistema*. É esse vínculo que faz
+   "Minha escala" mostrar os dias certos e que permite ao gestor ver a própria
+   equipe. Nem todo colaborador precisa de login, e nem todo usuário precisa
+   estar na escala.
+4. Em **Planos do mês**, defina distribuição por unidade, unidades fixas por dia
    da semana, home office, ciclo 12x36 e ausências. A geração fica bloqueada
    enquanto houver pendência.
-4. Em **Gerar escala**, simule, confirme e publique.
+5. Em **Gerar escala**, simule, confirme e publique.
 
 ## Modelo de dados
 
@@ -160,7 +165,44 @@ sistema. Importação de colaboradores por planilha e exportação em PDF també
 foram implementadas — a exportação disponível é CSV (separador `;` e BOM UTF-8,
 que é o que o Excel em português abre sem embaralhar acento).
 
-## Deploy (Vercel)
+## Colocando no ar
 
-Importe o repositório na [Vercel](https://vercel.com/new), configure as três
-variáveis do `.env.local` em Settings → Environment Variables, e faça o deploy.
+### Supabase (banco e autenticação)
+
+1. Crie um projeto em [supabase.com](https://supabase.com). Escolha a região
+   mais próxima dos usuários — `South America (São Paulo)`, se for o caso.
+2. Em **SQL Editor**, cole e rode `supabase/migrations/0001_init.sql`. Depois
+   `0002_escalas.sql`. Nessa ordem: o segundo depende das tabelas e dos helpers
+   do primeiro.
+3. Em **Authentication → Sign In / Providers**, mantenha **Email** habilitado e
+   desative **Confirm email**. O sistema cria os acessos pela tela de Usuários,
+   com senha temporária entregue em mãos — não há fluxo de confirmação por
+   e-mail, então deixá-lo ligado impede o primeiro login.
+4. Em **Authentication → URL Configuration**, ponha a URL do site em **Site
+   URL** depois que a Vercel te der o domínio.
+
+### Vercel (aplicação)
+
+1. Importe o repositório em [vercel.com/new](https://vercel.com/new). O
+   framework é detectado sozinho; não há nada para ajustar no build.
+2. Em **Settings → Environment Variables**, configure as três variáveis do
+   `.env.example`, com os valores de **Project Settings → API** do Supabase:
+
+   | Variável | Onde achar | Exposta ao navegador |
+   |---|---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | Project URL | sim |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / public key | sim |
+   | `SUPABASE_SERVICE_ROLE_KEY` | service_role key | **não** |
+
+   A `service_role` ignora toda a RLS. Ela é usada só em Server Actions, para
+   criar e bloquear logins. Nunca a prefixe com `NEXT_PUBLIC_` e nunca a
+   coloque em código do cliente.
+3. Faça o deploy. Cada `git push` na branch de produção republica o site.
+4. Acesse o domínio, clique em **Criar agora** e siga os primeiros passos acima.
+
+### Antes de usar para valer
+
+- Volte no Supabase e preencha o **Site URL** com o domínio da Vercel.
+- Faça um backup ou ative o *Point in Time Recovery* se o plano permitir.
+- Rode `supabase/tests/rls.sql` num banco de teste (nunca no de produção — ele
+  apaga a tabela `perfis`) sempre que mexer nas policies.

@@ -73,6 +73,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
             secao: 'Cadastros',
             itens: [
               { href: '/colaboradores', label: 'Colaboradores' },
+              { href: '/usuarios', label: 'Usuários' },
               { href: '/parametros', label: 'Parâmetros' },
             ],
           },
