@@ -307,22 +307,61 @@ const base = {
   }
 }
 
-// ── Home office distribuído pelo mês, não empilhado no mesmo dia
+// ── Home office: preferência manda, espalhamento desempata dentro dela
 {
-  const colaboradores = [1, 2, 3, 4, 5, 6].map(id => mkColab(id, { cargo: 'Analista Pl' }));
-  const planos = colaboradores.map(c => mkPlano(c.id, {
-    distribuicao: { 1: 100, 2: 0 },
-    homeOffice: { modo: 'COTA' as const, diasSemana: [], quantidade: 1, diasPreferencia: [5], diasProibidos: [] },
-  }));
-  const r = gerarEscala({ ...base, colaboradores, planos });
+  const semana = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14']; // seg..sex
+  const contaPorDia = (r: ReturnType<typeof gerarEscala>) =>
+    semana.map(d => r.alocacoes.filter(a => a.data === d && a.modalidade === 'HOME').length);
 
-  // Semana de 10 a 14 de agosto de 2026 (seg a sex), todos com 1 dia de cota.
-  const semana = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14'];
-  const porDia = semana.map(d => r.alocacoes.filter(a => a.data === d && a.modalidade === 'HOME').length);
-  const maior = Math.max(...porDia);
-  ok(maior <= 2, 'home office não empilha todos no mesmo dia', `distribuição: ${porDia.join('/')}`);
-  const total = porDia.reduce((a, b) => a + b, 0);
-  ok(total === 6, 'a cota de cada um foi atendida', String(total));
+  const seisComPreferencia = (diasPreferencia: number[]) => {
+    const colaboradores = [1, 2, 3, 4, 5, 6].map(id => mkColab(id, { cargo: 'Analista Pl' }));
+    return {
+      colaboradores,
+      planos: colaboradores.map(c => mkPlano(c.id, {
+        distribuicao: { 1: 100, 2: 0 },
+        homeOffice: { modo: 'COTA' as const, diasSemana: [], quantidade: 1, diasPreferencia, diasProibidos: [] },
+      })),
+    };
+  };
+
+  // Todos preferem sexta: todos vão na sexta. A preferência é a regra primária e
+  // NÃO é sacrificada para espalhar.
+  {
+    const r = gerarEscala({ ...base, ...seisComPreferencia([5]) });
+    const porDia = contaPorDia(r);
+    ok(porDia[4] === 6, 'preferência única é respeitada mesmo concentrando', `distribuição: ${porDia.join('/')}`);
+  }
+
+  // Sem preferência marcada: aí sim o espalhamento decide sozinho.
+  {
+    const r = gerarEscala({ ...base, ...seisComPreferencia([]) });
+    const porDia = contaPorDia(r);
+    ok(Math.max(...porDia) <= 2, 'sem preferência, o motor espalha', `distribuição: ${porDia.join('/')}`);
+    ok(porDia.reduce((a, b) => a + b, 0) === 6, 'a cota de cada um foi atendida', String(porDia.reduce((a, b) => a + b, 0)));
+  }
+
+  // Preferindo quinta e sexta: espalha entre os dois dias preferidos, e só eles.
+  {
+    const r = gerarEscala({ ...base, ...seisComPreferencia([4, 5]) });
+    const porDia = contaPorDia(r);
+    ok(porDia[0] + porDia[1] + porDia[2] === 0, 'nada fora dos dias preferidos', `distribuição: ${porDia.join('/')}`);
+    ok(porDia[3] === 3 && porDia[4] === 3, 'espalha entre os preferidos', `distribuição: ${porDia.join('/')}`);
+  }
+
+  // Dia proibido continua sendo barreira absoluta.
+  {
+    const colaboradores = [1, 2].map(id => mkColab(id));
+    const r = gerarEscala({
+      ...base,
+      colaboradores,
+      planos: colaboradores.map(c => mkPlano(c.id, {
+        distribuicao: { 1: 100, 2: 0 },
+        homeOffice: { modo: 'COTA' as const, diasSemana: [], quantidade: 1, diasPreferencia: [1], diasProibidos: [1] },
+      })),
+    });
+    const naSegunda = r.alocacoes.filter(a => a.data === '2026-08-10' && a.modalidade === 'HOME');
+    ok(naSegunda.length === 0, 'dia proibido vence a preferência', String(naSegunda.length));
+  }
 }
 
 // ── Prioridade: analista no home office, técnico na posição presencial

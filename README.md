@@ -63,14 +63,14 @@ A precedência, documentada em `REGRAS_MOTOR` e exibida na própria interface:
 7. Capacidade da unidade
 8. Cota de posições por equipe
 9. Cota semanal de home office
-10. Distribuição percentual (maior resto)
-11. Preferência de home office
+10. Preferência de home office (e espalhamento como desempate)
+11. Distribuição percentual (maior resto)
 12. Balanceamento e cobertura mínima
 
 As nove primeiras são rígidas e nunca são violadas; as demais são otimizadas no
 que sobra.
 
-Rode `npm test` para as 48 asserções do motor: regimes, ciclo 12x36, cotas de
+Rode `npm test` para as 52 asserções do motor: regimes, ciclo 12x36, cotas de
 home office e de equipe, capacidade, postos, prioridade por cargo, travas,
 ausências entre meses e determinismo.
 
@@ -151,9 +151,11 @@ terceiro e escrita na escala por quem não é Planejamento.
   quem o cobre ocupa uma posição normal do Morumbi e a escala só registra o que
   a pessoa faz ali. Por isso capacidade e rateio não mudam. A cobertura é
   semanal e contígua — 5 dias é a semana inteira, 3 é de segunda a quarta.
-- **Home office é distribuído, não guloso.** A escolha dos dias é global: cada
-  pessoa com cota pega, por vez, o dia menos cheio da semana. Antes cada uma
-  pegava os próprios dias preferidos e meio time acabava em casa na sexta.
+- **Preferência de home office manda; o espalhamento desempata.** Quem marcou
+  sexta vai na sexta, ainda que isso concentre gente. O espalhamento age dentro
+  do que foi marcado — entre dois dias preferidos, ganha o menos cheio — e só
+  decide sozinho para quem não marcou preferência. Dia proibido continua sendo
+  barreira absoluta.
 - **Prioridade por cargo:** analista tem preferência no home office, técnico na
   posição presencial — é quem precisa estar perto do equipamento.
 - **Cota por equipe é teto, não reserva ociosa.** Quando as cotas de uma unidade

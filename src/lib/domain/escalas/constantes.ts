@@ -112,8 +112,8 @@ export const REGRAS_MOTOR: { n: number; titulo: string; desc: string; rigida: bo
   { n: 7, titulo: 'Capacidade da unidade', desc: 'Nunca aloca acima das posições operacionais (total menos reservadas). Quem ocupa um posto interno ocupa lugar também na unidade que o contém, então o prédio cheio bloqueia o posto. Quem não couber vira Trabalho Externo com conflito registrado.', rigida: true },
   { n: 8, titulo: 'Cota de posições por equipe', desc: 'Teto de pessoas de cada equipe por unidade, opcionalmente por dia da semana. Quando as cotas somam a capacidade livre, o teto vira garantia: a vaga de uma equipe não é ocupada por outra.', rigida: true },
   { n: 9, titulo: 'Cota semanal de home office', desc: 'A quantidade é rígida; o dia é flexível. Dias proibidos nunca são usados.', rigida: true },
-  { n: 10, titulo: 'Distribuição percentual', desc: 'Reparte os dias presenciais entre as unidades pelo método do maior resto, dentro da tolerância configurada.', rigida: false },
-  { n: 11, titulo: 'Preferência de home office', desc: 'Tenta usar os dias preferidos antes de qualquer outro dia elegível.', rigida: false },
+  { n: 10, titulo: 'Preferência de home office', desc: 'Regra primária na escolha do dia: quem marcou sexta vai na sexta. O espalhamento pelo mês age dentro do que foi marcado — entre dois dias preferidos, ganha o menos cheio — e só decide sozinho para quem não marcou preferência. Na disputa, analista escolhe antes de técnico.', rigida: false },
+  { n: 11, titulo: 'Distribuição percentual', desc: 'Reparte os dias presenciais entre as unidades pelo método do maior resto, dentro da tolerância configurada.', rigida: false },
   { n: 12, titulo: 'Balanceamento e cobertura', desc: 'Evita concentrar a mesma equipe numa unidade e avisa quando a cobertura mínima do dia não é atingida. A cobertura mínima só é cobrada das unidades principais.', rigida: false },
 ];
 

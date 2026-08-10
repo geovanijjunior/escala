@@ -318,17 +318,19 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // Regra 8 (escolha dos dias): espalha o home office pelo mês.
+  // Regra 8 (escolha dos dias): preferência manda, espalhamento desempata.
   //
-  // Antes cada pessoa pegava gulosamente os próprios dias preferidos, o que
-  // juntava meio time em casa na sexta e enchia a unidade na segunda. Agora a
-  // decisão é global: para cada semana, quem tem cota disputa os dias, e cada
-  // escolha vai para o dia MENOS carregado de home naquele momento. O empate
-  // usa a preferência da pessoa e, depois, o dia mais cedo.
+  // A preferência da pessoa é a regra primária — quem marcou sexta vai na
+  // sexta, mesmo que isso junte gente. O espalhamento age DENTRO do que ela
+  // marcou: entre dois dias preferidos, ganha o menos cheio. Só vira critério
+  // principal para quem não marcou preferência, ou quando nenhum dia preferido
+  // está disponível na semana.
   //
-  // A ordem de quem escolhe primeiro segue a prioridade por cargo: analista
-  // antes de técnico, porque o técnico é quem precisa estar perto do
-  // equipamento. Quem escolhe antes pega o dia mais vazio.
+  // A decisão é global e por rodadas. Servir a cota inteira de uma pessoa antes
+  // de passar à próxima daria os melhores dias a quem viesse primeiro, então a
+  // fila gira a cada dia atribuído. A ordem da fila segue a prioridade por
+  // cargo: analista antes de técnico, porque o técnico é quem precisa estar
+  // perto do equipamento.
   // ─────────────────────────────────────────────────────────────
   const homePorDia: Record<string, number> = Object.fromEntries(datas.map(d => [d, 0]));
   for (const c of colaboradores) {
@@ -367,11 +369,17 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
         });
         if (elegiveis.length === 0) continue;
 
-        const melhor = elegiveis.reduce((a, b) => {
+        // A preferência é a regra primária: se a pessoa marcou dias, a escolha
+        // sai de dentro deles, mesmo que isso concentre gente no mesmo dia.
+        // O espalhamento é o critério de desempate DENTRO da preferência — e
+        // vira o critério principal só para quem não marcou nada, ou quando
+        // nenhum dia preferido está disponível na semana.
+        const preferidos = elegiveis.filter(d =>
+          ho.diasPreferencia.includes(diaSemana(ano, mes, Number(d.slice(8)))));
+        const universo = preferidos.length > 0 ? preferidos : elegiveis;
+
+        const melhor = universo.reduce((a, b) => {
           if (homePorDia[a] !== homePorDia[b]) return homePorDia[a] < homePorDia[b] ? a : b;
-          const prefA = ho.diasPreferencia.includes(diaSemana(ano, mes, Number(a.slice(8))));
-          const prefB = ho.diasPreferencia.includes(diaSemana(ano, mes, Number(b.slice(8))));
-          if (prefA !== prefB) return prefA ? a : b;
           return a < b ? a : b;
         });
 
