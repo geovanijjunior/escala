@@ -17,6 +17,9 @@ export function NovaSolicitacao({
   const [tipo, setTipo] = useState(tipos[0]?.chave ?? '');
   const escolhido = tipos.find(t => t.chave === tipo);
 
+  // Férias e folga cobrem um período; os demais tipos são de um dia só.
+  const temPeriodo = tipo === 'FERIAS' || tipo === 'FOLGA';
+
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -28,9 +31,21 @@ export function NovaSolicitacao({
         </label>
 
         <label className="block">
-          <span className="esc-rotulo">Data de referência</span>
+          <span className="esc-rotulo">{temPeriodo ? 'Início' : 'Data de referência'}</span>
           <input type="date" name="data" required className="esc-input" />
         </label>
+
+        {temPeriodo && (
+          <label className="block">
+            <span className="esc-rotulo">Fim</span>
+            <input type="date" name="dataFim" className="esc-input" />
+            <span className="esc-ajuda mt-1 block">
+              {tipo === 'FERIAS'
+                ? 'O período inteiro entra na escala quando as férias forem aprovadas.'
+                : 'Vazio = só o dia de início.'}
+            </span>
+          </label>
+        )}
 
         {tipo === 'TROCA_HORARIO' && (
           <label className="block">

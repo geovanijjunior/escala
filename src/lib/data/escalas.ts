@@ -54,6 +54,8 @@ export interface Solicitacao {
   equipeId: number | null;
   tipo: TipoSolicitacao;
   data: string;
+  /** Fim do período, quando o tipo cobre mais de um dia (férias, folga longa). */
+  dataFim: string | null;
   detalhe: string;
   parceiroId: number | null;
   parceiroNome: string | null;
@@ -310,7 +312,7 @@ export async function listarSolicitacoes(): Promise<Solicitacao[]> {
     .order('criado_em', { ascending: false });
 
   type Linha = {
-    id: number; colaborador_id: number; tipo: TipoSolicitacao; data: string; detalhe: string;
+    id: number; colaborador_id: number; tipo: TipoSolicitacao; data: string; data_fim: string | null; detalhe: string;
     parceiro_id: number | null; aceite_parceiro: 'PENDENTE' | 'ACEITO' | 'RECUSADO' | null;
     unidade_desejada_id: number | null; status: StatusSolicitacao; posicao_fila: number | null;
     motivo_recusa: string | null; aplicada: boolean; criado_em: string;
@@ -326,6 +328,7 @@ export async function listarSolicitacoes(): Promise<Solicitacao[]> {
     equipeId: s.colaborador?.equipe_id ?? null,
     tipo: s.tipo,
     data: s.data,
+    dataFim: s.data_fim ?? null,
     detalhe: s.detalhe,
     parceiroId: s.parceiro_id,
     parceiroNome: s.parceiro?.nome ?? null,

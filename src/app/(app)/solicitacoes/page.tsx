@@ -86,7 +86,10 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
                 </span>
                 <span className="text-[12.5px] font-medium">{s.colaboradorNome}</span>
                 <span className="text-[12px]" style={{ color: 'var(--muted)' }}>
-                  {TIPOS_SOLICITACAO[s.tipo].label} · {formatarData(s.data)}
+                  {TIPOS_SOLICITACAO[s.tipo].label} ·{' '}
+                  {s.dataFim && s.dataFim !== s.data
+                    ? `${formatarData(s.data)} a ${formatarData(s.dataFim)}`
+                    : formatarData(s.data)}
                 </span>
                 {sessao.papel === 'planejamento' && (
                   <form action={decidirSolicitacao} className="ml-auto">
@@ -147,7 +150,9 @@ function Cartao({
 
   return (
     <Bloco
-      titulo={`${tipo.label} · ${formatarData(s.data)}`}
+      titulo={`${tipo.label} · ${s.dataFim && s.dataFim !== s.data
+        ? `${formatarData(s.data)} a ${formatarData(s.dataFim)}`
+        : formatarData(s.data)}`}
       desc={`${s.colaboradorNome}${equipeNome ? ` · ${equipeNome}` : ''} · aberta em ${formatarData(s.criadoEm.slice(0, 10))} · SLA de ${tipo.sla}h`}
       acoes={
         <>

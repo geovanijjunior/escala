@@ -7,7 +7,7 @@ import { getSessao, exigirAprovador, exigirPlanejamento, type Sessao } from '@/l
 import { registrarLog } from '@/lib/log';
 import { voltar } from '@/lib/volta';
 import { getGeracaoAtual } from '@/lib/data/escalas';
-import { addDias, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
+import { addDias, diffDias, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { TIPOS_SOLICITACAO, type TipoSolicitacao } from '@/lib/domain/escalas/constantes';
 import type { Modalidade } from '@/lib/domain/escalas/tipos';
 
@@ -47,6 +47,15 @@ export async function abrirSolicitacao(formData: FormData) {
 
   const data = String(formData.get('data') ?? '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) erro(volta, 'Informe a data de referência.');
+
+  // Férias e folga cobrem período; o banco recusa data_fim nos demais tipos.
+  const dataFimBruta = String(formData.get('dataFim') ?? '').trim();
+  const aceitaPeriodo = tipo === 'FERIAS' || tipo === 'FOLGA';
+  if (dataFimBruta && !aceitaPeriodo) erro(volta, 'Esse tipo de solicitação vale para um dia só.');
+  if (dataFimBruta && !/^\d{4}-\d{2}-\d{2}$/.test(dataFimBruta)) erro(volta, 'Data final inválida.');
+  if (dataFimBruta && dataFimBruta < data) erro(volta, 'O fim do período não pode ser anterior ao início.');
+  const dataFim = aceitaPeriodo && dataFimBruta ? dataFimBruta : null;
+  if (dataFim && diffDias(data, dataFim) + 1 > 365) erro(volta, 'O período não pode passar de 365 dias.');
 
   const detalhe = String(formData.get('detalhe') ?? '').trim();
   if (detalhe.length < 5) erro(volta, 'Descreva a justificativa da solicitação.');
@@ -96,6 +105,7 @@ export async function abrirSolicitacao(formData: FormData) {
       colaborador_id: colaboradorId,
       tipo,
       data,
+      data_fim: dataFim,
       detalhe,
       parceiro_id: parceiroId,
       aceite_parceiro: tipo === 'TROCA_HORARIO' ? 'PENDENTE' : null,
@@ -232,8 +242,8 @@ export async function decidirSolicitacao(formData: FormData) {
 async function aplicarNaEscala(
   sessao: Sessao,
   s: {
-    id: number; tipo: TipoSolicitacao; data: string; colaborador_id: number;
-    parceiro_id: number | null; unidade_desejada_id: number | null;
+    id: number; tipo: TipoSolicitacao; data: string; data_fim: string | null;
+    colaborador_id: number; parceiro_id: number | null; unidade_desejada_id: number | null;
   },
   volta: string
 ): Promise<string> {
@@ -241,6 +251,17 @@ async function aplicarNaEscala(
   const [ano, mes] = partesIso(s.data);
   const competencia = iso(ano, mes, 1);
   const geracao = await getGeracaoAtual(competencia);
+
+  // Um período pode atravessar o mês — férias de 25/11 a 05/12 tocam duas
+  // gerações. A geração é resolvida pelo mês de CADA dia, com cache para não
+  // repetir a consulta a cada data do intervalo.
+  const geracaoPorMes = new Map<string, Awaited<ReturnType<typeof getGeracaoAtual>>>([[competencia, geracao]]);
+  const geracaoDoDia = async (data: string) => {
+    const [a, m] = partesIso(data);
+    const comp = iso(a, m, 1);
+    if (!geracaoPorMes.has(comp)) geracaoPorMes.set(comp, await getGeracaoAtual(comp));
+    return geracaoPorMes.get(comp) ?? null;
+  };
 
   const travar = async (colaboradorId: number, data: string, modalidade: Modalidade, unidadeId: number | null, motivo: string) => {
     await supabase.from('pins').upsert(
@@ -255,11 +276,12 @@ async function aplicarNaEscala(
       },
       { onConflict: 'colaborador_id,data' }
     );
-    if (geracao) {
+    const g = await geracaoDoDia(data);
+    if (g) {
       await supabase
         .from('alocacoes')
         .update({ modalidade, unidade_id: unidadeId, travado: true })
-        .eq('geracao_id', geracao.id)
+        .eq('geracao_id', g.id)
         .eq('colaborador_id', colaboradorId)
         .eq('data', data);
     }
@@ -301,17 +323,20 @@ async function aplicarNaEscala(
     case 'FOLGA':
     case 'FERIAS': {
       const tipoAusencia = s.tipo === 'FERIAS' ? 'FERIAS' : 'AUSENCIA';
+      const fim = s.data_fim ?? s.data;
+      const dias = diffDias(s.data, fim) + 1;
 
-      // Se o dia já está coberto por outra ausência, não duplica o lançamento —
-      // a trava abaixo já garante o efeito na escala.
+      // A ausência é o que faz o período aparecer marcado no plano do mês e
+      // bloquear o motor. Antes gravava sempre 1 dia, então férias de 10 dias
+      // deixavam 9 deles livres para alocação.
       const { data: existentes } = await supabase
         .from('ausencias')
         .select('inicio, dias')
-        .eq('colaborador_id', s.colaborador_id)
-        .lte('inicio', s.data);
-      const jaCoberto = (existentes ?? []).some(
-        (a: { inicio: string; dias: number }) => addDias(a.inicio, a.dias - 1) >= s.data
-      );
+        .eq('colaborador_id', s.colaborador_id);
+      const jaCoberto = (existentes ?? []).some((a: { inicio: string; dias: number }) => {
+        const outroFim = addDias(a.inicio, a.dias - 1);
+        return s.data <= outroFim && a.inicio <= fim; // sobreposição
+      });
 
       if (!jaCoberto) {
         await supabase.from('ausencias').insert({
@@ -319,14 +344,24 @@ async function aplicarNaEscala(
           colaborador_id: s.colaborador_id,
           tipo: tipoAusencia,
           inicio: s.data,
-          dias: 1,
+          dias,
           grupo: tipoAusencia === 'AUSENCIA' ? 'Folga' : '',
           motivo: tipoAusencia === 'AUSENCIA' ? 'Compensação' : '',
           criado_por: sessao.usuario.id,
         });
       }
-      await travar(s.colaborador_id, s.data, s.tipo === 'FERIAS' ? 'FERIAS' : 'FOLGA', null, `Solicitação #${s.id} aprovada`);
-      return `${formatarData(s.data)} lançado como ${s.tipo === 'FERIAS' ? 'férias' : 'ausência'} e travado na escala.`;
+
+      // Trava dia a dia. A ausência já bloqueia a geração, mas a trava é o que
+      // segura o período numa escala JÁ gerada, sem esperar a regeração.
+      for (let i = 0; i < dias; i++) {
+        const d = addDias(s.data, i);
+        await travar(s.colaborador_id, d, s.tipo === 'FERIAS' ? 'FERIAS' : 'FOLGA', null, `Solicitação #${s.id} aprovada`);
+      }
+
+      const rotulo = s.tipo === 'FERIAS' ? 'férias' : 'ausência';
+      return dias === 1
+        ? `${formatarData(s.data)} lançado como ${rotulo} e travado na escala.`
+        : `${formatarData(s.data)} a ${formatarData(fim)} (${dias} dias) lançados como ${rotulo} e travados na escala.`;
     }
 
     default:

@@ -113,8 +113,23 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
             <input type="hidden" name="competencia" value={competencia} />
             <input type="hidden" name="vista" value={vista} />
             <label className="block">
-              <span className="esc-rotulo">Buscar</span>
-              <input name="q" defaultValue={texto(busca, 'q')} placeholder="Nome do colaborador" className="esc-input w-48" />
+              <span className="esc-rotulo">Colaborador</span>
+              {/* `list` dá a lista suspensa e a busca ao mesmo tempo, nativas:
+                  digitar filtra os nomes, e a seta abre todos. Continua aceitando
+                  texto livre, então buscar por parte do nome segue funcionando. */}
+              <input
+                name="q"
+                list="lista-colaboradores"
+                defaultValue={texto(busca, 'q')}
+                placeholder="Todos — digite para filtrar"
+                autoComplete="off"
+                className="esc-input w-56"
+              />
+              <datalist id="lista-colaboradores">
+                {ctx.colaboradores
+                  .filter(c => c.status === 'ativo')
+                  .map(c => <option key={c.id} value={c.nome} />)}
+              </datalist>
             </label>
             <label className="block">
               <span className="esc-rotulo">Equipe</span>

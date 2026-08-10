@@ -164,6 +164,10 @@ terceiro e escrita na escala por quem não é Planejamento.
   as cotas fecharem o total.
 - **Alocação normalizada**: uma linha por (pessoa, dia), com modalidade e unidade
   em colunas separadas. "Quem está no Morumbi dia 12" é uma consulta SQL.
+- **Aprovar férias marca o mês inteiro.** O pedido carrega início e fim, e a
+  aprovação vira uma ausência do período completo — então o plano do mês já abre
+  com as férias marcadas, sem ninguém relançar à mão. Um período que atravessa o
+  mês trava os dias nas duas gerações, não só na do mês inicial.
 - **Ausência pertence à pessoa, não ao mês.** Um período que começa em um mês e
   termina no seguinte bloqueia os dois. Sobreposições são recusadas na gravação.
 - **Ciclo 12x36 pela paridade de dias** desde um mês âncora configurável — exato
