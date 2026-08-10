@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { CARGOS } from '@/lib/domain/escalas/constantes';
+import { DIAS_ABREV } from '@/lib/domain/escalas/datas';
 
 const COLABS = '/colaboradores';
 const PARAMS = '/parametros';
@@ -151,7 +152,14 @@ export async function salvarUnidade(formData: FormData) {
   redirect(`${PARAMS}?ok=1`);
 }
 
-/** Capacidade excepcional por dia da semana ou por data. Total vazio remove a exceção. */
+/**
+ * Capacidade excepcional por dia da semana ou por data.
+ *
+ * Total em branco herda a capacidade padrão da unidade, porque o caso comum é
+ * mexer só nas reservadas ("segunda e sexta tenho 2 posições guardadas") sem
+ * querer alterar quantas pessoas cabem. Antes o branco apagava a exceção, o que
+ * fazia esse caso salvar nada silenciosamente; remover agora é o botão da linha.
+ */
 export async function salvarCapacidade(formData: FormData) {
   const sessao = await getSessao();
   exigirPlanejamento(sessao.papel, PARAMS);
@@ -160,32 +168,67 @@ export async function salvarCapacidade(formData: FormData) {
   const dowBruto = texto(formData, 'dow');
   const dataBruta = texto(formData, 'data');
   const totalBruto = texto(formData, 'total');
+  const reservadasBruto = texto(formData, 'reservadas');
 
   if (!unidadeId) erro(PARAMS, 'Unidade inválida.');
   if (!dowBruto && !dataBruta) erro(PARAMS, 'Informe o dia da semana ou a data da exceção.');
   if (dowBruto && dataBruta) erro(PARAMS, 'A exceção vale para um dia da semana OU para uma data, não os dois.');
 
   const supabase = await createClient();
+  const { data: unidade } = await supabase
+    .from('unidades')
+    .select('nome, capacidade_total')
+    .eq('id', unidadeId)
+    .single();
+  if (!unidade) erro(PARAMS, 'Unidade não encontrada.');
+
+  const total = totalBruto === '' ? unidade.capacidade_total : Number(totalBruto);
+  const reservadas = reservadasBruto === '' ? 0 : Number(reservadasBruto);
+  if (!Number.isInteger(total) || total < 0) erro(PARAMS, 'Capacidade total inválida.');
+  if (!Number.isInteger(reservadas) || reservadas < 0) erro(PARAMS, 'Posições reservadas inválidas.');
+  if (reservadas > total) {
+    erro(PARAMS, `As ${reservadas} posições reservadas não cabem num total de ${total}.`);
+  }
+
+  // Uma exceção por (unidade, dia da semana) e uma por (unidade, data) — índices
+  // únicos no banco. Apagar antes de inserir é o upsert possível aqui, já que a
+  // unicidade é parcial e o onConflict do PostgREST não a alcança.
   const filtro = supabase.from('capacidades').delete().eq('unidade_id', unidadeId);
   await (dowBruto ? filtro.eq('dow', Number(dowBruto)) : filtro.eq('data', dataBruta));
 
-  if (totalBruto !== '') {
-    const total = Number(totalBruto);
-    const reservadas = Number(formData.get('reservadas') ?? 0);
-    if (!Number.isInteger(total) || total < 0) erro(PARAMS, 'Capacidade inválida.');
-    if (reservadas > total) erro(PARAMS, 'As reservadas não podem passar do total.');
-    const { error } = await supabase.from('capacidades').insert({
-      conta_id: sessao.conta.id,
-      unidade_id: unidadeId,
-      dow: dowBruto ? Number(dowBruto) : null,
-      data: dataBruta || null,
-      total,
-      reservadas,
-    });
-    if (error) erro(PARAMS, `Não foi possível salvar a capacidade: ${error.message}`);
-  }
+  const { error } = await supabase.from('capacidades').insert({
+    conta_id: sessao.conta.id,
+    unidade_id: unidadeId,
+    dow: dowBruto ? Number(dowBruto) : null,
+    data: dataBruta || null,
+    total,
+    reservadas,
+  });
+  if (error) erro(PARAMS, `Não foi possível salvar a capacidade: ${error.message}`);
 
-  await registrarLog(sessao, 'Capacidade ajustada', `Unidade ${unidadeId} · ${dowBruto ? `dia da semana ${dowBruto}` : dataBruta} · ${totalBruto || 'exceção removida'}`);
+  const quando = dowBruto ? `toda ${DIAS_ABREV[Number(dowBruto)].toLowerCase()}` : dataBruta;
+  await registrarLog(
+    sessao,
+    'Capacidade ajustada',
+    `${unidade.nome} · ${quando} · ${total} lugares, ${reservadas} reservadas`
+  );
+  revalidatePath('/', 'layout');
+  redirect(`${PARAMS}?ok=1`);
+}
+
+/** Remove uma exceção de capacidade: o dia volta a valer a capacidade padrão da unidade. */
+export async function removerCapacidade(formData: FormData) {
+  const sessao = await getSessao();
+  exigirPlanejamento(sessao.papel, PARAMS);
+
+  const id = Number(formData.get('id'));
+  if (!id) erro(PARAMS, 'Exceção inválida.');
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('capacidades').delete().eq('id', id);
+  if (error) erro(PARAMS, `Não foi possível remover a exceção: ${error.message}`);
+
+  await registrarLog(sessao, 'Exceção de capacidade removida', `#${id}`);
   revalidatePath('/', 'layout');
   redirect(`${PARAMS}?ok=1`);
 }

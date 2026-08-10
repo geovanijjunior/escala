@@ -7,7 +7,8 @@ import { DIAS_ABREV, dowDeIso, formatarData } from '@/lib/domain/escalas/datas';
 import { REGRAS_MOTOR } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import {
-  removerFeriado, salvarCapacidade, salvarEquipe, salvarFeriado, salvarParametros, salvarUnidade,
+  removerCapacidade, removerFeriado, salvarCapacidade, salvarEquipe, salvarFeriado, salvarParametros,
+  salvarUnidade,
 } from '@/app/actions-cadastros';
 import { Abas, Aviso, Badge, Bloco, Vazio } from '@/components/Ui';
 
@@ -28,7 +29,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
     supabase.from('capacidades').select('*'),
     supabase.from('perfis').select('id, nome, papel').order('nome'),
   ]);
-  const capacidades = (capRes.data ?? []) as { unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
+  const capacidades = (capRes.data ?? []) as { id: number; unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
   const perfis = (perfisRes.data ?? []) as { id: string; nome: string; papel: string | null }[];
 
   const aba = texto(busca, 'aba') || 'unidades';
@@ -153,28 +154,47 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
 
           {unidades.length > 0 && (
             <Bloco
-              titulo="Capacidade excepcional"
-              desc="Sobrepõe a capacidade padrão num dia da semana ou numa data específica. Data exata tem precedência sobre dia da semana. Deixe a capacidade em branco para remover a exceção."
+              titulo="Capacidade e posições reservadas por dia"
+              desc="Sobrepõe a capacidade padrão da unidade num dia da semana (toda segunda, toda sexta…) ou numa data específica. Data exata tem precedência sobre dia da semana. É aqui que se diz 'na segunda eu guardo 2 posições'."
             >
               <div className="overflow-x-auto">
                 <table className="esc-tabela">
                   <thead>
-                    <tr><th>Unidade</th><th>Quando</th><th className="text-right">Total</th><th className="text-right">Reservadas</th></tr>
+                    <tr>
+                      <th>Unidade</th><th>Quando</th>
+                      <th className="text-right">Total</th>
+                      <th className="text-right">Reservadas</th>
+                      <th className="text-right">Livres p/ escala</th>
+                      <th />
+                    </tr>
                   </thead>
                   <tbody>
                     {capacidades.length === 0 && (
-                      <tr><td colSpan={4} className="text-center py-6" style={{ color: 'var(--muted)' }}>Nenhuma exceção cadastrada — vale a capacidade padrão da unidade.</td></tr>
+                      <tr><td colSpan={6} className="text-center py-6" style={{ color: 'var(--muted)' }}>Nenhuma exceção cadastrada — todos os dias valem a capacidade padrão da unidade.</td></tr>
                     )}
-                    {capacidades.map((c, i) => (
-                      <tr key={i}>
-                        <td>{unidades.find(u => u.id === c.unidade_id)?.nome ?? '—'}</td>
-                        <td style={{ color: 'var(--muted)' }}>
-                          {c.data ? `Data ${formatarData(c.data)}` : `Toda ${DIAS_ABREV[c.dow ?? 0].toLowerCase()}`}
-                        </td>
-                        <td className="text-right esc-num">{c.total}</td>
-                        <td className="text-right esc-num">{c.reservadas}</td>
-                      </tr>
-                    ))}
+                    {capacidades
+                      .slice()
+                      .sort((a, b) =>
+                        a.unidade_id - b.unidade_id
+                        || (a.dow ?? 9) - (b.dow ?? 9)
+                        || (a.data ?? '').localeCompare(b.data ?? ''))
+                      .map(c => (
+                        <tr key={c.id}>
+                          <td>{unidades.find(u => u.id === c.unidade_id)?.nome ?? '—'}</td>
+                          <td style={{ color: 'var(--muted)' }}>
+                            {c.data ? `Data ${formatarData(c.data)}` : `Toda ${DIAS_ABREV[c.dow ?? 0].toLowerCase()}`}
+                          </td>
+                          <td className="text-right esc-num">{c.total}</td>
+                          <td className="text-right esc-num">{c.reservadas}</td>
+                          <td className="text-right esc-num font-semibold">{c.total - c.reservadas}</td>
+                          <td className="text-right">
+                            <form action={removerCapacidade} className="inline">
+                              <input type="hidden" name="id" value={c.id} />
+                              <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
+                            </form>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -199,13 +219,17 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 </label>
                 <label className="block">
                   <span className="esc-rotulo">Total</span>
-                  <input type="number" name="total" min={0} className="esc-input w-24 esc-num" />
+                  <input type="number" name="total" min={0} className="esc-input w-28 esc-num" placeholder="padrão" />
                 </label>
                 <label className="block">
                   <span className="esc-rotulo">Reservadas</span>
                   <input type="number" name="reservadas" min={0} defaultValue={0} className="esc-input w-24 esc-num" />
                 </label>
-                <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar exceção</button>
+                <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar</button>
+                <p className="text-[11.5px] w-full" style={{ color: 'var(--muted)' }}>
+                  Total em branco mantém a capacidade padrão da unidade — use assim quando só as reservadas mudam.
+                  Salvar de novo o mesmo dia substitui o valor anterior; para voltar ao padrão, use <strong style={{ color: 'var(--text)' }}>Remover</strong> na linha.
+                </p>
               </form>
             </Bloco>
           )}
