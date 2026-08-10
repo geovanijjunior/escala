@@ -7,6 +7,7 @@ import { registrarLog } from '@/lib/log';
 import { CARGOS } from '@/lib/domain/escalas/constantes';
 import { DIAS_ABREV } from '@/lib/domain/escalas/datas';
 import { voltar, voltarComErro } from '@/lib/volta';
+import { mensagemErroBanco } from '@/lib/erros-banco';
 
 const COLABS = '/colaboradores';
 const PARAMS = '/parametros';
@@ -97,7 +98,7 @@ export async function salvarColaborador(formData: FormData) {
     ? await supabase.from('colaboradores').update(registro).eq('id', id)
     : await supabase.from('colaboradores').insert(registro);
 
-  if (error) voltarComErro(COLABS, formData, `Não foi possível salvar: ${error.message}`);
+  if (error) voltarComErro(COLABS, formData, `Não foi possível salvar: ${mensagemErroBanco(error)}`);
 
   await registrarLog(sessao, id ? 'Colaborador atualizado' : 'Colaborador criado', `${nome} · ${matricula} · ${status}`);
   revalidatePath('/', 'layout');
@@ -145,7 +146,7 @@ export async function salvarUnidade(formData: FormData) {
   const { error } = id
     ? await supabase.from('unidades').update(registro).eq('id', id)
     : await supabase.from('unidades').insert(registro);
-  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a unidade: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a unidade: ${mensagemErroBanco(error)}`);
 
   const dentroDe = paiId ? ` · posto interno de ${(await supabase.from('unidades').select('nome').eq('id', paiId).single()).data?.nome ?? paiId}` : '';
   await registrarLog(sessao, id ? 'Unidade atualizada' : 'Unidade criada', `${nome} · ${total - reservadas} posições operacionais${dentroDe}`);
@@ -207,7 +208,7 @@ export async function salvarCapacidade(formData: FormData) {
     : [{ ...base, dow: null, data: dataBruta }];
 
   const { error } = await supabase.from('capacidades').insert(linhas);
-  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a capacidade: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a capacidade: ${mensagemErroBanco(error)}`);
 
   const quando = dows.length > 0
     ? dows.map(d => DIAS_ABREV[d]).join(', ')
@@ -231,7 +232,7 @@ export async function removerCapacidade(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.from('capacidades').delete().eq('id', id);
-  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a exceção: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a exceção: ${mensagemErroBanco(error)}`);
 
   await registrarLog(sessao, 'Exceção de capacidade removida', `#${id}`);
   revalidatePath('/', 'layout');
@@ -261,7 +262,7 @@ export async function salvarEquipe(formData: FormData) {
   const { error } = id
     ? await supabase.from('equipes').update(registro).eq('id', id)
     : await supabase.from('equipes').insert(registro);
-  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a equipe: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a equipe: ${mensagemErroBanco(error)}`);
 
   await registrarLog(sessao, id ? 'Equipe atualizada' : 'Equipe criada', `${nome} · ${regime} · turno ${turno}`);
   revalidatePath('/', 'layout');
@@ -281,7 +282,7 @@ export async function salvarFeriado(formData: FormData) {
   const { error } = await supabase
     .from('feriados')
     .upsert({ conta_id: sessao.conta.id, data, nome }, { onConflict: 'conta_id,data' });
-  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar o feriado: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar o feriado: ${mensagemErroBanco(error)}`);
 
   await registrarLog(sessao, 'Feriado cadastrado', `${data} · ${nome}`);
   revalidatePath('/', 'layout');
@@ -321,7 +322,7 @@ export async function salvarParametros(formData: FormData) {
     },
     { onConflict: 'conta_id' }
   );
-  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar os parâmetros: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar os parâmetros: ${mensagemErroBanco(error)}`);
 
   await registrarLog(sessao, 'Parâmetros do motor alterados', `Âncora ${cicloAncora} · tolerância ±${tolerancia} · cobertura mínima ${cobertura}`);
   revalidatePath('/', 'layout');
@@ -379,7 +380,7 @@ export async function salvarCotaEquipe(formData: FormData) {
     : [{ ...base, dow: null }];
 
   const { error } = await supabase.from('cotas_equipe').insert(linhas);
-  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a cota: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a cota: ${mensagemErroBanco(error)}`);
 
   const quando = dows.length > 0 ? dows.map(d => DIAS_ABREV[d]).join(', ') : 'todos os dias';
   await registrarLog(sessao, 'Cota por equipe ajustada', `${equipe.nome} em ${unidade.nome} · ${quando} · até ${limite}`);
@@ -397,7 +398,7 @@ export async function removerCotaEquipe(formData: FormData) {
 
   const supabase = await createClient();
   const { error } = await supabase.from('cotas_equipe').delete().eq('id', id);
-  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a cota: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a cota: ${mensagemErroBanco(error)}`);
 
   await registrarLog(sessao, 'Cota por equipe removida', `#${id}`);
   revalidatePath('/', 'layout');
