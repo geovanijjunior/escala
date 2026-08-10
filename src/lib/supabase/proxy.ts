@@ -7,6 +7,19 @@ import { NextResponse, type NextRequest } from 'next/server';
 // rodar impediria a página de sequer carregar.
 const ROTAS_PUBLICAS = ['/login', '/cadastro', '/redefinir-senha'];
 
+/**
+ * Casa a rota exata ou um filho dela (`/login/ajuda`), nunca um prefixo solto.
+ *
+ * Com `startsWith` puro, qualquer caminho começando com o texto ficava público:
+ * uma tela futura chamada `/cadastro-relatorios` ou `/loginhistorico` seria
+ * servida sem sessão, e nada no código avisaria. Nenhuma rota assim existe
+ * hoje, então não havia brecha aberta — é a armadilha que dispara meses depois,
+ * quando alguém escolhe um nome inocente.
+ */
+function ehPublica(pathname: string): boolean {
+  return ROTAS_PUBLICAS.some(r => pathname === r || pathname.startsWith(`${r}/`));
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -32,7 +45,7 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
 
-  if (ROTAS_PUBLICAS.some(r => pathname.startsWith(r))) return response;
+  if (ehPublica(pathname)) return response;
 
   if (!user) {
     const url = request.nextUrl.clone();

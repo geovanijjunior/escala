@@ -97,7 +97,7 @@ export function EditorPlano({
       </form>
 
       <div className="border-t px-4 py-4 space-y-4" style={{ borderColor: 'var(--line)' }}>
-        <div>
+        <div id="ausencias" className="scroll-mt-24">
           <span className="esc-rotulo">Férias</span>
           {ferias ? (
             <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
@@ -160,8 +160,9 @@ export function EditorPlano({
               <input type="date" name="inicio" required className="esc-input w-40" />
             </label>
             <label className="block">
-              <span className="esc-rotulo">Dias corridos</span>
-              <input type="number" name="dias" min={1} max={365} defaultValue={1} className="esc-input w-24 esc-num" />
+              <span className="esc-rotulo">Fim</span>
+              <input type="date" name="fim" className="esc-input w-40" />
+              <span className="esc-ajuda mt-1 block">Vazio = só o dia de início.</span>
             </label>
             <MotivoDependente grupos={GRUPOS_AUSENCIA} />
             <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Adicionar ausência</button>

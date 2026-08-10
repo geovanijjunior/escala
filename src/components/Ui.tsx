@@ -3,12 +3,18 @@ import type { ReactNode } from 'react';
 import { MODALIDADES } from '@/lib/domain/escalas/constantes';
 import type { Modalidade, Unidade } from '@/lib/domain/escalas/tipos';
 
-/** Bloco padrão: título, descrição opcional e ações à direita. */
+/**
+ * Bloco padrão: título, descrição opcional e ações à direita.
+ *
+ * `id` serve de âncora para o retorno das Server Actions — o redirect do Next
+ * rola para o topo, e sem um alvo a linha recém-salva sai da vista.
+ * `scroll-mt` compensa o cabeçalho fixo, senão a âncora para atrás dele.
+ */
 export function Bloco({
-  titulo, desc, acoes, children, className = '',
-}: { titulo?: string; desc?: string; acoes?: ReactNode; children?: ReactNode; className?: string }) {
+  id, titulo, desc, acoes, children, className = '',
+}: { id?: string; titulo?: string; desc?: string; acoes?: ReactNode; children?: ReactNode; className?: string }) {
   return (
-    <section className={`esc-card ${className}`}>
+    <section id={id} className={`esc-card scroll-mt-20 ${className}`}>
       {(titulo || acoes) && (
         <div className="esc-bloco-topo">
           <div className="min-w-0">

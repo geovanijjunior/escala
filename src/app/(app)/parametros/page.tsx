@@ -11,6 +11,7 @@ import {
   salvarUnidade,
 } from '@/app/actions-cadastros';
 import { Abas, Aviso, Badge, Bloco, Vazio } from '@/components/Ui';
+import { Volta } from '@/components/Volta';
 
 const UTEIS = [1, 2, 3, 4, 5];
 
@@ -62,6 +63,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
       {aba === 'unidades' && (
         <>
           <Bloco
+            id="bloco-unidades"
             titulo="Unidades"
             desc="Cada unidade tem uma capacidade total e um número de posições reservadas (visitantes, sala de reunião, etc.). O motor nunca aloca acima de total menos reservadas."
           >
@@ -105,6 +107,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
             )}
 
             <form action={salvarUnidade} className="px-4 py-3 border-t grid gap-3 sm:grid-cols-3 lg:grid-cols-4" style={{ borderColor: 'var(--line)' }}>
+            <Volta busca={busca} ancora="bloco-unidades" />
               {editandoUnidade && <input type="hidden" name="id" value={editandoUnidade.id} />}
               <label className="block">
                 <span className="esc-rotulo">Nome</span>
@@ -154,6 +157,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
 
           {unidades.length > 0 && (
             <Bloco
+              id="bloco-capacidade"
               titulo="Capacidade e posições reservadas por dia"
               desc="Sobrepõe a capacidade padrão da unidade num dia da semana (toda segunda, toda sexta…) ou numa data específica. Data exata tem precedência sobre dia da semana. É aqui que se diz 'na segunda eu guardo 2 posições'."
             >
@@ -189,6 +193,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                           <td className="text-right esc-num font-semibold">{c.total - c.reservadas}</td>
                           <td className="text-right">
                             <form action={removerCapacidade} className="inline">
+            <Volta busca={busca} ancora="bloco-capacidade" />
                               <input type="hidden" name="id" value={c.id} />
                               <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
                             </form>
@@ -200,19 +205,28 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               </div>
 
               <form action={salvarCapacidade} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
+            <Volta busca={busca} ancora="bloco-capacidade" />
                 <label className="block">
                   <span className="esc-rotulo">Unidade</span>
                   <select name="unidadeId" required className="esc-input w-44">
                     {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
                   </select>
                 </label>
-                <label className="block">
-                  <span className="esc-rotulo">Dia da semana</span>
-                  <select name="dow" className="esc-input w-36">
-                    <option value="">—</option>
-                    {UTEIS.map(d => <option key={d} value={d}>{DIAS_ABREV[d]}</option>)}
-                  </select>
-                </label>
+                <fieldset className="block">
+                  <legend className="esc-rotulo">Dias da semana</legend>
+                  <div className="flex gap-1">
+                    {UTEIS.map(d => (
+                      <label
+                        key={d}
+                        className="flex items-center gap-1.5 px-2 py-[7px] rounded-md border cursor-pointer text-[12px] select-none"
+                        style={{ borderColor: 'var(--line-2)' }}
+                      >
+                        <input type="checkbox" name="dow" value={d} />
+                        {DIAS_ABREV[d]}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <label className="block">
                   <span className="esc-rotulo">ou Data</span>
                   <input type="date" name="data" className="esc-input w-40" />
@@ -227,15 +241,17 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 </label>
                 <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar</button>
                 <p className="text-[11.5px] w-full" style={{ color: 'var(--muted)' }}>
-                  Total em branco mantém a capacidade padrão da unidade — use assim quando só as reservadas mudam.
-                  Salvar de novo o mesmo dia substitui o valor anterior; para voltar ao padrão, use <strong style={{ color: 'var(--text)' }}>Remover</strong> na linha.
+                  Marque quantos dias quiser — todos recebem os mesmos valores de uma vez.
+                  Total em branco mantém a capacidade padrão da unidade, para quando só as reservadas mudam.
+                  Salvar de novo um dia já cadastrado substitui o valor anterior; para voltar ao padrão, use <strong style={{ color: 'var(--text)' }}>Remover</strong> na linha.
                 </p>
               </form>
             </Bloco>
           )}
 
-          <Bloco titulo="Motor" desc="Ajustes globais que mudam como o motor decide.">
+          <Bloco id="bloco-motor" titulo="Motor" desc="Ajustes globais que mudam como o motor decide.">
             <form action={salvarParametros} className="px-4 py-3 flex flex-wrap items-end gap-3">
+            <Volta busca={busca} ancora="bloco-motor" />
               <label className="block">
                 <span className="esc-rotulo">Âncora do ciclo 12x36</span>
                 <input type="month" name="cicloAncoraMes" defaultValue={config.cicloAncora.slice(0, 7)} className="esc-input w-44" disabled />
@@ -261,7 +277,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
       )}
 
       {aba === 'equipes' && (
-        <Bloco titulo="Equipes" desc="A equipe define o regime de trabalho e o gestor responsável pelas aprovações.">
+        <Bloco id="bloco-equipes" titulo="Equipes" desc="A equipe define o regime de trabalho e o gestor responsável pelas aprovações.">
           <div className="overflow-x-auto">
             <table className="esc-tabela">
               <thead>
@@ -290,6 +306,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
           </div>
 
           <form action={salvarEquipe} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
+            <Volta busca={busca} ancora="bloco-equipes" />
             {editandoEquipe && <input type="hidden" name="id" value={editandoEquipe.id} />}
             <label className="block">
               <span className="esc-rotulo">Nome</span>
@@ -332,6 +349,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
 
       {aba === 'feriados' && (
         <Bloco
+          id="bloco-feriados"
           titulo="Feriados"
           desc="Colaboradores 5x2 folgam automaticamente. Plantões 12x36 não são afetados: o feriado não desloca o ciclo."
         >
@@ -349,6 +367,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                     <td className="font-medium">{f.nome}</td>
                     <td className="text-right">
                       <form action={removerFeriado} className="inline">
+            <Volta busca={busca} ancora="bloco-feriados" />
                         <input type="hidden" name="data" value={f.data} />
                         <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
                       </form>
@@ -359,6 +378,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
             </table>
           </div>
           <form action={salvarFeriado} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
+            <Volta busca={busca} ancora="bloco-feriados" />
             <label className="block">
               <span className="esc-rotulo">Data</span>
               <input type="date" name="data" required className="esc-input w-40" />

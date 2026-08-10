@@ -1,19 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { CARGOS } from '@/lib/domain/escalas/constantes';
 import { DIAS_ABREV } from '@/lib/domain/escalas/datas';
+import { voltar, voltarComErro } from '@/lib/volta';
 
 const COLABS = '/colaboradores';
 const PARAMS = '/parametros';
-
-function erro(rota: string, msg: string): never {
-  redirect(`${rota}?erro=${encodeURIComponent(msg)}`);
-}
 
 const texto = (fd: FormData, campo: string) => String(fd.get(campo) ?? '').trim();
 const marcado = (fd: FormData, campo: string) => fd.get(campo) === 'on' || fd.get(campo) === 'true';
@@ -42,29 +38,29 @@ export async function salvarColaborador(formData: FormData) {
   const cicloBruto = texto(formData, 'ciclo');
   const perfilIdBruto = texto(formData, 'perfilId');
 
-  if (!nome) erro(COLABS, 'Informe o nome.');
-  if (!matricula) erro(COLABS, 'Informe a matrícula.');
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) erro(COLABS, 'E-mail em formato inválido.');
-  if (cargo && !CARGOS.includes(cargo)) erro(COLABS, 'Cargo inválido.');
-  if (!equipeId) erro(COLABS, 'Selecione a equipe.');
-  if (!unidadeBaseId) erro(COLABS, 'Selecione a unidade base.');
-  if (!/^\d{2}:\d{2}$/.test(entrada)) erro(COLABS, 'Horário de entrada inválido.');
-  if (!(jornada > 0 && jornada <= 24)) erro(COLABS, 'A jornada precisa estar entre 1 e 24 horas.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(admissao)) erro(COLABS, 'Informe a data de admissão.');
-  if (!['ativo', 'afastado', 'desligado'].includes(status)) erro(COLABS, 'Situação inválida.');
-  if (status === 'desligado' && !desligamento) erro(COLABS, 'Um colaborador desligado precisa da data de desligamento.');
-  if (desligamento && desligamento < admissao) erro(COLABS, 'O desligamento não pode ser anterior à admissão.');
+  if (!nome) voltarComErro(COLABS, formData, 'Informe o nome.');
+  if (!matricula) voltarComErro(COLABS, formData, 'Informe a matrícula.');
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) voltarComErro(COLABS, formData, 'E-mail em formato inválido.');
+  if (cargo && !CARGOS.includes(cargo)) voltarComErro(COLABS, formData, 'Cargo inválido.');
+  if (!equipeId) voltarComErro(COLABS, formData, 'Selecione a equipe.');
+  if (!unidadeBaseId) voltarComErro(COLABS, formData, 'Selecione a unidade base.');
+  if (!/^\d{2}:\d{2}$/.test(entrada)) voltarComErro(COLABS, formData, 'Horário de entrada inválido.');
+  if (!(jornada > 0 && jornada <= 24)) voltarComErro(COLABS, formData, 'A jornada precisa estar entre 1 e 24 horas.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(admissao)) voltarComErro(COLABS, formData, 'Informe a data de admissão.');
+  if (!['ativo', 'afastado', 'desligado'].includes(status)) voltarComErro(COLABS, formData, 'Situação inválida.');
+  if (status === 'desligado' && !desligamento) voltarComErro(COLABS, formData, 'Um colaborador desligado precisa da data de desligamento.');
+  if (desligamento && desligamento < admissao) voltarComErro(COLABS, formData, 'O desligamento não pode ser anterior à admissão.');
 
   const supabase = await createClient();
 
   // Regime e turno vêm da equipe; o turno pode ser sobreposto caso a caso.
   const { data: equipe } = await supabase.from('equipes').select('regime, turno, gestor_id').eq('id', equipeId).single();
-  if (!equipe) erro(COLABS, 'Equipe não encontrada.');
+  if (!equipe) voltarComErro(COLABS, formData, 'Equipe não encontrada.');
 
   const ciclo = equipe.regime === '12x36'
     ? (cicloBruto === 'PAR' ? 'PAR' : 'IMPAR')
     : null;
-  if (equipe.regime === '12x36' && !cicloBruto) erro(COLABS, 'Regime 12x36 exige definir o ciclo base (dias pares ou ímpares).');
+  if (equipe.regime === '12x36' && !cicloBruto) voltarComErro(COLABS, formData, 'Regime 12x36 exige definir o ciclo base (dias pares ou ímpares).');
 
   const duplicada = await supabase
     .from('colaboradores')
@@ -72,7 +68,7 @@ export async function salvarColaborador(formData: FormData) {
     .eq('matricula', matricula)
     .neq('id', id || -1)
     .maybeSingle();
-  if (duplicada.data) erro(COLABS, `A matrícula ${matricula} já pertence a outro colaborador.`);
+  if (duplicada.data) voltarComErro(COLABS, formData, `A matrícula ${matricula} já pertence a outro colaborador.`);
 
   const registro = {
     conta_id: sessao.conta.id,
@@ -101,11 +97,11 @@ export async function salvarColaborador(formData: FormData) {
     ? await supabase.from('colaboradores').update(registro).eq('id', id)
     : await supabase.from('colaboradores').insert(registro);
 
-  if (error) erro(COLABS, `Não foi possível salvar: ${error.message}`);
+  if (error) voltarComErro(COLABS, formData, `Não foi possível salvar: ${error.message}`);
 
   await registrarLog(sessao, id ? 'Colaborador atualizado' : 'Colaborador criado', `${nome} · ${matricula} · ${status}`);
   revalidatePath('/', 'layout');
-  redirect(`${COLABS}?ok=1`);
+  voltar(COLABS, formData);
 }
 
 /* ============================================================
@@ -123,10 +119,10 @@ export async function salvarUnidade(formData: FormData) {
   const total = Number(formData.get('capacidadeTotal'));
   const reservadas = Number(formData.get('capacidadeReservadas'));
 
-  if (!nome || !codigo || !sigla) erro(PARAMS, 'Nome, código e sigla são obrigatórios.');
-  if (!Number.isInteger(total) || total < 0) erro(PARAMS, 'Capacidade total inválida.');
-  if (!Number.isInteger(reservadas) || reservadas < 0) erro(PARAMS, 'Posições reservadas inválidas.');
-  if (reservadas > total) erro(PARAMS, 'As posições reservadas não podem passar da capacidade total.');
+  if (!nome || !codigo || !sigla) voltarComErro(PARAMS, formData, 'Nome, código e sigla são obrigatórios.');
+  if (!Number.isInteger(total) || total < 0) voltarComErro(PARAMS, formData, 'Capacidade total inválida.');
+  if (!Number.isInteger(reservadas) || reservadas < 0) voltarComErro(PARAMS, formData, 'Posições reservadas inválidas.');
+  if (reservadas > total) voltarComErro(PARAMS, formData, 'As posições reservadas não podem passar da capacidade total.');
 
   const supabase = await createClient();
   const registro = {
@@ -145,11 +141,11 @@ export async function salvarUnidade(formData: FormData) {
   const { error } = id
     ? await supabase.from('unidades').update(registro).eq('id', id)
     : await supabase.from('unidades').insert(registro);
-  if (error) erro(PARAMS, `Não foi possível salvar a unidade: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a unidade: ${error.message}`);
 
   await registrarLog(sessao, id ? 'Unidade atualizada' : 'Unidade criada', `${nome} · ${total - reservadas} posições operacionais`);
   revalidatePath('/', 'layout');
-  redirect(`${PARAMS}?ok=1`);
+  voltar(PARAMS, formData);
 }
 
 /**
@@ -165,14 +161,18 @@ export async function salvarCapacidade(formData: FormData) {
   exigirPlanejamento(sessao.papel, PARAMS);
 
   const unidadeId = Number(formData.get('unidadeId'));
-  const dowBruto = texto(formData, 'dow');
+  // Vários dias de uma vez: "segunda e sexta tenho 2 reservadas" é um pedido só,
+  // e obrigar a repetir o formulário por dia é trabalho manual sem motivo.
+  const dows = formData.getAll('dow')
+    .map(v => Number(v))
+    .filter(n => Number.isInteger(n) && n >= 0 && n <= 6);
   const dataBruta = texto(formData, 'data');
   const totalBruto = texto(formData, 'total');
   const reservadasBruto = texto(formData, 'reservadas');
 
-  if (!unidadeId) erro(PARAMS, 'Unidade inválida.');
-  if (!dowBruto && !dataBruta) erro(PARAMS, 'Informe o dia da semana ou a data da exceção.');
-  if (dowBruto && dataBruta) erro(PARAMS, 'A exceção vale para um dia da semana OU para uma data, não os dois.');
+  if (!unidadeId) voltarComErro(PARAMS, formData, 'Unidade inválida.');
+  if (dows.length === 0 && !dataBruta) voltarComErro(PARAMS, formData, 'Marque ao menos um dia da semana ou informe uma data.');
+  if (dows.length > 0 && dataBruta) voltarComErro(PARAMS, formData, 'A exceção vale para dias da semana OU para uma data específica, não os dois.');
 
   const supabase = await createClient();
   const { data: unidade } = await supabase
@@ -180,40 +180,40 @@ export async function salvarCapacidade(formData: FormData) {
     .select('nome, capacidade_total')
     .eq('id', unidadeId)
     .single();
-  if (!unidade) erro(PARAMS, 'Unidade não encontrada.');
+  if (!unidade) voltarComErro(PARAMS, formData, 'Unidade não encontrada.');
 
   const total = totalBruto === '' ? unidade.capacidade_total : Number(totalBruto);
   const reservadas = reservadasBruto === '' ? 0 : Number(reservadasBruto);
-  if (!Number.isInteger(total) || total < 0) erro(PARAMS, 'Capacidade total inválida.');
-  if (!Number.isInteger(reservadas) || reservadas < 0) erro(PARAMS, 'Posições reservadas inválidas.');
+  if (!Number.isInteger(total) || total < 0) voltarComErro(PARAMS, formData, 'Capacidade total inválida.');
+  if (!Number.isInteger(reservadas) || reservadas < 0) voltarComErro(PARAMS, formData, 'Posições reservadas inválidas.');
   if (reservadas > total) {
-    erro(PARAMS, `As ${reservadas} posições reservadas não cabem num total de ${total}.`);
+    voltarComErro(PARAMS, formData, `As ${reservadas} posições reservadas não cabem num total de ${total}.`);
   }
 
   // Uma exceção por (unidade, dia da semana) e uma por (unidade, data) — índices
   // únicos no banco. Apagar antes de inserir é o upsert possível aqui, já que a
   // unicidade é parcial e o onConflict do PostgREST não a alcança.
   const filtro = supabase.from('capacidades').delete().eq('unidade_id', unidadeId);
-  await (dowBruto ? filtro.eq('dow', Number(dowBruto)) : filtro.eq('data', dataBruta));
+  await (dows.length > 0 ? filtro.in('dow', dows) : filtro.eq('data', dataBruta));
 
-  const { error } = await supabase.from('capacidades').insert({
-    conta_id: sessao.conta.id,
-    unidade_id: unidadeId,
-    dow: dowBruto ? Number(dowBruto) : null,
-    data: dataBruta || null,
-    total,
-    reservadas,
-  });
-  if (error) erro(PARAMS, `Não foi possível salvar a capacidade: ${error.message}`);
+  const base = { conta_id: sessao.conta.id, unidade_id: unidadeId, total, reservadas };
+  const linhas: (typeof base & { dow: number | null; data: string | null })[] = dows.length > 0
+    ? dows.map(dow => ({ ...base, dow, data: null }))
+    : [{ ...base, dow: null, data: dataBruta }];
 
-  const quando = dowBruto ? `toda ${DIAS_ABREV[Number(dowBruto)].toLowerCase()}` : dataBruta;
+  const { error } = await supabase.from('capacidades').insert(linhas);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a capacidade: ${error.message}`);
+
+  const quando = dows.length > 0
+    ? dows.map(d => DIAS_ABREV[d]).join(', ')
+    : dataBruta;
   await registrarLog(
     sessao,
     'Capacidade ajustada',
     `${unidade.nome} · ${quando} · ${total} lugares, ${reservadas} reservadas`
   );
   revalidatePath('/', 'layout');
-  redirect(`${PARAMS}?ok=1`);
+  voltar(PARAMS, formData);
 }
 
 /** Remove uma exceção de capacidade: o dia volta a valer a capacidade padrão da unidade. */
@@ -222,15 +222,15 @@ export async function removerCapacidade(formData: FormData) {
   exigirPlanejamento(sessao.papel, PARAMS);
 
   const id = Number(formData.get('id'));
-  if (!id) erro(PARAMS, 'Exceção inválida.');
+  if (!id) voltarComErro(PARAMS, formData, 'Exceção inválida.');
 
   const supabase = await createClient();
   const { error } = await supabase.from('capacidades').delete().eq('id', id);
-  if (error) erro(PARAMS, `Não foi possível remover a exceção: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a exceção: ${error.message}`);
 
   await registrarLog(sessao, 'Exceção de capacidade removida', `#${id}`);
   revalidatePath('/', 'layout');
-  redirect(`${PARAMS}?ok=1`);
+  voltar(PARAMS, formData);
 }
 
 export async function salvarEquipe(formData: FormData) {
@@ -242,7 +242,7 @@ export async function salvarEquipe(formData: FormData) {
   const codigo = texto(formData, 'codigo').toUpperCase();
   const regime = texto(formData, 'regime') === '12x36' ? '12x36' : '5x2';
   const turno = texto(formData, 'turno') === 'N' ? 'N' : 'D';
-  if (!nome || !codigo) erro(PARAMS, 'Nome e código da equipe são obrigatórios.');
+  if (!nome || !codigo) voltarComErro(PARAMS, formData, 'Nome e código da equipe são obrigatórios.');
 
   const supabase = await createClient();
   const registro = {
@@ -256,11 +256,11 @@ export async function salvarEquipe(formData: FormData) {
   const { error } = id
     ? await supabase.from('equipes').update(registro).eq('id', id)
     : await supabase.from('equipes').insert(registro);
-  if (error) erro(PARAMS, `Não foi possível salvar a equipe: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a equipe: ${error.message}`);
 
   await registrarLog(sessao, id ? 'Equipe atualizada' : 'Equipe criada', `${nome} · ${regime} · turno ${turno}`);
   revalidatePath('/', 'layout');
-  redirect(`${PARAMS}?ok=1`);
+  voltar(PARAMS, formData);
 }
 
 export async function salvarFeriado(formData: FormData) {
@@ -269,18 +269,18 @@ export async function salvarFeriado(formData: FormData) {
 
   const data = texto(formData, 'data');
   const nome = texto(formData, 'nome');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) erro(PARAMS, 'Data do feriado inválida.');
-  if (!nome) erro(PARAMS, 'Informe o nome do feriado.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) voltarComErro(PARAMS, formData, 'Data do feriado inválida.');
+  if (!nome) voltarComErro(PARAMS, formData, 'Informe o nome do feriado.');
 
   const supabase = await createClient();
   const { error } = await supabase
     .from('feriados')
     .upsert({ conta_id: sessao.conta.id, data, nome }, { onConflict: 'conta_id,data' });
-  if (error) erro(PARAMS, `Não foi possível salvar o feriado: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar o feriado: ${error.message}`);
 
   await registrarLog(sessao, 'Feriado cadastrado', `${data} · ${nome}`);
   revalidatePath('/', 'layout');
-  redirect(`${PARAMS}?ok=1`);
+  voltar(PARAMS, formData);
 }
 
 export async function removerFeriado(formData: FormData) {
@@ -291,7 +291,7 @@ export async function removerFeriado(formData: FormData) {
   await supabase.from('feriados').delete().eq('data', data);
   await registrarLog(sessao, 'Feriado removido', data);
   revalidatePath('/', 'layout');
-  redirect(`${PARAMS}?ok=1`);
+  voltar(PARAMS, formData);
 }
 
 export async function salvarParametros(formData: FormData) {
@@ -302,9 +302,9 @@ export async function salvarParametros(formData: FormData) {
   const tolerancia = Number(formData.get('tolerancia'));
   const cobertura = Number(formData.get('cobertura'));
 
-  if (!/^\d{4}-\d{2}-01$/.test(cicloAncora)) erro(PARAMS, 'A âncora do ciclo precisa ser o dia 1º de um mês.');
-  if (!Number.isInteger(tolerancia) || tolerancia < 0) erro(PARAMS, 'Tolerância de aderência inválida.');
-  if (!Number.isInteger(cobertura) || cobertura < 0) erro(PARAMS, 'Cobertura mínima inválida.');
+  if (!/^\d{4}-\d{2}-01$/.test(cicloAncora)) voltarComErro(PARAMS, formData, 'A âncora do ciclo precisa ser o dia 1º de um mês.');
+  if (!Number.isInteger(tolerancia) || tolerancia < 0) voltarComErro(PARAMS, formData, 'Tolerância de aderência inválida.');
+  if (!Number.isInteger(cobertura) || cobertura < 0) voltarComErro(PARAMS, formData, 'Cobertura mínima inválida.');
 
   const supabase = await createClient();
   const { error } = await supabase.from('config').upsert(
@@ -316,9 +316,9 @@ export async function salvarParametros(formData: FormData) {
     },
     { onConflict: 'conta_id' }
   );
-  if (error) erro(PARAMS, `Não foi possível salvar os parâmetros: ${error.message}`);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar os parâmetros: ${error.message}`);
 
   await registrarLog(sessao, 'Parâmetros do motor alterados', `Âncora ${cicloAncora} · tolerância ±${tolerancia} · cobertura mínima ${cobertura}`);
   revalidatePath('/', 'layout');
-  redirect(`${PARAMS}?ok=1`);
+  voltar(PARAMS, formData);
 }

@@ -204,17 +204,21 @@ export async function salvarAusencia(formData: FormData) {
   if (!colaboradorId || !['FERIAS', 'AUSENCIA'].includes(tipo)) erro(competencia, 'Ausência inválida.', colaboradorId);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) erro(competencia, 'Informe a data de início.', colaboradorId);
 
-  // Férias vêm como intervalo (início/fim); ausências vêm como início + nº de dias.
-  let dias: number;
-  if (tipo === 'FERIAS') {
-    const fim = String(formData.get('fim') ?? '');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fim)) erro(competencia, 'Informe a data final das férias.', colaboradorId);
-    dias = diffDias(inicio, fim) + 1;
-    if (dias < 1) erro(competencia, 'O fim das férias não pode ser anterior ao início.', colaboradorId);
-  } else {
-    dias = Number(formData.get('dias') ?? 0);
+  // Os dois tipos vêm como intervalo de datas, que é como as pessoas pensam
+  // ("de 10 a 24"). Contar dias corridos de cabeça é trabalho para quem
+  // preenche e fonte clássica de erro de um dia. Férias exigem o fim; numa
+  // ausência o fim vazio significa um único dia, que é o caso mais comum.
+  const fimBruto = String(formData.get('fim') ?? '').trim();
+  if (tipo === 'FERIAS' && !/^\d{4}-\d{2}-\d{2}$/.test(fimBruto)) {
+    erro(competencia, 'Informe a data final das férias.', colaboradorId);
   }
-  if (!Number.isInteger(dias) || dias < 1 || dias > 365) erro(competencia, 'A quantidade de dias precisa estar entre 1 e 365.', colaboradorId);
+  if (fimBruto && !/^\d{4}-\d{2}-\d{2}$/.test(fimBruto)) {
+    erro(competencia, 'Data final inválida.', colaboradorId);
+  }
+
+  const dias = fimBruto ? diffDias(inicio, fimBruto) + 1 : 1;
+  if (dias < 1) erro(competencia, 'A data final não pode ser anterior à data de início.', colaboradorId);
+  if (dias > 365) erro(competencia, 'O período não pode passar de 365 dias.', colaboradorId);
 
   const grupo = tipo === 'AUSENCIA' ? String(formData.get('grupo') ?? '') : '';
   const motivo = tipo === 'AUSENCIA' ? String(formData.get('motivo') ?? '') : '';
@@ -258,7 +262,7 @@ export async function salvarAusencia(formData: FormData) {
     `Colaborador ${colaboradorId} · ${inicio} a ${fim}${motivo ? ` · ${grupo} — ${motivo}` : ''}`
   );
   revalidatePath('/', 'layout');
-  redirect(`${VOLTA}?competencia=${competencia}&colab=${colaboradorId}&ok=1`);
+  redirect(`${VOLTA}?competencia=${competencia}&colab=${colaboradorId}&ok=1#ausencias`);
 }
 
 export async function removerAusencia(formData: FormData) {
@@ -274,5 +278,5 @@ export async function removerAusencia(formData: FormData) {
   await supabase.from('ausencias').delete().eq('id', id);
   await registrarLog(sessao, 'Ausência removida', `Colaborador ${colaboradorId} · registro ${id}`);
   revalidatePath('/', 'layout');
-  redirect(`${VOLTA}?competencia=${competencia}&colab=${colaboradorId}&ok=1`);
+  redirect(`${VOLTA}?competencia=${competencia}&colab=${colaboradorId}&ok=1#ausencias`);
 }
