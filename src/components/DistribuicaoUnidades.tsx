@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import type { Unidade } from '@/lib/domain/escalas/tipos';
 
 /**
@@ -10,25 +9,19 @@ import type { Unidade } from '@/lib/domain/escalas/tipos';
  * duas unidades, escolher uma já define a outra — o par sempre fecha em 100 sem
  * que o usuário precise fazer a conta. Com três ou mais, o total aparece ao vivo
  * e o formulário só libera o envio quando bate 100.
+ *
+ * Controlado de fora: o percentual também decide quais postos são oferecidos
+ * logo abaixo, e o dono do estado é quem consegue manter os dois em sincronia.
  */
 export function DistribuicaoUnidades({
-  unidades, valores, degraus,
-}: { unidades: Unidade[]; valores: Record<number, number>; degraus: number[] }) {
-  const [pcts, setPcts] = useState<Record<number, number>>(() =>
-    Object.fromEntries(unidades.map(u => [u.id, valores[u.id] ?? 0]))
-  );
-
+  unidades, pcts, onMudar, degraus,
+}: {
+  unidades: Unidade[];
+  pcts: Record<number, number>;
+  onMudar: (unidadeId: number, valor: number) => void;
+  degraus: number[];
+}) {
   const soma = unidades.reduce((acc, u) => acc + (pcts[u.id] ?? 0), 0);
-  const par = unidades.length === 2;
-
-  const definir = (unidadeId: number, valor: number) => {
-    if (par) {
-      const outra = unidades.find(u => u.id !== unidadeId)!;
-      setPcts({ [unidadeId]: valor, [outra.id]: 100 - valor });
-    } else {
-      setPcts(p => ({ ...p, [unidadeId]: valor }));
-    }
-  };
 
   return (
     <section>
@@ -52,7 +45,7 @@ export function DistribuicaoUnidades({
                 <button
                   key={d}
                   type="button"
-                  onClick={() => definir(u.id, d)}
+                  onClick={() => onMudar(u.id, d)}
                   aria-pressed={pcts[u.id] === d}
                   className="px-2.5 py-1 rounded-md text-[11.5px] font-semibold border esc-num"
                   style={

@@ -3,11 +3,10 @@ import { addDias, diffDias, formatarCompetencia, formatarData } from '@/lib/doma
 import { DEGRAUS_PCT, GRUPOS_AUSENCIA } from '@/lib/domain/escalas/constantes';
 import { salvarPlano, salvarAusencia, removerAusencia } from '@/app/actions-planos';
 import { Bloco } from './Ui';
-import { DistribuicaoUnidades } from './DistribuicaoUnidades';
+import { DistribuicaoEPostos } from './DistribuicaoEPostos';
 import { MotivoDependente } from './MotivoDependente';
 import { UnidadesFixasEHomeOffice } from './UnidadesFixasEHomeOffice';
 import type { Ausencia, Colaborador, PlanoMensal, Posto, Unidade } from '@/lib/domain/escalas/tipos';
-import { PostosDoPlano } from './PostosDoPlano';
 
 interface Props {
   colaborador: Colaborador;
@@ -76,10 +75,12 @@ export function EditorPlano({
           </section>
         )}
 
-        <DistribuicaoUnidades
+        <DistribuicaoEPostos
           unidades={unidades}
           valores={Object.fromEntries(unidades.map(u => [u.id, plano?.distribuicao[u.id] ?? (u.id === c.unidadeBaseId ? 100 : 0)]))}
           degraus={DEGRAUS_PCT}
+          postos={postos}
+          atribuidos={plano?.postos ?? []}
         />
 
         <UnidadesFixasEHomeOffice
@@ -88,13 +89,6 @@ export function EditorPlano({
           homeOffice={ho ?? { modo: null, diasSemana: [], quantidade: 2, diasPreferencia: [], diasProibidos: [] }}
           elegHome={c.elegHome}
           nome={c.nome}
-        />
-
-        <PostosDoPlano
-          postos={postos}
-          unidades={unidades}
-          atribuidos={plano?.postos ?? []}
-          distribuicao={Object.fromEntries(unidades.map(u => [u.id, plano?.distribuicao[u.id] ?? (u.id === c.unidadeBaseId ? 100 : 0)]))}
         />
 
         <div className="flex flex-wrap items-center gap-2 pt-1">

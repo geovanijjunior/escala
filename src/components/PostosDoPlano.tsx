@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import type { Posto, PostoDoPlano, Unidade } from '@/lib/domain/escalas/tipos';
 
 interface Props {
@@ -23,30 +22,24 @@ interface Props {
  * dias soltos.
  */
 export function PostosDoPlano({ postos, unidades, atribuidos, distribuicao }: Props) {
-  const [pct, setPct] = useState<Record<number, number>>(distribuicao);
-
-  // A distribuição vive noutro componente do mesmo formulário; ler os campos
-  // direto do form é o que mantém os dois em sincronia sem elevar o estado.
-  useEffect(() => {
-    const form = document.querySelector('form') as HTMLFormElement | null;
-    if (!form) return;
-    const ler = () => {
-      const atual: Record<number, number> = {};
-      for (const u of unidades) {
-        const campo = form.elements.namedItem(`dist_${u.id}`) as HTMLInputElement | null;
-        atual[u.id] = campo ? Number(campo.value) || 0 : 0;
-      }
-      setPct(atual);
-    };
-    ler();
-    form.addEventListener('change', ler);
-    return () => form.removeEventListener('change', ler);
-  }, [unidades]);
-
   const nomeUnidade = (id: number) => unidades.find(u => u.id === id)?.nome ?? '—';
-  const visiveis = postos.filter(p => p.ativo && (pct[p.unidadeId] ?? 0) > 0);
+  const ativos = postos.filter(p => p.ativo);
+  const visiveis = ativos.filter(p => (distribuicao[p.unidadeId] ?? 0) > 0);
 
-  if (postos.filter(p => p.ativo).length === 0) return null;
+  // Sem nenhum posto cadastrado, a seção some — e quem procura o Corpo Clínico
+  // fica sem saber que ele nasce em Parâmetros. Melhor dizer onde ele é criado.
+  if (ativos.length === 0) {
+    return (
+      <section>
+        <span className="esc-rotulo">Postos</span>
+        <p className="text-[11.5px]" style={{ color: 'var(--muted)' }}>
+          Nenhum posto cadastrado. Crie um em{' '}
+          <strong style={{ color: 'var(--text)' }}>Parâmetros → Unidades e capacidade → Postos dentro das unidades</strong>{' '}
+          — por exemplo, Corpo Clínico dentro do Morumbi. Depois ele aparece aqui para ser atribuído.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -54,8 +47,9 @@ export function PostosDoPlano({ postos, unidades, atribuidos, distribuicao }: Pr
 
       {visiveis.length === 0 ? (
         <p className="text-[11.5px]" style={{ color: 'var(--muted)' }}>
-          Os postos aparecem aqui quando a distribuição acima mandar esta pessoa a uma unidade que tenha posto.
-          Hoje nenhuma das unidades com posto tem percentual para ela.
+          {ativos.map(p => p.nome).join(', ')} {ativos.length === 1 ? 'fica' : 'ficam'} dentro de{' '}
+          {[...new Set(ativos.map(p => nomeUnidade(p.unidadeId)))].join(', ')}. Dê a esta pessoa algum percentual
+          nessa unidade acima para poder atribuir o posto.
         </p>
       ) : (
         <div className="space-y-2">
