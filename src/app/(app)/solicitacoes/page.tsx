@@ -4,6 +4,8 @@ import { listarSolicitacoes, listarUnidades, listarColaboradores } from '@/lib/d
 import { formatarData } from '@/lib/domain/escalas/datas';
 import { STATUS_ABERTOS, STATUS_SOLICITACAO, TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
+import { Volta } from '@/components/Volta';
+import { valorVolta } from '@/lib/volta';
 import { decidirSolicitacao } from '@/app/actions-solicitacoes';
 import { Abas, Aviso, Badge, Bloco, Pill, Vazio } from '@/components/Ui';
 import { FormRecusa } from '@/components/FormRecusa';
@@ -124,6 +126,7 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
               souParceiro={s.parceiroId === sessao.colaboradorId}
               unidadeNome={s.unidadeDesejadaId ? unidadePorId.get(s.unidadeDesejadaId)?.nome ?? null : null}
               equipeNome={colabPorId.get(s.colaboradorId)?.cargo ?? ''}
+              busca={busca}
             />
           ))}
         </div>
@@ -133,8 +136,11 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
 }
 
 function Cartao({
-  s, papel, souParceiro, unidadeNome, equipeNome,
-}: { s: Solicitacao; papel: string; souParceiro: boolean; unidadeNome: string | null; equipeNome: string }) {
+  s, papel, souParceiro, unidadeNome, equipeNome, busca,
+}: {
+  s: Solicitacao; papel: string; souParceiro: boolean;
+  unidadeNome: string | null; equipeNome: string; busca: Busca;
+}) {
   const cfg = STATUS_SOLICITACAO[s.status];
   const tipo = TIPOS_SOLICITACAO[s.tipo];
   const aprovador = podeAprovar(papel as 'planejamento' | 'gestor' | 'colaborador');
@@ -200,17 +206,19 @@ function Cartao({
           {souParceiro && s.status === 'AGUARDA_PARCEIRO' && (
             <>
               <form action={decidirSolicitacao}>
+                <Volta busca={busca} />
                 <input type="hidden" name="id" value={s.id} />
                 <input type="hidden" name="acao" value="ACEITAR_PARCEIRO" />
                 <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Aceitar a troca</button>
               </form>
-              <FormRecusa id={s.id} acao="RECUSAR_PARCEIRO" rotulo="Recusar a troca" />
+              <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_PARCEIRO" rotulo="Recusar a troca" />
             </>
           )}
 
           {papel === 'planejamento' && s.status === 'TRIAGEM' && (
             <>
               <form action={decidirSolicitacao}>
+                <Volta busca={busca} />
                 <input type="hidden" name="id" value={s.id} />
                 <input type="hidden" name="acao" value="ENCAMINHAR" />
                 <button type="submit" className="esc-btn esc-btn-sm">Encaminhar ao gestor</button>
@@ -218,18 +226,20 @@ function Cartao({
               {/* Aprovar direto: nem todo pedido precisa da decisão do gestor, e
                   encaminhar o que já está resolvido só atrasa a resposta. */}
               <form action={decidirSolicitacao}>
+                <Volta busca={busca} />
                 <input type="hidden" name="id" value={s.id} />
                 <input type="hidden" name="acao" value="APROVAR_TRIAGEM" />
                 <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Aprovar direto</button>
               </form>
               {tipo.fila && (
                 <form action={decidirSolicitacao}>
+                <Volta busca={busca} />
                   <input type="hidden" name="id" value={s.id} />
                   <input type="hidden" name="acao" value="FILA" />
                   <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Enviar para a lista de espera</button>
                 </form>
               )}
-              <FormRecusa id={s.id} acao="RECUSAR_TRIAGEM" rotulo="Recusar na triagem" />
+              <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_TRIAGEM" rotulo="Recusar na triagem" />
               <span className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
                 <strong style={{ color: 'var(--text)' }}>Aprovar direto</strong> encerra o pedido sem passar pelo gestor
                 {['TROCA_UNIDADE', 'TROCA_HORARIO', 'FOLGA', 'FERIAS'].includes(s.tipo)
@@ -242,11 +252,12 @@ function Cartao({
           {aprovador && s.status === 'GESTOR' && (
             <>
               <form action={decidirSolicitacao}>
+                <Volta busca={busca} />
                 <input type="hidden" name="id" value={s.id} />
                 <input type="hidden" name="acao" value="APROVAR" />
                 <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Aprovar</button>
               </form>
-              <FormRecusa id={s.id} acao="RECUSAR_GESTOR" rotulo="Recusar" />
+              <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_GESTOR" rotulo="Recusar" />
               <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
                 {['TROCA_UNIDADE', 'TROCA_HORARIO', 'FOLGA', 'FERIAS'].includes(s.tipo)
                   ? 'Aprovar já altera a escala do dia e trava a alocação.'

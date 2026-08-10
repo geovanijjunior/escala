@@ -8,7 +8,9 @@ import { decidirSolicitacao } from '@/app/actions-solicitacoes';
  * texto — quem recebe a recusa precisa saber por quê, e depois é tarde para
  * pedir o motivo.
  */
-export function FormRecusa({ id, acao, rotulo }: { id: number; acao: string; rotulo: string }) {
+export function FormRecusa({
+  id, acao, rotulo, volta,
+}: { id: number; acao: string; rotulo: string; volta: string }) {
   const [aberto, setAberto] = useState(false);
   const [motivo, setMotivo] = useState('');
 
@@ -24,6 +26,8 @@ export function FormRecusa({ id, acao, rotulo }: { id: number; acao: string; rot
     <form action={decidirSolicitacao} className="flex flex-wrap items-end gap-2 w-full">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="acao" value={acao} />
+      {/* Recusar de dentro de uma aba precisa devolver àquela aba. */}
+      <input type="hidden" name="_volta" value={volta} />
       <label className="block flex-1 min-w-[220px]">
         <span className="esc-rotulo">Justificativa da recusa</span>
         <input

@@ -79,6 +79,16 @@ insert into colaboradores (id, conta_id, perfil_id, nome, matricula, equipe_id, 
   (3, '11111111-1111-1111-1111-111111111111', null,                                   'Fora',     '003', 2, 1),
   (4, '22222222-2222-2222-2222-222222222222', null,                                   'Colab B',  '004', 3, 2);
 
+insert into postos (id, conta_id, unidade_id, nome) overriding system value values
+  (1, '11111111-1111-1111-1111-111111111111', 1, 'Corpo Clínico');
+
+-- Plano do Colab A2 cobrindo o posto. O Colab A (outra pessoa, mesmo tenant)
+-- não pode enxergar isso: é dado de plano, com recorte por papel.
+insert into planos (id, conta_id, colaborador_id, competencia) overriding system value values
+  (1, '11111111-1111-1111-1111-111111111111', 2, '2026-08-01');
+insert into plano_posto (conta_id, plano_id, posto_id, dias, semana) values
+  ('11111111-1111-1111-1111-111111111111', 1, 1, 5, 2);
+
 insert into ausencias (conta_id, colaborador_id, tipo, inicio, dias, grupo, motivo) values
   ('11111111-1111-1111-1111-111111111111', 1, 'AUSENCIA', '2026-08-10', 2, 'Atestado', 'Consulta'),
   ('11111111-1111-1111-1111-111111111111', 3, 'AUSENCIA', '2026-08-10', 2, 'Atestado', 'Consulta'),
@@ -187,6 +197,28 @@ declare n int; begin
     raise exception 'FALHA DE SEGURANCA: conta B enxergou % cota(s) da conta A', n;
   end if;
   raise notice 'ok: conta B nao ve cotas da conta A';
+end $$;
+
+\echo '=== Colaborador NÃO enxerga o posto do plano de outra pessoa ==='
+do $$
+declare n int; begin
+  select count(*) into n from plano_posto;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: colaborador viu % linha(s) de plano_posto alheias', n;
+  end if;
+  raise notice 'ok: plano_posto respeita o recorte por papel';
+end $$;
+
+\echo '=== Mas o dono do plano enxerga o próprio posto ==='
+do $$
+declare n int; begin
+  perform set_config('request.jwt.claim.sub', 'aaaaaaa1-0000-0000-0000-000000000004', true);
+  select count(*) into n from plano_posto;
+  if n <> 1 then
+    raise exception 'FALHOU: dono do plano deveria ver 1 posto, viu %', n;
+  end if;
+  raise notice 'ok: dono do plano enxerga o próprio posto';
+  perform set_config('request.jwt.claim.sub', 'aaaaaaa1-0000-0000-0000-000000000003', true);
 end $$;
 
 \echo '=== Colaborador NÃO pode criar posto (deve falhar) ==='

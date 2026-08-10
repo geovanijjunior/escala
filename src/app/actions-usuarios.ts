@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { mensagemErroAuth } from '@/lib/erros-auth';
+import { voltar } from '@/lib/volta';
 import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
 
 const VOLTA = '/usuarios';
@@ -82,7 +83,7 @@ export async function mudarPapel(formData: FormData) {
 
   await registrarLog(sessao, 'Papel alterado', `${alvo?.nome ?? usuarioId} → ${papelBruto}`);
   revalidatePath(VOLTA);
-  redirect(`${VOLTA}?ok=1`);
+  voltar(VOLTA, formData);
 }
 
 /**
@@ -115,5 +116,5 @@ export async function alternarBloqueio(formData: FormData) {
 
   await registrarLog(sessao, bloqueado ? 'Acesso bloqueado' : 'Acesso liberado', alvo.nome);
   revalidatePath(VOLTA);
-  redirect(`${VOLTA}?ok=1`);
+  voltar(VOLTA, formData);
 }

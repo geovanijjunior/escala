@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getSessao } from '@/lib/sessao';
 import { carregarContextoMes, getGeracaoAtual, listarAlocacoes } from '@/lib/data/escalas';
 import { DIAS_ABREV, diaSemana, diasNoMes, formatarCompetencia, formatarData, iso } from '@/lib/domain/escalas/datas';
@@ -10,6 +11,13 @@ import { ExportarCsv } from '@/components/ExportarCsv';
 export default async function OcupacaoPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
+
+  // A RLS entrega a este colaborador só as próprias alocações, então a tela
+  // mostraria toda unidade em 0/16 — número errado apresentado como fato.
+  // Medido em Postgres: planejamento enxerga 2 alocações, gestor 1, colaborador 0.
+  if (sessao.papel === 'colaborador') redirect('/minha-escala');
+
+  const parcial = sessao.papel === 'gestor';
   const competencia = competenciaDaBusca(busca);
 
   const ctx = await carregarContextoMes(competencia, sessao.conta.id);
@@ -36,7 +44,7 @@ export default async function OcupacaoPage({ searchParams }: { searchParams: Pro
   if (!geracao) {
     return (
       <>
-        <Cabecalho competencia={competencia} />
+        <Cabecalho competencia={competencia} parcial={parcial} />
         <Bloco>
           <Vazio
             titulo={`Sem escala gerada em ${formatarCompetencia(competencia)}`}
@@ -70,7 +78,7 @@ export default async function OcupacaoPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <Cabecalho competencia={competencia} />
+      <Cabecalho competencia={competencia} parcial={parcial} />
       <Aviso erro={texto(busca, 'erro') || undefined} />
 
       <Bloco
@@ -177,13 +185,23 @@ export default async function OcupacaoPage({ searchParams }: { searchParams: Pro
   );
 }
 
-function Cabecalho({ competencia }: { competencia: string }) {
+/**
+ * `parcial` marca o gestor: ele só enxerga a própria equipe, então os números
+ * aqui são um recorte, não a ocupação real da unidade. Sem dizer isso, "Morumbi
+ * 3/16" seria lido como sobra de lugar quando na verdade o prédio pode estar
+ * cheio de gente de outras equipes.
+ */
+function Cabecalho({ competencia, parcial }: { competencia: string; parcial: boolean }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 className="text-[17px] font-semibold tracking-tight">Painel de ocupação</h1>
+        <h1 className="text-[17px] font-semibold tracking-tight">
+          {parcial ? 'Sua equipe por unidade' : 'Painel de ocupação'}
+        </h1>
         <p className="text-[12px] mt-0.5" style={{ color: 'var(--muted)' }}>
-          Quantas posições cada unidade tem ocupadas, dia a dia — {formatarCompetencia(competencia)}
+          {parcial
+            ? `Quantas pessoas da sua equipe estão em cada unidade, dia a dia — ${formatarCompetencia(competencia)}. Não é a ocupação total: você não enxerga as outras equipes.`
+            : `Quantas posições cada unidade tem ocupadas, dia a dia — ${formatarCompetencia(competencia)}`}
         </p>
       </div>
       <SeletorMes competencia={competencia} />

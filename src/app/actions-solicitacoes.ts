@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirAprovador, exigirPlanejamento, type Sessao } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
+import { voltar } from '@/lib/volta';
 import { getGeracaoAtual } from '@/lib/data/escalas';
 import { addDias, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { TIPOS_SOLICITACAO, type TipoSolicitacao } from '@/lib/domain/escalas/constantes';
@@ -110,7 +111,7 @@ export async function abrirSolicitacao(formData: FormData) {
   await registrarLog(sessao, 'Solicitação aberta', `#${nova.id} · ${TIPOS_SOLICITACAO[tipo].label} · ${formatarData(data)}`);
 
   revalidatePath('/', 'layout');
-  redirect(`${volta}?ok=1`);
+  voltar(volta, formData);
 }
 
 /* ============================================================
@@ -215,7 +216,7 @@ export async function decidirSolicitacao(formData: FormData) {
 
   await registrarLog(sessao, `Solicitação ${regra.etapa.toLowerCase()}`, `#${id} · ${resumoEfeito || motivo}`);
   revalidatePath('/', 'layout');
-  redirect(`${volta}?ok=1`);
+  voltar(volta, formData);
 }
 
 /**
