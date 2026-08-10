@@ -71,8 +71,8 @@ As nove primeiras são rígidas e nunca são violadas; as demais são otimizadas
 que sobra.
 
 Rode `npm test` para as 48 asserções do motor: regimes, ciclo 12x36, cotas de
-home office e de equipe, capacidade, sub-unidades, travas, ausências entre meses
-e determinismo.
+home office e de equipe, capacidade, postos, prioridade por cargo, travas,
+ausências entre meses e determinismo.
 
 ## Rodando localmente
 
@@ -125,7 +125,7 @@ organização com você como Planejamento.
 Cada organização é uma **conta**. `perfis` pertencem a uma conta e têm um
 `papel`. Todas as tabelas do domínio — `unidades`, `equipes`, `colaboradores`,
 `planos`, `ausencias`, `geracoes`, `alocacoes`, `pins`, `solicitacoes`,
-`cotas_equipe`, `ocorrencias`, `logs` — são isoladas por `conta_id` via Row
+`cotas_equipe`, `postos`, `ocorrencias`, `logs` — são isoladas por `conta_id` via Row
 Level Security.
 
 O recorte por papel também é do banco, não da tela: o gestor lê apenas
