@@ -78,7 +78,8 @@ capacidade, travas, ausências entre meses e determinismo.
 
 Em [supabase.com](https://supabase.com), crie um projeto. Em **SQL Editor**,
 rode os arquivos de `supabase/migrations/` na ordem numérica (0001, depois
-0002) — o segundo depende do primeiro.
+0002) — o segundo depende do primeiro. Abra cada arquivo, copie o **conteúdo
+inteiro** e cole no editor; o nome do arquivo não é o comando.
 
 Em **Authentication → Providers**, deixe **Email** habilitado. Para testar sem
 confirmar e-mail, desative "Confirm email" nas configurações de Auth.
@@ -171,15 +172,38 @@ que é o que o Excel em português abre sem embaralhar acento).
 
 1. Crie um projeto em [supabase.com](https://supabase.com). Escolha a região
    mais próxima dos usuários — `South America (São Paulo)`, se for o caso.
-2. Em **SQL Editor**, cole e rode `supabase/migrations/0001_init.sql`. Depois
-   `0002_escalas.sql`. Nessa ordem: o segundo depende das tabelas e dos helpers
-   do primeiro.
+2. Rode as duas migrações em **SQL Editor**. Para cada uma: abra o arquivo no
+   GitHub, clique em **Raw**, selecione tudo (`Ctrl+A`), copie, cole no editor e
+   clique em **Run**. É o texto do arquivo que vai no editor, não o caminho dele
+   — colar `0001_init.sql` devolve `ERROR: 42601: trailing junk after numeric
+   literal`, que é o Postgres tentando ler `0001` como número.
+
+   | Ordem | Arquivo | Começa com | Cria |
+   |---|---|---|---|
+   | 1º | `supabase/migrations/0001_init.sql` | `-- Escala — base multi-tenant` | `contas`, `perfis`, helpers e o trigger de cadastro |
+   | 2º | `supabase/migrations/0002_escalas.sql` | `-- Escala — domínio:` | as 17 tabelas do domínio e as policies |
+
+   A ordem importa: o segundo depende das tabelas e dos helpers do primeiro. Se
+   rodar fora de ordem, o erro será `relation "perfis" does not exist` ou
+   `function conta_id() does not exist` — nesse caso rode o `0001` e repita o
+   `0002`.
 3. Em **Authentication → Sign In / Providers**, mantenha **Email** habilitado e
    desative **Confirm email**. O sistema cria os acessos pela tela de Usuários,
    com senha temporária entregue em mãos — não há fluxo de confirmação por
    e-mail, então deixá-lo ligado impede o primeiro login.
 4. Em **Authentication → URL Configuration**, ponha a URL do site em **Site
    URL** depois que a Vercel te der o domínio.
+
+Quem preferir não copiar e colar pode usar a CLI, que envia os dois arquivos na
+ordem certa sozinha:
+
+```bash
+npx supabase link --project-ref SEU_PROJECT_REF
+npx supabase db push
+```
+
+O `project-ref` é o trecho do meio da URL do painel
+(`https://supabase.com/dashboard/project/SEU_PROJECT_REF`).
 
 ### Vercel (aplicação)
 
