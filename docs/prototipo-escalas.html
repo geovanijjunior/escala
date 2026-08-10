@@ -1,0 +1,2755 @@
+<title>Gestão de Escalas — protótipo navegável</title>
+
+<style>
+/* Paleta e tipografia herdadas do módulo real (globals.css, escopo .escalas).
+   Tema único e deliberado: o módulo em produção não tem modo escuro, então o
+   protótipo pinta o próprio fundo e nunca herda o do visualizador. */
+:root {
+  --brand-900: #0B2D5B;
+  --brand-800: #123C74;
+  --brand-700: #1A4E93;
+  --brand-600: #2463B5;
+  --brand-100: #DCEAF8;
+  --brand-50:  #F0F6FD;
+  --bg:        #F1F5F9;
+  --surface:   #FFFFFF;
+  --surface-2: #F8FAFC;
+  --text:      #0F172A;
+  --muted:     #64748B;
+  --faint:     #94A3B8;
+  --line:      #E2E8F0;
+  --line-2:    #CBD5E1;
+  --amber:     #B45309;
+  --amber-bg:  #FEF3C7;
+  --rose:      #BE123C;
+  --rose-bg:   #FFE4E9;
+  --green:     #15803D;
+  --green-bg:  #DCFCE7;
+  --violet:    #6D28D9;
+  --violet-bg: #EDE9FE;
+
+  --fonte: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--fonte);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.011em; text-wrap: balance; }
+p { margin: 0; }
+button, select, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 2px; border-radius: 4px; }
+
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ── Casca ─────────────────────────────────────────────── */
+.topo {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--brand-900); color: #fff;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+}
+.topo-in {
+  display: flex; align-items: center; gap: 14px;
+  height: 48px; padding: 0 16px; max-width: 1700px; margin: 0 auto;
+}
+.marca { display: flex; align-items: center; gap: 10px; }
+.marca-sigla {
+  width: 28px; height: 28px; border-radius: 5px;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+  display: grid; place-items: center; font-size: 9px; font-weight: 700; letter-spacing: .04em;
+}
+.marca-nome { font-size: 13px; font-weight: 600; line-height: 1.1; }
+.marca-sub { font-size: 9.5px; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+
+.chip-mes {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11.5px; font-weight: 600;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
+  border-radius: 6px; padding: 4px 9px;
+}
+.chip-mes .div { width: 1px; height: 12px; background: rgba(255,255,255,.2); }
+.topo-dir { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.papel-sel {
+  background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.2);
+  border-radius: 6px; padding: 5px 8px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.papel-sel option { color: var(--text); }
+
+.corpo { display: flex; gap: 4px; max-width: 1700px; margin: 0 auto; padding: 0 16px; align-items: flex-start; }
+
+/* Contenção de largura.
+   Item de flex tem min-width:auto por padrão, então qualquer conteúdo largo
+   (a tira de 31 dias, a planilha do mês) empurra o documento inteiro em vez de
+   rolar dentro da própria caixa. Zerar o min-width em toda a cadeia é o que
+   mantém o corpo da página sem rolagem lateral. */
+.corpo, .principal, .principal > *, .card, .card > *, .grade > * { min-width: 0; }
+.card, .kpi { max-width: 100%; }
+.rail { width: 212px; flex-shrink: 0; position: sticky; top: 56px; padding: 16px 12px 16px 0; }
+.rail-secao { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); padding: 0 12px; margin: 16px 0 6px; }
+.rail-secao:first-child { margin-top: 0; }
+.rail a {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px 6px 12px; border-left: 2px solid transparent;
+  border-radius: 6px; font-size: 12.5px; font-weight: 500; color: var(--muted);
+  text-decoration: none; cursor: pointer;
+}
+.rail a:hover { background: var(--surface); color: var(--text); }
+.rail a[aria-current="page"] { background: var(--brand-100); color: var(--brand-900); border-left-color: var(--brand-700); font-weight: 600; }
+.rail .marcador { margin-left: auto; font-size: 10.5px; font-weight: 700; background: var(--amber-bg); color: var(--amber); border-radius: 999px; padding: 0 6px; }
+
+.principal { flex: 1; min-width: 0; padding: 20px 0 56px; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Blocos e tabelas ──────────────────────────────────── */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+.card-topo { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.card-topo:only-child { border-bottom: 0; }
+.card-tit { font-size: 13px; font-weight: 600; }
+.card-desc { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; max-width: 78ch; }
+.card-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0; }
+.pad { padding: 14px 16px; }
+
+.rotulo { display: block; font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+
+.grade { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+@media (max-width: 1100px) { .g4 { grid-template-columns: repeat(2, minmax(0,1fr)); } .g3 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 720px) { .g4, .g3, .g2 { grid-template-columns: 1fr; } }
+
+.rolagem { overflow-x: auto; max-width: 100%; }
+.campo { max-width: 100%; }
+table.tab { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+.tab th {
+  text-align: left; font-size: 10.5px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; padding: 8px 12px;
+  background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.tab td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tab tbody tr:hover td { background: var(--brand-50); }
+.tab tbody tr:last-child td { border-bottom: 0; }
+.dir { text-align: right; }
+
+/* ── Controles ─────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px 13px; border-radius: 6px; font-size: 12.5px; font-weight: 600;
+  border: 1px solid transparent; background: var(--brand-800); color: #fff;
+  white-space: nowrap; cursor: pointer; transition: filter .15s, background .15s;
+}
+.btn:hover:not(:disabled) { filter: brightness(1.14); }
+.btn:disabled { opacity: .42; cursor: not-allowed; }
+.btn.linha { background: var(--surface); color: #334155; border-color: var(--line-2); }
+.btn.linha:hover:not(:disabled) { background: var(--brand-50); border-color: var(--brand-600); filter: none; }
+.btn.fantasma { background: transparent; color: var(--muted); }
+.btn.fantasma:hover:not(:disabled) { background: var(--line); color: var(--text); filter: none; }
+.btn.ok { background: var(--green); }
+.btn.perigo { background: var(--rose); }
+.btn.sm { padding: 5px 10px; font-size: 11.5px; }
+
+.campo {
+  width: 100%; padding: 7px 10px; border-radius: 6px;
+  border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; outline: none;
+}
+.campo:focus { border-color: var(--brand-600); box-shadow: 0 0 0 3px rgba(36,99,181,.14); }
+
+.selo { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; line-height: 16px; white-space: nowrap; }
+.pilula { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+.pilula::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+
+.abas { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); gap: 2px; }
+.abas button { padding: 6px 12px; border: 0; border-radius: 6px; background: transparent; font-size: 11.5px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.abas button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(15,23,42,.1); }
+
+/* ── KPI ───────────────────────────────────────────────── */
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.kpi.destaque { border-left-width: 3px; }
+.kpi-val { font-size: 26px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.kpi-sub { font-size: 10.5px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+
+/* ── Calendário ────────────────────────────────────────── */
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
+.cal-cab { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); text-align: center; padding: 4px 0; }
+.dia {
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px; min-height: 94px;
+  background: var(--surface); display: flex; flex-direction: column; gap: 4px;
+  text-align: left; cursor: pointer; font: inherit;
+}
+.dia:hover { border-color: var(--brand-600); }
+.dia[data-fds="1"] { background: var(--bg); }
+.dia[aria-pressed="true"] { border-color: var(--brand-600); background: var(--brand-50); box-shadow: 0 0 0 1px var(--brand-600); }
+.dia-num { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dia-lin { display: flex; justify-content: space-between; gap: 4px; font-size: 9.5px; font-weight: 700; border-radius: 3px; padding: 1px 4px; }
+
+/* ── Grade planilha ────────────────────────────────────── */
+.planilha { overflow: auto; max-height: 70vh; }
+.planilha table { border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.planilha th { position: sticky; top: 0; z-index: 2; background: var(--surface-2); }
+.planilha th.trava, .planilha td.trava { position: sticky; left: 0; z-index: 3; background: var(--surface); min-width: 200px; }
+.planilha th.trava { z-index: 4; background: var(--surface-2); }
+.planilha td { border-bottom: 1px solid var(--line); padding: 3px 6px; }
+.cel { display: block; border-radius: 3px; font-size: 9.5px; font-weight: 700; line-height: 18px; text-align: center; position: relative; }
+.cel .pin { position: absolute; top: -1px; right: 1px; font-size: 7px; }
+.faixa-eq td { background: var(--brand-50); color: var(--brand-800); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 4px 12px; position: sticky; left: 0; }
+
+/* ── Diversos ──────────────────────────────────────────── */
+.barra { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.barra > div { height: 100%; border-radius: 999px; }
+.aviso { border-radius: 8px; padding: 10px 14px; font-size: 12.5px; font-weight: 500; border-left: 3px solid; }
+.lista { list-style: none; margin: 0; padding: 0; }
+.lista > li { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.lista > li:last-child { border-bottom: 0; }
+.vazio { padding: 48px 24px; text-align: center; }
+.vazio-icone { width: 44px; height: 44px; border-radius: 999px; background: var(--brand-100); color: var(--brand-700); display: grid; place-items: center; margin: 0 auto 12px; font-size: 18px; }
+.legenda { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--line); }
+.linha-flex { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fim-flex { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+
+/* ── Barra de filtros ──────────────────────────────────── */
+.filtros {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+}
+.filtros label { display: block; }
+.filtros .campo { width: 100%; }
+.f-busca { flex: 1 1 200px; min-width: 160px; max-width: 280px; }
+.f-sel { flex: 0 1 170px; min-width: 130px; }
+.f-marca { display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding-bottom: 8px; white-space: nowrap; }
+.f-resultado { margin-left: auto; font-size: 11.5px; color: var(--muted); padding-bottom: 8px; }
+
+/* ── Unidade fixa por dia da semana ────────────────────── */
+/* Uma linha por dia útil, em vez de matriz dia × unidade: lê-se na mesma
+   ordem em que a regra é falada ("terça no Morumbi"). */
+.fixas { display: flex; flex-direction: column; gap: 6px; }
+.fixa-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.fixa-dia { width: 74px; flex-shrink: 0; font-size: 12.5px; font-weight: 600; }
+.segmento { display: inline-flex; border: 1px solid var(--line-2); border-radius: 7px; overflow: hidden; }
+.segmento button {
+  border: 0; border-right: 1px solid var(--line-2); background: var(--surface);
+  color: var(--muted); font-size: 11.5px; font-weight: 600; padding: 5px 12px; cursor: pointer;
+  white-space: nowrap; transition: background .12s, color .12s;
+}
+.segmento button:last-child { border-right: 0; }
+.segmento button:hover:not([aria-pressed="true"]) { background: var(--brand-50); color: var(--text); }
+.segmento button[aria-pressed="true"] { color: #fff; }
+.fixa-nota { font-size: 11px; font-weight: 600; color: var(--rose); }
+.resumo {
+  margin-top: 10px; padding: 9px 12px; border-radius: 7px;
+  background: var(--brand-50); border: 1px solid var(--brand-100);
+  font-size: 12px; line-height: 1.5;
+}
+.resumo b { color: var(--brand-900); }
+.ajuda { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+
+/* Faixa de demonstração: deixa explícito que nada aqui é persistido. */
+.faixa-demo {
+  background: var(--brand-800); color: rgba(255,255,255,.92);
+  font-size: 11.5px; text-align: center; padding: 6px 16px; line-height: 1.4;
+}
+.faixa-demo b { color: #fff; }
+
+@media (max-width: 900px) {
+  /* align-items:flex-start faz sentido lado a lado (a barra não estica até o
+     rodapé), mas empilhado ele passa a dimensionar a largura pelo conteúdo —
+     é o que empurrava a página inteira para o lado. */
+  .corpo { flex-direction: column; align-items: stretch; gap: 0; padding: 0 12px; }
+  .rail, .principal { width: 100%; }
+  .rail {
+    position: sticky; top: 48px; z-index: 30;
+    margin: 0 -12px; padding: 6px 12px;
+    display: flex; gap: 4px; overflow-x: auto;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+  }
+  .rail-secao { display: none; }
+  .rail a { border-left: 0; white-space: nowrap; flex-shrink: 0; }
+  .principal { padding: 14px 0 48px; }
+  .cal { gap: 3px; }
+  .dia { min-height: 74px; padding: 4px; }
+  .f-busca, .f-sel { flex: 1 1 100%; max-width: none; }
+  .f-resultado { margin-left: 0; }
+}
+
+@media (max-width: 640px) {
+  /* O chip de mês/status repete o que o cabeçalho da tela já diz; no celular
+     ele só rouba a largura do nome do usuário. */
+  .chip-mes { display: none; }
+  .marca-sub { display: none; }
+  .topo-in { gap: 8px; padding: 0 12px; }
+  .fixa-dia { width: 100%; }
+  .segmento { width: 100%; }
+  .segmento button { flex: 1; padding: 6px 4px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<header class="topo">
+  <div class="topo-in">
+    <div class="marca">
+      <div class="marca-sigla" aria-hidden="true">ESC</div>
+      <div>
+        <div class="marca-nome">Gestão de Escalas</div>
+        <div class="marca-sub">Suporte TI Hospitalar</div>
+      </div>
+    </div>
+    <div class="chip-mes" id="chip-mes"></div>
+    <div class="topo-dir">
+      <div style="text-align:right;line-height:1.2">
+        <div style="font-size:11.5px;font-weight:600" id="quem"></div>
+        <div style="font-size:9.5px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em">Perfil de acesso</div>
+      </div>
+      <select id="papel" class="papel-sel" aria-label="Perfil de acesso">
+        <option value="planejamento">Planejamento</option>
+        <option value="gestor">Gestor</option>
+        <option value="colaborador">Colaborador</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<div class="faixa-demo">
+  <b>Protótipo.</b> Roda inteiro no navegador, com o mesmo motor de geração do sistema — nada é gravado e recarregar a página zera tudo.
+  Troque o <b>perfil de acesso</b> no canto para ver as três experiências.
+</div>
+
+<div class="corpo">
+  <nav class="rail" id="rail" aria-label="Seções do módulo"></nav>
+  <main class="principal" id="principal"></main>
+</div>
+
+<script>
+/* ============================================================
+   MOTOR — transliteração fiel de src/lib/domain/escalas/motor.ts
+   Mesma precedência, mesmos desempates, mesma saída. Roda aqui no
+   navegador só porque não há banco: no sistema real ele roda no
+   servidor e a mesma chamada serve à simulação e à gravação.
+   ============================================================ */
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_ABREV = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DIAS_INICIAL = ['D','S','T','Q','Q','S','S'];
+
+const pad = n => String(n).padStart(2, '0');
+const iso = (a, m, d) => `${a}-${pad(m + 1)}-${pad(d)}`;
+const diasNoMes = (a, m) => new Date(a, m + 1, 0).getDate();
+const diaSemana = (a, m, d) => new Date(a, m, d).getDay();
+const partesIso = s => { const [a, m, d] = s.split('-').map(Number); return [a, m - 1, d]; };
+const dowDeIso = s => { const [a, m, d] = partesIso(s); return new Date(a, m, d).getDay(); };
+const addDias = (s, n) => { const [a, m, d] = partesIso(s); const dt = new Date(a, m, d + n); return iso(dt.getFullYear(), dt.getMonth(), dt.getDate()); };
+const diffDias = (a, b) => { const [ay,am,ad] = partesIso(a), [by,bm,bd] = partesIso(b); return Math.round((Date.UTC(by,bm,bd) - Date.UTC(ay,am,ad)) / 86400000); };
+const fmData = s => s.split('-').reverse().join('/');
+const fmComp = s => { const [a, m] = partesIso(s); return `${MESES[m]} ${a}`; };
+const fimAusencia = (ini, dias) => addDias(ini, Math.max(1, dias) - 1);
+
+function somaHoras(hhmm, horas) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const t = h * 60 + m + Math.round(horas * 60);
+  const n = ((t % 1440) + 1440) % 1440;
+  return `${pad(Math.floor(n / 60))}:${pad(n % 60)}`;
+}
+
+/* Paridade do 12x36 pela contagem de dias desde o mês âncora — exata em
+   qualquer direção, inclusive em fevereiro bissexto. */
+function cicloEfetivo(cicloBase, competencia, ancora) {
+  const inverte = Math.abs(diffDias(ancora, competencia)) % 2 === 1;
+  if (!inverte) return cicloBase;
+  return cicloBase === 'IMPAR' ? 'PAR' : 'IMPAR';
+}
+
+const MODALIDADES = {
+  HOME:     { label: 'Home Office',      sigla: 'HO',  cor: '#6D28D9', bg: '#EDE9FE' },
+  EXTERNO:  { label: 'Trabalho Externo', sigla: 'EXT', cor: '#0A6E8A', bg: '#CFFAFE' },
+  EVENTO:   { label: 'Evento',           sigla: 'EVT', cor: '#C2410C', bg: '#FFEDD5' },
+  TREINA:   { label: 'Treinamento',      sigla: 'TRE', cor: '#7C3AED', bg: '#F3E8FF' },
+  FERIAS:   { label: 'Férias',           sigla: 'FÉR', cor: '#B45309', bg: '#FEF3C7' },
+  FOLGA:    { label: 'Ausência',         sigla: 'AUS', cor: '#526176', bg: '#F1F5F9' },
+  FERIADO:  { label: 'Feriado',          sigla: 'FRD', cor: '#A16207', bg: '#FEF9C3' },
+  AFAST:    { label: 'Afastamento',      sigla: 'AFA', cor: '#BE123C', bg: '#FFE4E9' },
+  DESCANSO: { label: 'Descanso',         sigla: '—',   cor: '#5B6B80', bg: '#F1F5F9' },
+};
+
+const LIMITE_CONCENTRACAO_EQUIPE = 4;
+
+function gerarEscala(input) {
+  const { ano, mes, feriados, cicloAncora, toleranciaAderencia, coberturaMinima } = input;
+  const nDias = diasNoMes(ano, mes);
+  const competencia = iso(ano, mes, 1);
+  const unidades = input.unidades.filter(u => u.ativa).slice().sort((a, b) => a.ordem - b.ordem || a.id - b.id);
+  const ids = unidades.map(u => u.id);
+  const nomeUn = new Map(unidades.map(u => [u.id, u.nome]));
+
+  // Ordem estável: duas gerações com os mesmos dados não podem divergir.
+  const colaboradores = input.colaboradores.filter(c => c.status === 'ativo').slice().sort((a, b) => a.id - b.id);
+
+  const planoPor = new Map(input.planos.map(p => [p.colaboradorId, p]));
+  const pinPor = new Map(input.pins.map(p => [`${p.colaboradorId}|${p.data}`, p]));
+
+  const ausPor = new Map();
+  for (const a of input.ausencias) {
+    const l = ausPor.get(a.colaboradorId) || [];
+    l.push({ tipo: a.tipo, inicio: a.inicio, fim: fimAusencia(a.inicio, a.dias) });
+    ausPor.set(a.colaboradorId, l);
+  }
+
+  const capEsp = new Map(), capSem = new Map();
+  for (const c of input.capacidades) {
+    const v = { total: c.total, reservadas: c.reservadas };
+    if (c.data) capEsp.set(`${c.unidadeId}|${c.data}`, v);
+    else if (c.dow !== null && c.dow !== undefined) capSem.set(`${c.unidadeId}|${c.dow}`, v);
+  }
+
+  const posicoes = (u, data, dow) => {
+    const cfg = capEsp.get(`${u.id}|${data}`) || capSem.get(`${u.id}|${dow}`) || { total: u.capacidadeTotal, reservadas: u.capacidadeReservadas };
+    return Math.max(0, cfg.total - cfg.reservadas);
+  };
+
+  const conflitos = [], alertas = [], datas = [];
+  for (let d = 1; d <= nDias; d++) datas.push(iso(ano, mes, d));
+
+  const escala = new Map();
+  const ocupacao = {}, capacidadeDia = {};
+  for (const data of datas) {
+    ocupacao[data] = Object.fromEntries(ids.map(i => [i, 0]));
+    const dow = diaSemana(ano, mes, Number(data.slice(8)));
+    capacidadeDia[data] = Object.fromEntries(unidades.map(u => [u.id, posicoes(u, data, dow)]));
+  }
+
+  const definir = (cid, data, modalidade, unidadeId, travado = false) => {
+    const dias = escala.get(cid) || new Map();
+    dias.set(data, { modalidade, unidadeId, travado });
+    escala.set(cid, dias);
+  };
+
+  // ── Regras 1 a 8: tudo que é rígido, pessoa a pessoa.
+  const presenciais = new Map(), fixados = new Map(), cotaRestante = new Map();
+  const dowPrimeiro = diaSemana(ano, mes, 1);
+  const semanaDoMes = dia => Math.floor((dia + dowPrimeiro - 1) / 7);
+
+  for (const c of colaboradores) {
+    const plano = planoPor.get(c.id);
+    const livres = [], fixos = new Set();
+    presenciais.set(c.id, livres);
+    fixados.set(c.id, fixos);
+
+    const ausencias = ausPor.get(c.id) || [];
+    const ho = plano && plano.homeOffice;
+    const unidadesFixas = (plano && plano.unidadesFixas) || {};
+    const cicloBase = (plano && plano.ciclo) || c.ciclo || 'IMPAR';
+    const ciclo = c.regime === '12x36'
+      ? ((plano && plano.ciclo) || cicloEfetivo(cicloBase, competencia, cicloAncora))
+      : 'IMPAR';
+    let ultimoPlantao = null;
+
+    for (let d = 1; d <= nDias; d++) {
+      const data = datas[d - 1];
+      const dow = diaSemana(ano, mes, d);
+
+      // 1. Trava manual — decisão já tomada.
+      const pin = pinPor.get(`${c.id}|${data}`);
+      if (pin) {
+        definir(c.id, data, pin.modalidade, pin.unidadeId, true);
+        if (pin.modalidade === 'UNIDADE' && pin.unidadeId !== null) fixos.add(data);
+        if (c.regime === '12x36' && pin.modalidade !== 'DESCANSO') ultimoPlantao = d;
+        continue;
+      }
+
+      // 2/3. Férias e ausências — bloqueio absoluto, mesmo iniciadas em outro mês.
+      const aus = ausencias.find(a => data >= a.inicio && data <= a.fim);
+      if (aus) { definir(c.id, data, aus.tipo === 'FERIAS' ? 'FERIAS' : 'FOLGA', null); continue; }
+
+      // 4. Regime de trabalho.
+      if (c.regime === '12x36') {
+        const trabalha = (ciclo === 'IMPAR') === (d % 2 === 1);
+        if (!trabalha) { definir(c.id, data, 'DESCANSO', null); continue; }
+        if (ultimoPlantao === d - 1) {
+          conflitos.push({ nivel: 'erro', colaborador: c.nome, data, msg: 'Plantões 12x36 em dias consecutivos — o descanso de 36h fica violado.' });
+        }
+        ultimoPlantao = d;
+      } else {
+        if (dow === 0 || dow === 6) { definir(c.id, data, 'DESCANSO', null); continue; }
+        if (feriados[data]) { definir(c.id, data, 'FERIADO', null); continue; }
+      }
+
+      const uFixa = unidadesFixas[dow];
+      const temFixa = uFixa !== undefined && ids.includes(uFixa);
+
+      // 5. Home office fixo.
+      if (c.elegHome && ho && ho.modo === 'FIXO' && ho.diasSemana.includes(dow)) {
+        if (temFixa) {
+          conflitos.push({ nivel: 'erro', colaborador: c.nome, data, msg: `${DIAS_ABREV[dow]} está marcado como home office fixo e como unidade fixa (${nomeUn.get(uFixa)}) ao mesmo tempo.` });
+        }
+        definir(c.id, data, 'HOME', null); continue;
+      }
+
+      // 6. Unidade fixa do dia da semana — ocupa posição, sai do rateio livre.
+      if (temFixa) { definir(c.id, data, 'UNIDADE', uFixa); livres.push(data); fixos.add(data); continue; }
+
+      // 8 (1ª passada). Cota semanal nos dias preferidos.
+      if (c.elegHome && ho && ho.modo === 'COTA') {
+        const sem = semanaDoMes(d);
+        const porSem = cotaRestante.get(c.id) || new Map();
+        if (!porSem.has(sem)) porSem.set(sem, ho.quantidade);
+        cotaRestante.set(c.id, porSem);
+        if (!ho.diasProibidos.includes(dow) && ho.diasPreferencia.includes(dow) && porSem.get(sem) > 0) {
+          porSem.set(sem, porSem.get(sem) - 1);
+          definir(c.id, data, 'HOME', null); continue;
+        }
+      }
+      livres.push(data);
+    }
+  }
+
+  // ── Regra 8 (2ª passada): completa a cota que a preferência não cobriu.
+  for (const c of colaboradores) {
+    if (!c.elegHome) continue;
+    const plano = planoPor.get(c.id);
+    const ho = plano && plano.homeOffice;
+    if (!ho || ho.modo !== 'COTA') continue;
+    const porSem = cotaRestante.get(c.id);
+    if (!porSem) continue;
+    for (const [sem, restante] of porSem) {
+      let falta = restante;
+      if (falta <= 0) continue;
+      for (const data of [...(presenciais.get(c.id) || [])]) {
+        if (falta <= 0) break;
+        const dia = Number(data.slice(8));
+        if (semanaDoMes(dia) !== sem) continue;
+        if (ho.diasProibidos.includes(diaSemana(ano, mes, dia))) continue;
+        if (fixados.get(c.id).has(data)) continue;
+        definir(c.id, data, 'HOME', null);
+        presenciais.set(c.id, presenciais.get(c.id).filter(x => x !== data));
+        falta--;
+      }
+      if (falta > 0) {
+        alertas.push({ nivel: 'aviso', colaborador: c.nome, msg: `Cota de home office não atendida na semana ${sem + 1}: faltam ${falta} dia(s) elegíveis.` });
+      }
+    }
+  }
+
+  // ── Regra 9: metas por unidade, método do maior resto.
+  const metas = {};
+  for (const c of colaboradores) {
+    const plano = planoPor.get(c.id);
+    const dist = (plano && plano.distribuicao) || {};
+    const soma = ids.reduce((a, i) => a + (dist[i] || 0), 0);
+    const efetiva = soma > 0 ? dist : { [c.unidadeBaseId]: 100 };
+    const divisor = soma > 0 ? soma : 100;
+    const total = (presenciais.get(c.id) || []).length;
+    const base = ids.map(i => {
+      const exato = (total * (efetiva[i] || 0)) / divisor;
+      return { id: i, piso: Math.floor(exato), resto: exato - Math.floor(exato) };
+    });
+    let sobra = total - base.reduce((a, b) => a + b.piso, 0);
+    // Empate no resto: menor id primeiro, para a geração ser reprodutível.
+    [...base].sort((a, b) => b.resto - a.resto || a.id - b.id).forEach(b => { if (sobra > 0) { b.piso++; sobra--; } });
+    metas[c.id] = Object.fromEntries(base.map(b => [b.id, b.piso]));
+  }
+
+  const alocado = {};
+  for (const c of colaboradores) alocado[c.id] = Object.fromEntries(ids.map(i => [i, 0]));
+
+  // ── Regras 7 e 11: preenche o dia com capacidade e balanceamento.
+  for (let d = 1; d <= nDias; d++) {
+    const data = datas[d - 1];
+    const cap = capacidadeDia[data];
+
+    for (const c of colaboradores) {
+      const dec = escala.get(c.id) && escala.get(c.id).get(data);
+      if (!dec || dec.modalidade !== 'UNIDADE' || dec.unidadeId === null) continue;
+      ocupacao[data][dec.unidadeId]++;
+      alocado[c.id][dec.unidadeId]++;
+    }
+
+    for (const u of unidades) {
+      if (ocupacao[data][u.id] <= cap[u.id]) continue;
+      const nomes = colaboradores.filter(c => {
+        const a = escala.get(c.id) && escala.get(c.id).get(data);
+        return a && a.modalidade === 'UNIDADE' && a.unidadeId === u.id;
+      }).map(c => c.nome);
+      conflitos.push({ nivel: 'erro', data, msg: `${u.nome} em ${fmData(data)} tem ${ocupacao[data][u.id]} pessoas fixadas para ${cap[u.id]} posições. Revise as travas e unidades fixas de: ${nomes.slice(0, 6).join(', ')}${nomes.length > 6 ? '…' : ''}.` });
+    }
+
+    const candidatos = colaboradores
+      .filter(c => (presenciais.get(c.id) || []).includes(data) && !(escala.get(c.id) && escala.get(c.id).get(data)))
+      .map(c => {
+        const faltas = ids.map(i => ({ id: i, falta: (metas[c.id][i] || 0) - alocado[c.id][i] }));
+        const maior = faltas.reduce((a, b) => (b.falta > a.falta ? b : a), faltas[0]);
+        return { c, preferida: maior.id, urgencia: maior.falta, flex: faltas.filter(f => f.falta > 0).length };
+      })
+      .sort((a, b) => a.flex - b.flex || b.urgencia - a.urgencia || a.c.id - b.c.id);
+
+    const conc = Object.fromEntries(ids.map(i => [i, {}]));
+
+    for (const { c, preferida } of candidatos) {
+      const ordem = [preferida, ...ids.filter(i => i !== preferida)];
+      let colocado = false;
+      for (const i of ordem) {
+        if (ocupacao[data][i] >= cap[i]) continue;
+        const n = conc[i][c.equipeId] || 0;
+        const alt = ordem.find(x => x !== i && ocupacao[data][x] < cap[x]);
+        if (i !== preferida && alt !== undefined && n > LIMITE_CONCENTRACAO_EQUIPE) continue;
+        definir(c.id, data, 'UNIDADE', i);
+        ocupacao[data][i]++; alocado[c.id][i]++; conc[i][c.equipeId] = n + 1;
+        colocado = true; break;
+      }
+      if (!colocado) {
+        definir(c.id, data, 'EXTERNO', null);
+        const det = unidades.map(u => `${u.nome} ${ocupacao[data][u.id]}/${cap[u.id]}`).join(', ');
+        conflitos.push({ nivel: 'erro', colaborador: c.nome, data, msg: `Sem posição disponível em nenhuma unidade (${det}). Alocado como Trabalho Externo.` });
+      }
+    }
+
+    const alguem = colaboradores.some(c => {
+      const a = escala.get(c.id) && escala.get(c.id).get(data);
+      return a && a.modalidade !== 'DESCANSO' && a.modalidade !== 'FERIADO';
+    });
+    if (alguem && coberturaMinima > 0) {
+      for (const u of unidades) {
+        if (ocupacao[data][u.id] < coberturaMinima) {
+          alertas.push({ nivel: 'aviso', data, msg: `${u.nome} com ${ocupacao[data][u.id]} pessoa(s) em ${fmData(data)} — abaixo da cobertura mínima de ${coberturaMinima}.` });
+        }
+      }
+    }
+  }
+
+  // ── Aderência: planejado x realizado.
+  const aderencia = colaboradores.map(c => {
+    const desvios = ids.map(i => ({ unidadeId: i, planejado: metas[c.id][i] || 0, realizado: alocado[c.id][i] || 0 }));
+    const ok = desvios.every(x => Math.abs(x.planejado - x.realizado) <= toleranciaAderencia);
+    if (!ok) {
+      alertas.push({ nivel: 'aviso', colaborador: c.nome, msg: `Distribuição fora da tolerância: ${desvios.map(x => `${nomeUn.get(x.unidadeId)} ${x.realizado}/${x.planejado}`).join(' · ')}` });
+    }
+    return { colaboradorId: c.id, colaborador: c.nome, desvios, ok };
+  });
+
+  const alocacoes = [];
+  for (const c of colaboradores) {
+    const dias = escala.get(c.id);
+    if (!dias) continue;
+    for (const data of datas) {
+      const a = dias.get(data);
+      if (a) alocacoes.push({ colaboradorId: c.id, data, modalidade: a.modalidade, unidadeId: a.unidadeId, travado: a.travado });
+    }
+  }
+
+  return { alocacoes, conflitos, alertas, ocupacao, capacidadeDia, aderencia, metas };
+}
+
+/* Pré-checagem: enquanto houver pendência a geração fica bloqueada. */
+function checarPlanos({ colaboradores, planos, ausencias, unidades }) {
+  const pend = [];
+  const ids = unidades.filter(u => u.ativa).map(u => u.id);
+  const planoPor = new Map(planos.map(p => [p.colaboradorId, p]));
+  const ausPor = new Map();
+  for (const a of ausencias) ausPor.set(a.colaboradorId, [...(ausPor.get(a.colaboradorId) || []), a]);
+
+  for (const c of colaboradores.filter(x => x.status === 'ativo')) {
+    const add = msg => pend.push({ colaboradorId: c.id, colaborador: c.nome, msg });
+    const p = planoPor.get(c.id);
+    if (!p) { add('Sem plano configurado para o mês.'); }
+    else {
+      const soma = ids.reduce((a, i) => a + (p.distribuicao[i] || 0), 0);
+      if (soma !== 100) add(`A distribuição entre unidades soma ${soma}% — precisa somar 100%.`);
+      if (c.regime === '12x36' && !p.ciclo) add('Regime 12x36 sem ciclo definido para o mês.');
+      const ho = p.homeOffice;
+      if (ho.modo === 'FIXO') {
+        if (!ho.diasSemana.length) add('Home office fixo sem nenhum dia da semana selecionado.');
+        for (const dow of ho.diasSemana) {
+          if (p.unidadesFixas[dow] !== undefined) add(`${DIAS_ABREV[dow]} está marcado ao mesmo tempo como home office fixo e como unidade fixa.`);
+        }
+      }
+      if (ho.modo === 'COTA' && ho.quantidade < 1) add('Cota de home office precisa de pelo menos 1 dia por semana.');
+      if (ho.modo && !c.elegHome) add('Home office configurado, mas o colaborador não está marcado como elegível.');
+    }
+    const lista = (ausPor.get(c.id) || []).slice().sort((a, b) => a.inicio.localeCompare(b.inicio));
+    for (let i = 0; i < lista.length; i++) {
+      const a = lista[i];
+      if (!a.inicio) { add('Ausência sem data de início.'); continue; }
+      if (!a.dias || a.dias < 1) { add('Ausência sem quantidade de dias.'); continue; }
+      if (a.tipo === 'AUSENCIA' && (!a.grupo || !a.motivo)) add('Ausência sem grupo ou motivo preenchido.');
+      for (let j = i + 1; j < lista.length; j++) {
+        const b = lista[j];
+        if (a.inicio <= fimAusencia(b.inicio, b.dias) && b.inicio <= fimAusencia(a.inicio, a.dias)) {
+          add(`Duas ausências se sobrepõem a partir de ${fmData(b.inicio)}.`);
+        }
+      }
+    }
+  }
+  return pend;
+}
+/* ============================================================
+   DADOS DE DEMONSTRAÇÃO — mesmo elenco do protótipo original
+   ============================================================ */
+const UNIDADES = [
+  { id: 1, codigo: 'MOR', nome: 'Morumbi',  sigla: 'MOR', cor: '#1A4E93', bg: '#DCEAF8', capacidadeTotal: 26, capacidadeReservadas: 2, ordem: 1, ativa: true },
+  { id: 2, codigo: 'PAU', nome: 'Paulista', sigla: 'PAU', cor: '#0A6169', bg: '#D7F0F1', capacidadeTotal: 24, capacidadeReservadas: 2, ordem: 2, ativa: true },
+];
+
+const EQUIPES = [
+  { id: 1, codigo: 'T12D', nome: 'Técnico 12x36 Diurno',  regime: '12x36', turno: 'D', gestor: 'KAMYLA' },
+  { id: 2, codigo: 'T12N', nome: 'Técnico 12x36 Noturno', regime: '12x36', turno: 'N', gestor: 'MARCOS' },
+  { id: 3, codigo: 'T5X2', nome: 'Técnico 5x2',           regime: '5x2',   turno: 'D', gestor: 'KAMYLA' },
+  { id: 4, codigo: 'A5X2', nome: 'Analista 5x2',          regime: '5x2',   turno: 'D', gestor: 'FILIPE FERREIRA' },
+  { id: 5, codigo: 'LIDN', nome: 'Líder Noturno 5x2',     regime: '5x2',   turno: 'N', gestor: 'KAMYLA' },
+  { id: 6, codigo: 'APRE', nome: 'Jovem Aprendiz',        regime: '5x2',   turno: 'D', gestor: 'DANIELLE' },
+];
+
+let _seq = 0;
+const mk = (nome, cargo, equipeId, ciclo, entrada, jornada, unidadeBaseId, elegHome = true) => {
+  const eq = EQUIPES.find(e => e.id === equipeId);
+  return {
+    id: ++_seq, nome, matricula: String(100000 + _seq),
+    email: nome.toLowerCase().normalize('NFD').replace(/[^a-z ]/g, '').trim().split(/\s+/).join('.') + '@einstein.br',
+    cargo, equipeId, ciclo, entrada, jornada, unidadeBaseId,
+    gestor: eq.gestor, turno: eq.turno, regime: eq.regime,
+    elegHome, elegExterno: cargo.startsWith('Analista') || cargo === 'Especialista',
+    sextaReduzida: eq.regime === '5x2', status: 'ativo', admissao: '2023-03-15',
+  };
+};
+
+const IMPAR_D = ['GABRIELI','RODRIGO','VALDECI','MATHEUS','NATHALIA'];
+const IMPAR_N = ['FELIPE DE OLIVEIRA','VITOR','RYAN','JULIA GOMES','RHONNY'];
+const PAR_D   = ['JEANE','JULIA','JOÃO','ALISSON','CAROLINE'];
+const PAR_N   = ['VITORIA','LUAN','CAIO','VINICIUS ALEXANDRE','VICTOR CARREIRAS'];
+
+const ANALISTAS = [
+  ['FILIPE FERREIRA','Analista Sr','07:00'], ['LUCELIO','Analista Sr','06:00'],
+  ['KAMYLA','Especialista','08:00'], ['EDGAR','Analista Pl','06:00'],
+  ['DANIELLE','Analista Pl','07:00'], ['FELIPE GUARNIERI','Analista Pl','08:00'],
+  ['EDUARDO','Analista Pl','07:00'], ['NATANAEL','Analista Pl','08:00'],
+  ['RAFAELA','Analista Jr','07:00'], ['CAIQUE','Analista Jr','07:00'],
+  ['DIEGO','Analista Jr','08:00'], ['RODRIGO MOURA','Analista Jr','08:00'],
+  ['JEFFERSON','Analista Jr','08:00'], ['GUSTAVO','Analista Jr','08:00'],
+  ['HENRIQUE','Analista Jr','09:00'], ['VINICIUS OLIVEIRA','Analista Jr','09:00'],
+  ['WAGNER','Analista Jr','13:00'],
+];
+
+const TEC5X2 = [
+  ['VALÉRIA','Técnico I','06:00'], ['PAULO','Técnico I','08:00'],
+  ['CAMILA','Técnico I','08:00'], ['NEYVANILZA','Técnico I','08:00'],
+  ['GUILHERME COSSIO','Técnico I','08:00'], ['ANDERSON','Técnico II','10:00'],
+  ['FABRICIO','Técnico II','10:00'], ['BARBARA','Técnico II','10:00'],
+  ['ZULEIXY','Técnico II','10:00'], ['CESAR','Técnico II','10:00'],
+  ['SABRINA','Técnico I','07:00'], ['GABRIEL','Técnico I','07:00'],
+  ['GIOVANI','Técnico II','09:12'], ['RICARDO MUTANGO','Técnico II','09:12'],
+  ['KAIKY','Técnico II','13:00'], ['VANESSA','Técnico III','07:00'],
+  ['RAFAELA ROCHA','Técnico III','11:48'], ['RICARDO LOPES','Técnico III','09:48'],
+];
+
+const COLABORADORES = [
+  ...IMPAR_D.map((n, i) => mk(n, 'Técnico II', 1, 'IMPAR', '07:00', 12, i % 2 ? 2 : 1)),
+  ...IMPAR_N.map((n, i) => mk(n, 'Técnico II', 2, 'IMPAR', '19:00', 12, i % 2 ? 2 : 1)),
+  ...PAR_D.map((n, i)   => mk(n, 'Técnico II', 1, 'PAR',   '07:00', 12, i % 2 ? 1 : 2)),
+  ...PAR_N.map((n, i)   => mk(n, 'Técnico II', 2, 'PAR',   '19:00', 12, i % 2 ? 1 : 2)),
+  mk('MARCOS', 'Líder', 5, null, '22:00', 8, 1),
+  ...ANALISTAS.map(([n, c, h], i) => mk(n, c, 4, null, h, 10, i % 3 === 0 ? 2 : 1)),
+  ...TEC5X2.map(([n, c, h], i)    => mk(n, c, 3, null, h, 10, i % 3 === 0 ? 2 : 1)),
+  ...['LARISSA','PAULO SANTOS','LARISSA BERNARDO'].map((n, i) => mk(n, 'Aprendiz', 6, null, '08:00', 6, i === 0 ? 2 : 1)),
+];
+
+const FERIADOS = {
+  '2026-01-01':'Confraternização Universal','2026-01-25':'Aniversário de SP',
+  '2026-02-16':'Carnaval','2026-02-17':'Carnaval','2026-04-03':'Sexta-feira Santa',
+  '2026-04-21':'Tiradentes','2026-05-01':'Dia do Trabalho','2026-06-04':'Corpus Christi',
+  '2026-07-09':'Revolução Constitucionalista','2026-09-07':'Independência',
+  '2026-10-12':'N. Sra. Aparecida','2026-11-02':'Finados',
+  '2026-11-15':'Proclamação da República','2026-11-20':'Consciência Negra','2026-12-25':'Natal',
+};
+
+const GRUPOS_AUSENCIA = [
+  { grupo: 'Folga',    motivos: ['Aniversário','Banco de Horas','Profissional da Saúde','Compensação','Doação de Sangue'] },
+  { grupo: 'Licença',  motivos: ['Nojo (falecimento)','Gala (casamento)','Paternidade','Maternidade','Sem vencimento'] },
+  { grupo: 'Atestado', motivos: ['Atestado médico','Consulta','Acompanhamento familiar'] },
+  { grupo: 'Outros',   motivos: ['Convocação legal','Suspensão','Outros'] },
+];
+
+const TIPOS_SOLICITACAO = {
+  AJUSTE_PONTO: { label: 'Ajuste de Ponto', fila: false, sla: 48 },
+  BANCO_HORAS:  { label: 'Banco de Horas', fila: false, sla: 72 },
+  FERIAS:       { label: 'Férias', fila: false, sla: 120 },
+  FOLGA:        { label: 'Folgas', fila: false, sla: 48 },
+  ATRASO:       { label: 'Justificativa de Atraso', fila: false, sla: 24 },
+  PAUSA:        { label: 'Pausas', fila: false, sla: 24 },
+  SAIDA_ANTEC:  { label: 'Saída Antecipada', fila: false, sla: 24 },
+  TROCA_HORARIO:{ label: 'Troca de Horário', fila: true, sla: 48 },
+  TROCA_UNIDADE:{ label: 'Troca de Unidade', fila: true, sla: 72 },
+};
+
+const STATUS_SOLIC = {
+  AGUARDA_PARCEIRO: { label: 'Aguarda parceiro', cor: '#6D28D9', bg: '#EDE9FE' },
+  TRIAGEM:  { label: 'Em triagem',      cor: '#1A4E93', bg: '#DCEAF8' },
+  GESTOR:   { label: 'Com o gestor',    cor: '#B45309', bg: '#FEF3C7' },
+  FILA:     { label: 'Lista de espera', cor: '#0A6169', bg: '#D7F0F1' },
+  APROVADA: { label: 'Aprovada',        cor: '#15803D', bg: '#DCFCE7' },
+  RECUSADA: { label: 'Recusada',        cor: '#BE123C', bg: '#FFE4E9' },
+};
+
+const TIPOS_OCORRENCIA = {
+  ATRASO:      { label: 'Atraso', cor: '#B45309', minutos: true },
+  FALTA_J:     { label: 'Falta justificada', cor: '#64748B', minutos: false },
+  FALTA_I:     { label: 'Falta injustificada', cor: '#BE123C', minutos: false },
+  SAIDA_ANTEC: { label: 'Saída antecipada', cor: '#B45309', minutos: true },
+  PAUSA_EXC:   { label: 'Pausa excedida', cor: '#B45309', minutos: true },
+  SEM_MARCACAO:{ label: 'Ausência de marcação', cor: '#6D28D9', minutos: false },
+  TROCA:       { label: 'Troca realizada', cor: '#2463B5', minutos: false },
+  OBS:         { label: 'Observação', cor: '#64748B', minutos: false },
+};
+
+const REGRAS_MOTOR = [
+  { n: 1,  t: 'Travas manuais', d: 'Um ajuste travado no calendário é decisão já tomada: entra antes de qualquer regra e conta na ocupação da unidade.', rigida: true },
+  { n: 2,  t: 'Férias', d: 'Bloqueio absoluto. Nenhuma outra regra reabre o dia.', rigida: true },
+  { n: 3,  t: 'Ausências', d: 'Folga, licença, atestado e afastamento bloqueiam o dia, mesmo iniciados em outro mês.', rigida: true },
+  { n: 4,  t: 'Regime de trabalho', d: '12x36 alterna dias pares/ímpares a partir do ciclo do mês; 5x2 trabalha de segunda a sexta e folga em feriado.', rigida: true },
+  { n: 5,  t: 'Home office fixo', d: 'Dias da semana marcados como home office não entram na distribuição por unidade.', rigida: true },
+  { n: 6,  t: 'Unidade fixa por dia da semana', d: 'Ex.: toda terça na Paulista. Ocupa posição e sai da distribuição percentual livre.', rigida: true },
+  { n: 7,  t: 'Capacidade da unidade', d: 'Nunca aloca acima das posições operacionais. Quem não couber vira Trabalho Externo com conflito registrado.', rigida: true },
+  { n: 8,  t: 'Cota semanal de home office', d: 'A quantidade é rígida; o dia é flexível. Dias proibidos nunca são usados.', rigida: true },
+  { n: 9,  t: 'Distribuição percentual', d: 'Reparte os dias presenciais entre as unidades pelo método do maior resto, dentro da tolerância configurada.', rigida: false },
+  { n: 10, t: 'Preferência de home office', d: 'Tenta usar os dias preferidos antes de qualquer outro dia elegível.', rigida: false },
+  { n: 11, t: 'Balanceamento e cobertura', d: 'Evita concentrar a mesma equipe numa unidade e avisa quando a cobertura mínima do dia não é atingida.', rigida: false },
+];
+
+/* Planos do mês: mesma distribuição do protótipo original. */
+function montarPlanos(competencia) {
+  return COLABORADORES.map((c, i) => {
+    const outra = c.unidadeBaseId === 1 ? 2 : 1;
+    const distribuicao = c.regime === '12x36'
+      ? { [c.unidadeBaseId]: 100, [outra]: 0 }
+      : i % 3 === 0 ? { 1: 75, 2: 25 }
+      : i % 3 === 1 ? { 1: 100, 2: 0 }
+      : { 1: 50, 2: 50 };
+    const homeOffice =
+      c.elegHome && i % 4 === 0 ? { modo: 'FIXO', diasSemana: [2, 4], quantidade: 0, diasPreferencia: [], diasProibidos: [] }
+      : c.elegHome && i % 4 === 1 ? { modo: 'COTA', diasSemana: [], quantidade: 2, diasPreferencia: [1, 3], diasProibidos: [5] }
+      : { modo: null, diasSemana: [], quantidade: 0, diasPreferencia: [], diasProibidos: [] };
+    return {
+      colaboradorId: c.id, competencia,
+      ciclo: c.regime === '12x36' ? c.ciclo : null,
+      distribuicao, unidadesFixas: {}, homeOffice,
+    };
+  });
+}
+
+/* Ausências ligadas à pessoa (não ao mês) — inclui uma que cruza a virada,
+   exatamente o caso que o protótipo original perdia. */
+const AUSENCIAS_INICIAIS = [
+  { id: 1, colaboradorId: 1,  tipo: 'FERIAS',   inicio: '2026-08-05', dias: 15, grupo: '', motivo: '' },
+  { id: 2, colaboradorId: 12, tipo: 'AUSENCIA', inicio: '2026-08-14', dias: 1,  grupo: 'Folga', motivo: 'Aniversário' },
+  { id: 3, colaboradorId: 23, tipo: 'AUSENCIA', inicio: '2026-07-25', dias: 20, grupo: 'Licença', motivo: 'Paternidade' },
+  { id: 4, colaboradorId: 34, tipo: 'AUSENCIA', inicio: '2026-08-19', dias: 2,  grupo: 'Atestado', motivo: 'Atestado médico' },
+  { id: 5, colaboradorId: 45, tipo: 'FERIAS',   inicio: '2026-08-10', dias: 20, grupo: '', motivo: '' },
+];
+
+const OCORRENCIAS_INICIAIS = [
+  { id: 1, colaboradorId: 6,  data: '2026-08-03', tipo: 'ATRASO', minutos: 22, obs: 'Trânsito na Marginal' },
+  { id: 2, colaboradorId: 12, data: '2026-08-04', tipo: 'FALTA_I', minutos: 0, obs: '' },
+  { id: 3, colaboradorId: 25, data: '2026-08-05', tipo: 'ATRASO', minutos: 8,  obs: '' },
+  { id: 4, colaboradorId: 31, data: '2026-08-05', tipo: 'SAIDA_ANTEC', minutos: 45, obs: 'Consulta médica' },
+  { id: 5, colaboradorId: 6,  data: '2026-08-10', tipo: 'ATRASO', minutos: 15, obs: '' },
+  { id: 6, colaboradorId: 40, data: '2026-08-11', tipo: 'FALTA_J', minutos: 0, obs: 'Atestado de 1 dia' },
+  { id: 7, colaboradorId: 12, data: '2026-08-12', tipo: 'ATRASO', minutos: 35, obs: '' },
+  { id: 8, colaboradorId: 50, data: '2026-08-13', tipo: 'PAUSA_EXC', minutos: 18, obs: '' },
+];
+
+const SOLICITACOES_INICIAIS = [
+  { id: 1, colaboradorId: 30, tipo: 'TROCA_UNIDADE', data: '2026-08-12', detalhe: 'Solicito Paulista no dia 12/08 por consulta na região.', unidadeDesejadaId: 2, status: 'TRIAGEM', aplicada: false, criadoEm: '2026-08-01T09:12',
+    eventos: [{ etapa: 'Aberta', por: 'DIEGO', em: '01/08 09:12', detalhe: 'Troca de Unidade para 12/08/2026' }] },
+  { id: 2, colaboradorId: 22, tipo: 'TROCA_HORARIO', data: '2026-08-14', detalhe: 'Troca de plantão com CAIQUE — casamento na família.', parceiroId: 23, aceiteParceiro: 'PENDENTE', status: 'AGUARDA_PARCEIRO', aplicada: false, criadoEm: '2026-08-02T14:30',
+    eventos: [{ etapa: 'Aberta', por: 'RAFAELA', em: '02/08 14:30', detalhe: '' }] },
+  { id: 3, colaboradorId: 41, tipo: 'FOLGA', data: '2026-08-20', detalhe: 'Banco de horas acumulado — folga em 20/08.', status: 'GESTOR', aplicada: false, criadoEm: '2026-07-30T11:00',
+    eventos: [{ etapa: 'Aberta', por: 'VALÉRIA', em: '30/07 11:00', detalhe: '' }, { etapa: 'Encaminhada ao gestor', por: 'KAMYLA', em: '31/07 08:40', detalhe: '' }] },
+  { id: 4, colaboradorId: 35, tipo: 'ATRASO', data: '2026-08-03', detalhe: 'Atraso de 22 min — acidente na Marginal Pinheiros.', status: 'APROVADA', aplicada: false, criadoEm: '2026-08-03T10:05',
+    eventos: [{ etapa: 'Aberta', por: 'JEFFERSON', em: '03/08 10:05', detalhe: '' }, { etapa: 'Aprovada pelo gestor', por: 'FILIPE FERREIRA', em: '03/08 16:20', detalhe: 'Este tipo não altera a escala — vale como registro formal.' }] },
+  { id: 5, colaboradorId: 48, tipo: 'TROCA_UNIDADE', data: '2026-08-18', detalhe: 'Preferência por Morumbi nesse dia.', unidadeDesejadaId: 1, status: 'FILA', posicaoFila: 1, aplicada: false, criadoEm: '2026-07-28T08:00',
+    eventos: [{ etapa: 'Aberta', por: 'BARBARA', em: '28/07 08:00', detalhe: '' }, { etapa: 'Enviada para a lista de espera', por: 'KAMYLA', em: '28/07 15:12', detalhe: '' }] },
+  { id: 6, colaboradorId: 52, tipo: 'TROCA_UNIDADE', data: '2026-08-18', detalhe: 'Preferência por Morumbi nesse dia.', unidadeDesejadaId: 1, status: 'FILA', posicaoFila: 2, aplicada: false, criadoEm: '2026-07-29T10:44',
+    eventos: [{ etapa: 'Aberta', por: 'GIOVANI', em: '29/07 10:44', detalhe: '' }, { etapa: 'Enviada para a lista de espera', por: 'KAMYLA', em: '29/07 11:02', detalhe: '' }] },
+  { id: 7, colaboradorId: 15, tipo: 'AJUSTE_PONTO', data: '2026-08-01', detalhe: 'Falha de marcação no ponto na saída.', status: 'RECUSADA', motivoRecusa: 'Marcação já regularizada pelo RH em 02/08.', aplicada: false, criadoEm: '2026-08-02T07:30',
+    eventos: [{ etapa: 'Aberta', por: 'JULIA', em: '02/08 07:30', detalhe: '' }, { etapa: 'Recusada na triagem', por: 'KAMYLA', em: '02/08 11:00', detalhe: 'Marcação já regularizada pelo RH em 02/08.' }] },
+];
+
+/* Identidade fixa por papel — no sistema real vem da sessão. */
+const PAPEIS = {
+  planejamento: { label: 'Planejamento', nome: 'KAMYLA' },
+  gestor:       { label: 'Gestor',       nome: 'FILIPE FERREIRA' },
+  colaborador:  { label: 'Colaborador',  nome: 'RODRIGO MOURA' },
+};
+
+const CONFIG = { cicloAncora: '2026-01-01', toleranciaAderencia: 1, coberturaMinima: 1 };
+/* ============================================================
+   ESTADO — em memória. No sistema real tudo isso está no Supabase,
+   isolado por conta e recortado por papel na própria RLS.
+   ============================================================ */
+const S = {
+  papel: 'planejamento',
+  tela: 'gerar',
+  competencia: '2026-08-01',
+  vista: 'mes',
+  aba: 'abertas',
+  dia: null,
+  colabAberto: null,
+  planos: { '2026-08-01': montarPlanos('2026-08-01') },
+  ausencias: AUSENCIAS_INICIAIS.slice(),
+  ocorrencias: OCORRENCIAS_INICIAIS.slice(),
+  solicitacoes: SOLICITACOES_INICIAIS.slice(),
+  pins: [],
+  geracoes: {},
+  simulacao: null,
+  recado: null,
+  seq: 100,
+  // Filtros por tela. Ficam no estado para sobreviver ao re-render e para o
+  // recorte valer igual no calendário, na grade e na exportação.
+  fPlanos: { q: '', equipe: '', pendentes: false },
+  fCal: { q: '', equipe: '', turno: '', modalidade: '' },
+};
+
+/**
+ * Retorno junto ao controle que o disparou.
+ *
+ * O editor de plano é longo: uma mensagem no topo da página, com o formulário
+ * lá embaixo, é indistinguível de "o botão não fez nada". Ações com um lugar
+ * próprio na tela marcam `onde` e a mensagem sai ali.
+ */
+function recadoLocal(onde) {
+  const r = S.recado;
+  if (!r || r.onde !== onde) return `<div id="recado-${onde}"></div>`;
+  return `<div id="recado-${onde}" class="aviso" style="margin-top:10px;border-color:${r.erro ? 'var(--rose)' : 'var(--green)'};background:${r.erro ? 'var(--rose-bg)' : 'var(--green-bg)'};color:${r.erro ? 'var(--rose)' : 'var(--green)'}" role="status">${esc(r.msg)}</div>`;
+}
+
+/** Monta uma barra de filtros a partir de uma descrição declarativa. */
+function barraFiltros(campos, contagem) {
+  return `<div class="filtros">
+    ${campos.map(c => {
+      if (c.tipo === 'busca') {
+        return `<label class="f-busca"><span class="rotulo">${esc(c.label)}</span>
+          <input class="campo" id="${c.id}" data-filtro="${c.id}" value="${esc(c.valor)}"
+                 placeholder="${esc(c.dica || '')}" autocomplete="off"></label>`;
+      }
+      if (c.tipo === 'marca') {
+        return `<label class="f-marca"><input type="checkbox" data-filtro="${c.id}" id="${c.id}"
+          ${c.valor ? 'checked' : ''}> ${esc(c.label)}</label>`;
+      }
+      return `<label class="f-sel"><span class="rotulo">${esc(c.label)}</span>
+        <select class="campo" id="${c.id}" data-filtro="${c.id}">
+          ${c.opcoes.map(([v, l]) => `<option value="${esc(v)}"${String(c.valor) === String(v) ? ' selected' : ''}>${esc(l)}</option>`).join('')}
+        </select></label>`;
+    }).join('')}
+    <span class="f-resultado">${esc(contagem)}</span>
+  </div>`;
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const colabPorId = new Map(COLABORADORES.map(c => [c.id, c]));
+const equipePorId = new Map(EQUIPES.map(e => [e.id, e]));
+const unidadePorId = new Map(UNIDADES.map(u => [u.id, u]));
+
+const euSou = () => COLABORADORES.find(c => c.nome === PAPEIS[S.papel].nome);
+
+/** Recorte por papel — no sistema real isto é policy de RLS, não filtro de tela. */
+function visiveis() {
+  if (S.papel === 'planejamento') return COLABORADORES;
+  if (S.papel === 'gestor') {
+    const eq = EQUIPES.filter(e => e.gestor === PAPEIS.gestor.nome).map(e => e.id);
+    return COLABORADORES.filter(c => eq.includes(c.equipeId));
+  }
+  const eu = euSou();
+  return eu ? [eu] : [];
+}
+
+const planosDoMes = () => S.planos[S.competencia] || [];
+const geracao = () => S.geracoes[S.competencia] || null;
+
+function contexto() {
+  const [ano, mes] = partesIso(S.competencia);
+  return {
+    ano, mes, unidades: UNIDADES, colaboradores: COLABORADORES,
+    planos: planosDoMes(), ausencias: S.ausencias, capacidades: [],
+    feriados: FERIADOS, pins: S.pins,
+    cicloAncora: CONFIG.cicloAncora,
+    toleranciaAderencia: CONFIG.toleranciaAderencia,
+    coberturaMinima: CONFIG.coberturaMinima,
+  };
+}
+
+const pendencias = () => checarPlanos({
+  colaboradores: COLABORADORES, planos: planosDoMes(),
+  ausencias: S.ausencias, unidades: UNIDADES,
+});
+
+/** Aparência de uma alocação: unidade física ou modalidade remota/ausência. */
+function apar(modalidade, unidadeId) {
+  if (modalidade === 'UNIDADE') {
+    const u = unidadePorId.get(unidadeId);
+    return { label: u.nome, sigla: u.sigla, cor: u.cor, bg: u.bg };
+  }
+  return MODALIDADES[modalidade];
+}
+
+/* ── Fragmentos reutilizados ─────────────────────────────── */
+const selo = (txt, cor, bg) => `<span class="selo" style="color:${cor};background:${bg}">${esc(txt)}</span>`;
+const pilula = (txt, cor, bg) => `<span class="pilula" style="color:${cor};background:${bg}">${esc(txt)}</span>`;
+
+const bloco = ({ tit, desc, acoes, corpo }) => `
+  <section class="card">
+    ${tit || acoes ? `<div class="card-topo">
+      <div style="min-width:0">
+        ${tit ? `<h3 class="card-tit">${tit}</h3>` : ''}
+        ${desc ? `<p class="card-desc">${desc}</p>` : ''}
+      </div>
+      ${acoes ? `<div class="card-acoes">${acoes}</div>` : ''}
+    </div>` : ''}
+    ${corpo || ''}
+  </section>`;
+
+const kpi = (label, valor, sub, cor) => `
+  <div class="kpi${cor ? ' destaque' : ''}"${cor ? ` style="border-left-color:${cor}"` : ''}>
+    <span class="rotulo">${esc(label)}</span>
+    <div class="kpi-val">${valor}</div>
+    ${sub ? `<div class="kpi-sub">${esc(sub)}</div>` : ''}
+  </div>`;
+
+const vazio = (tit, desc, acao) => `
+  <div class="vazio">
+    <div class="vazio-icone" aria-hidden="true">◔</div>
+    <p style="font-size:13.5px;font-weight:600">${esc(tit)}</p>
+    <p style="font-size:12px;color:var(--muted);margin-top:6px;max-width:52ch;margin-inline:auto;line-height:1.6">${esc(desc)}</p>
+    ${acao ? `<div style="margin-top:16px">${acao}</div>` : ''}
+  </div>`;
+
+function listaAvisos(itens, limite = 30) {
+  if (!itens.length) return `<p style="padding:22px;text-align:center;font-size:12.5px;color:var(--muted)">Nenhum conflito ou alerta nesta geração.</p>`;
+  const ord = itens.slice().sort((a, b) => (a.nivel === b.nivel ? 0 : a.nivel === 'erro' ? -1 : 1));
+  return `<ul class="lista">${ord.slice(0, limite).map(a => `
+    <li style="display:flex;gap:10px;align-items:flex-start">
+      ${selo(a.nivel === 'erro' ? 'Bloqueante' : 'Aviso', a.nivel === 'erro' ? 'var(--rose)' : 'var(--amber)', a.nivel === 'erro' ? 'var(--rose-bg)' : 'var(--amber-bg)')}
+      <span style="font-size:12px;line-height:1.5">${a.colaborador ? `<b>${esc(a.colaborador)}</b> · ` : ''}${esc(a.msg)}</span>
+    </li>`).join('')}
+    ${ord.length > limite ? `<li style="font-size:11.5px;color:var(--muted)">e mais ${ord.length - limite} item(ns).</li>` : ''}
+  </ul>`;
+}
+
+const barra = (n, cap, cor) => {
+  const pct = cap > 0 ? Math.min(100, (n / cap) * 100) : 0;
+  const cheio = cap > 0 && n >= cap;
+  return `<div class="barra"><div style="width:${pct}%;background:${cheio ? 'var(--rose)' : cor}"></div></div>`;
+};
+
+/* ============================================================
+   TELA — Gerar escala
+   ============================================================ */
+function telaGerar() {
+  const pend = pendencias();
+  const g = geracao();
+  const ctx = contexto();
+  const previa = pend.length === 0 ? gerarEscala(ctx) : null;
+  const ativos = COLABORADORES.filter(c => c.status === 'ativo');
+  const sim = S.simulacao;
+
+  const aDefinir = previa ? previa.alocacoes.filter(a => a.modalidade !== 'DESCANSO').length : 0;
+  const aderentes = previa ? previa.aderencia.filter(a => a.ok).length : 0;
+
+  let html = `
+    <div class="linha-flex" style="justify-content:space-between">
+      <div>
+        <h1 style="font-size:17px">Gerar a escala do mês</h1>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px">Simule, revise os conflitos e só então grave — ${fmComp(S.competencia)}</p>
+      </div>
+      ${seletorMes()}
+    </div>
+
+    <div class="grade g4">
+      ${kpi('Colaboradores ativos', ativos.length, `${EQUIPES.length} equipes`)}
+      ${kpi('Pendências nos planos', pend.length, pend.length ? 'Bloqueiam a geração' : 'Tudo pronto para gerar', pend.length ? 'var(--rose)' : null)}
+      ${kpi('Conflitos na simulação', previa ? previa.conflitos.length : '—', 'Precisam de decisão manual', previa && previa.conflitos.length ? 'var(--amber)' : null)}
+      ${kpi('Alocações travadas', S.pins.length, 'Sobrevivem à regeração')}
+    </div>`;
+
+  if (pend.length) {
+    html += bloco({
+      tit: `${pend.length} pendência(s) impedem a geração`,
+      desc: 'Gerar sobre um plano incompleto produz uma escala que parece válida e não é. Resolva os pontos abaixo em Planos do mês.',
+      acoes: `<button class="btn sm" data-ir="planos">Abrir planos do mês</button>`,
+      corpo: `<ul class="lista" style="max-height:280px;overflow:auto">${pend.slice(0, 40).map(p =>
+        `<li style="font-size:12px"><b style="color:var(--brand-700)">${esc(p.colaborador)}</b> <span style="color:var(--muted)">· ${esc(p.msg)}</span></li>`).join('')}</ul>`,
+    });
+  }
+
+  if (previa) {
+    html += bloco({
+      tit: 'Simulação',
+      desc: `O motor produziria ${aDefinir} alocação(ões) para ${ativos.length} pessoas. Nada é gravado até você confirmar — é a mesma função que roda na gravação, só que sem escrever.`,
+      corpo: `
+        <div class="pad grade g3" style="border-bottom:1px solid var(--line)">
+          <div style="background:var(--rose-bg);border-radius:8px;padding:10px 12px">
+            <span class="rotulo" style="color:var(--rose)">Conflitos bloqueantes</span>
+            <div style="font-size:22px;font-weight:600;color:var(--rose)" class="num">${previa.conflitos.length}</div>
+          </div>
+          <div style="background:var(--amber-bg);border-radius:8px;padding:10px 12px">
+            <span class="rotulo" style="color:var(--amber)">Alertas</span>
+            <div style="font-size:22px;font-weight:600;color:var(--amber)" class="num">${previa.alertas.length}</div>
+          </div>
+          <div style="background:var(--green-bg);border-radius:8px;padding:10px 12px">
+            <span class="rotulo" style="color:var(--green)">Planos aderentes</span>
+            <div style="font-size:22px;font-weight:600;color:var(--green)" class="num">${aderentes}/${previa.aderencia.length}</div>
+          </div>
+        </div>
+        ${listaAvisos([...previa.conflitos, ...previa.alertas])}`,
+    });
+  }
+
+  html += `<div class="grade g2">` + bloco({
+    tit: g ? 'Regerar o mês inteiro' : 'Gerar a escala',
+    desc: g
+      ? `Cria a versão ${g.versao + 1}. As alocações travadas são preservadas; todo o resto é recalculado do zero.`
+      : 'Grava a primeira versão do mês como rascunho. Nada fica visível para os colaboradores até a publicação.',
+    corpo: `<div class="pad linha-flex">
+      <button class="btn" data-acao="simular"${pend.length ? ' disabled' : ''}>${g ? 'Regerar mês completo' : 'Gerar escala do mês'}</button>
+      ${pend.length ? `<span style="font-size:11.5px;color:var(--rose)">Resolva as pendências antes de gerar.</span>` : ''}
+      ${S.pins.length ? `<button class="btn fantasma sm" data-acao="liberar-travas">Liberar as ${S.pins.length} trava(s)</button>` : ''}
+    </div>`,
+  });
+
+  html += bloco({
+    tit: 'Regeração parcial',
+    desc: 'Recalcula apenas o recorte escolhido. Tudo que ficar de fora é congelado exatamente como está na versão vigente.',
+    corpo: g ? `<div class="pad" style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <span class="rotulo">Equipes (nenhuma marcada = todas)</span>
+          <div class="linha-flex">${EQUIPES.map(e =>
+            `<label style="display:flex;gap:6px;align-items:center;font-size:12px;border:1px solid var(--line-2);border-radius:6px;padding:4px 8px;cursor:pointer">
+              <input type="checkbox" class="eq-parcial" value="${e.id}"> ${esc(e.nome)}</label>`).join('')}</div>
+        </div>
+        <div class="fim-flex">
+          <label><span class="rotulo">De</span><input type="date" id="parcial-de" class="campo" style="width:160px" min="${S.competencia}"></label>
+          <label><span class="rotulo">Até</span><input type="date" id="parcial-ate" class="campo" style="width:160px" min="${S.competencia}"></label>
+          <button class="btn linha" data-acao="simular-parcial">Regerar apenas o recorte</button>
+        </div>
+      </div>`
+      : `<p class="pad" style="font-size:12.5px;color:var(--muted)">Disponível depois que existir uma versão gravada do mês.</p>`,
+  }) + `</div>`;
+
+  if (g) {
+    const st = g.status;
+    html += bloco({
+      tit: `Versão vigente — ${fmComp(S.competencia)}`,
+      desc: `Versão ${g.versao} · ${esc(g.escopo)} · gerada em ${esc(g.geradaEm)} por ${esc(g.geradaPor)}.`,
+      acoes: `${pilulaStatus(st)}
+        <button class="btn linha sm" data-ir="calendario">Revisar no calendário</button>
+        ${st !== 'encerrada' ? `<button class="btn sm${st === 'rascunho' ? '' : ' linha'}" data-acao="status" data-alvo="${st === 'rascunho' ? 'publicada' : 'encerrada'}">
+          ${st === 'rascunho' ? 'Publicar para a equipe' : 'Encerrar o mês'}</button>` : ''}`,
+      corpo: listaAvisos([...g.conflitos, ...g.alertas], 15),
+    });
+  }
+
+  html += bloco({
+    tit: 'Precedência aplicada pelo motor',
+    desc: 'A ordem em que cada dia é decidido. As sete primeiras são rígidas e nunca são violadas; as demais são otimizadas no que sobra.',
+    corpo: `<ol class="lista">${REGRAS_MOTOR.map(r => `
+      <li style="display:flex;gap:12px">
+        <span class="num" style="flex-shrink:0;width:24px;height:24px;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--brand-100);color:var(--brand-800)">${r.n}</span>
+        <div>
+          <div class="linha-flex" style="gap:6px">
+            <span style="font-size:12.5px;font-weight:600">${esc(r.t)}</span>
+            ${selo(r.rigida ? 'Rígida' : 'Flexível', r.rigida ? 'var(--rose)' : 'var(--muted)', r.rigida ? 'var(--rose-bg)' : 'var(--bg)')}
+          </div>
+          <p style="font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.5">${esc(r.d)}</p>
+        </div>
+      </li>`).join('')}</ol>`,
+  });
+
+  if (sim) html += painelSimulacao(sim);
+  return html;
+}
+
+const pilulaStatus = st => ({
+  rascunho: pilula('Rascunho', 'var(--amber)', 'var(--amber-bg)'),
+  publicada: pilula('Publicada', 'var(--green)', 'var(--green-bg)'),
+  encerrada: pilula('Encerrada', 'var(--muted)', 'var(--bg)'),
+}[st]);
+
+/** Relatório da simulação — o passo que separa "o que aconteceria" de "o que foi gravado". */
+function painelSimulacao(sim) {
+  const aderentes = sim.resultado.aderencia.filter(a => a.ok).length;
+  return `
+  <div class="card" style="position:sticky;bottom:16px;box-shadow:0 8px 28px rgba(15,23,42,.16);border-color:var(--brand-600)">
+    <div class="card-topo" style="background:var(--brand-50)">
+      <div>
+        <h3 class="card-tit">Relatório da simulação — ${esc(sim.escopo)}</h3>
+        <p class="card-desc"><b>Nada foi gravado ainda.</b> Confirme para criar a versão ${(geracao()?.versao || 0) + 1} como rascunho, ou descarte e ajuste os planos antes.</p>
+      </div>
+      <div class="card-acoes">
+        <button class="btn fantasma sm" data-acao="descartar-sim">Descartar</button>
+        <button class="btn" data-acao="confirmar-sim">Confirmar e gravar</button>
+      </div>
+    </div>
+    <div class="pad grade g3">
+      ${kpi('Conflitos bloqueantes', sim.resultado.conflitos.length, 'Ficam sinalizados na escala', 'var(--rose)')}
+      ${kpi('Alertas', sim.resultado.alertas.length, 'Desvios tolerados', 'var(--amber)')}
+      ${kpi('Planos aderentes', `${aderentes}/${sim.resultado.aderencia.length}`, `Tolerância ±${CONFIG.toleranciaAderencia} dia`, 'var(--green)')}
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   TELA — Indicadores
+   ============================================================ */
+function telaIndicadores() {
+  const g = geracao();
+  const [ano, mes] = partesIso(S.competencia);
+  const nDias = diasNoMes(ano, mes);
+  const meus = new Set(visiveis().map(c => c.id));
+
+  let html = `
+    <div class="linha-flex" style="justify-content:space-between">
+      <div>
+        <h1 style="font-size:17px">Indicadores operacionais</h1>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px">${S.papel === 'gestor' ? 'Recorte da sua equipe' : 'Visão consolidada'} · ${fmComp(S.competencia)}</p>
+      </div>
+      ${seletorMes()}
+    </div>`;
+
+  if (!g) {
+    return html + bloco({ corpo: vazio(
+      `Nenhuma escala gerada para ${fmComp(S.competencia)}`,
+      'Os indicadores são calculados sobre a escala do mês. Gere a escala para vê-los aqui.',
+      S.papel === 'planejamento' ? `<button class="btn" data-ir="gerar">Ir para a geração</button>` : '') });
+  }
+
+  const alocacoes = g.alocacoes.filter(a => meus.has(a.colaboradorId));
+  const ocorr = S.ocorrencias.filter(o => meus.has(o.colaboradorId) && o.data.startsWith(S.competencia.slice(0, 7)));
+  const solic = S.solicitacoes.filter(s => meus.has(s.colaboradorId));
+
+  const escalados = alocacoes.filter(a => !['DESCANSO', 'FERIADO'].includes(a.modalidade)).length;
+  const faltas = ocorr.filter(o => o.tipo === 'FALTA_I' || o.tipo === 'FALTA_J').length;
+  const atrasos = ocorr.filter(o => o.tipo === 'ATRASO');
+  const minAtraso = atrasos.reduce((a, o) => a + o.minutos, 0);
+  const absent = escalados ? (faltas / escalados) * 100 : 0;
+  const ader = g.aderencia.filter(a => meus.has(a.colaboradorId));
+  const okAder = ader.filter(a => a.ok).length;
+  const abertas = solic.filter(s => ['AGUARDA_PARCEIRO', 'TRIAGEM', 'GESTOR', 'FILA'].includes(s.status));
+
+  const uteis = [];
+  for (let d = 1; d <= nDias; d++) if (![0, 6].includes(diaSemana(ano, mes, d))) uteis.push(iso(ano, mes, d));
+
+  const media = UNIDADES.map(u => {
+    const soma = uteis.reduce((acc, data) => acc + alocacoes.filter(a => a.data === data && a.modalidade === 'UNIDADE' && a.unidadeId === u.id).length, 0);
+    const m = uteis.length ? soma / uteis.length : 0;
+    const cap = u.capacidadeTotal - u.capacidadeReservadas;
+    return { u, m, cap, pct: cap ? (m / cap) * 100 : 0 };
+  });
+
+  const rank = [...atrasos.reduce((mp, o) => {
+    const at = mp.get(o.colaboradorId) || { nome: colabPorId.get(o.colaboradorId).nome, n: 0, min: 0 };
+    mp.set(o.colaboradorId, { nome: at.nome, n: at.n + 1, min: at.min + o.minutos });
+    return mp;
+  }, new Map()).values()].sort((a, b) => b.min - a.min).slice(0, 6);
+
+  const home = [...alocacoes.filter(a => a.modalidade === 'HOME')
+    .reduce((mp, a) => mp.set(a.colaboradorId, (mp.get(a.colaboradorId) || 0) + 1), new Map()).entries()]
+    .map(([id, n]) => ({ nome: colabPorId.get(id).nome, n })).sort((a, b) => b.n - a.n).slice(0, 8);
+
+  const porTipo = Object.entries(solic.reduce((m, s) => (m[s.tipo] = (m[s.tipo] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
+  const maiorTipo = porTipo.length ? porTipo[0][1] : 1;
+
+  html += `<div class="grade g4">
+    ${kpi('Absenteísmo', absent.toFixed(1) + '%', `${faltas} falta(s) em ${escalados} dias escalados`, absent > 3 ? 'var(--rose)' : null)}
+    ${kpi('Atrasos', atrasos.length, `${minAtraso} minutos acumulados`, atrasos.length ? 'var(--amber)' : null)}
+    ${kpi('Aderência ao plano', ader.length ? Math.round((okAder / ader.length) * 100) + '%' : '—', `${okAder} de ${ader.length} dentro da tolerância ±${CONFIG.toleranciaAderencia}`)}
+    ${kpi('Solicitações abertas', abertas.length, `${solic.length} no total do período`)}
+  </div>`;
+
+  html += `<div class="grade g2">` + bloco({
+    tit: 'Ocupação média por unidade',
+    desc: 'Média nos dias úteis do mês, sobre as posições operacionais (total menos reservadas).',
+    corpo: `<ul class="lista">${media.map(({ u, m, cap, pct }) => `
+      <li>
+        <div class="linha-flex" style="justify-content:space-between;font-size:12.5px;margin-bottom:5px">
+          <b style="color:${u.cor}">${esc(u.nome)}</b>
+          <span class="num" style="color:var(--muted)">${m.toFixed(1)} de ${cap} · ${Math.round(pct)}%</span>
+        </div>${barra(m, cap, u.cor)}
+      </li>`).join('')}</ul>`,
+  });
+
+  html += bloco({
+    tit: 'Ranking de atrasos',
+    desc: 'Minutos acumulados no mês, por colaborador.',
+    corpo: rank.length ? `<ul class="lista">${rank.map(r => `
+      <li class="linha-flex" style="justify-content:space-between;font-size:12.5px">
+        <b>${esc(r.nome)}</b><span class="num" style="color:var(--amber)">${r.min} min · ${r.n}x</span>
+      </li>`).join('')}</ul>`
+      : `<p style="padding:28px;text-align:center;font-size:12.5px;color:var(--muted)">Nenhum atraso registrado neste mês.</p>`,
+  });
+
+  html += bloco({
+    tit: 'Solicitações por tipo',
+    desc: 'Volume no período, independentemente do status.',
+    corpo: porTipo.length ? `<ul class="lista">${porTipo.map(([t, n]) => `
+      <li>
+        <div class="linha-flex" style="justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span>${esc(TIPOS_SOLICITACAO[t].label)}</span><b class="num">${n}</b>
+        </div>
+        <div class="barra"><div style="width:${(n / maiorTipo) * 100}%;background:var(--brand-600)"></div></div>
+      </li>`).join('')}</ul>`
+      : `<p style="padding:28px;text-align:center;font-size:12.5px;color:var(--muted)">Nenhuma solicitação registrada.</p>`,
+  });
+
+  html += bloco({
+    tit: 'Home office realizado',
+    desc: 'Dias de home office efetivamente escalados no mês.',
+    corpo: home.length ? `<ul class="lista">${home.map(h => `
+      <li class="linha-flex" style="justify-content:space-between;font-size:12.5px">
+        <b>${esc(h.nome)}</b><span class="num" style="color:var(--violet)">${h.n} dia(s)</span>
+      </li>`).join('')}</ul>`
+      : `<p style="padding:28px;text-align:center;font-size:12.5px;color:var(--muted)">Nenhum dia de home office nesta escala.</p>`,
+  }) + `</div>`;
+
+  if (g.conflitos.length || g.alertas.length) {
+    html += bloco({
+      tit: 'Conflitos e alertas da escala vigente',
+      desc: 'Registrados no momento da geração. Bloqueantes exigem decisão manual; avisos são desvios tolerados.',
+      corpo: listaAvisos([...g.conflitos, ...g.alertas], 20),
+    });
+  }
+
+  if (ocorr.length) {
+    html += bloco({
+      tit: 'Ocorrências do mês',
+      desc: 'Lançamentos de ponto e intercorrências registrados pelo Planejamento e pelos gestores.',
+      corpo: `<div class="rolagem" style="max-height:340px"><table class="tab">
+        <thead><tr><th>Data</th><th>Colaborador</th><th>Tipo</th><th class="dir">Minutos</th><th>Observação</th></tr></thead>
+        <tbody>${ocorr.map(o => `<tr>
+          <td class="num">${fmData(o.data)}</td>
+          <td><b>${esc(colabPorId.get(o.colaboradorId).nome)}</b></td>
+          <td style="color:${TIPOS_OCORRENCIA[o.tipo].cor}">${esc(TIPOS_OCORRENCIA[o.tipo].label)}</td>
+          <td class="dir num">${o.minutos || '—'}</td>
+          <td style="color:var(--muted)">${esc(o.obs) || '—'}</td>
+        </tr>`).join('')}</tbody></table></div>`,
+    });
+  }
+  return html;
+}
+/* ============================================================
+   TELA — Calendário (mês + grade + detalhe do dia)
+   ============================================================ */
+function telaCalendario() {
+  const g = geracao();
+  const [ano, mes] = partesIso(S.competencia);
+  const nDias = diasNoMes(ano, mes);
+
+  let html = `
+    <div class="linha-flex" style="justify-content:space-between">
+      <div>
+        <h1 style="font-size:17px">Calendário da escala</h1>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px">${S.papel === 'gestor' ? 'Escala da sua equipe' : 'Escala completa'} · ${fmComp(S.competencia)}</p>
+      </div>
+      ${seletorMes()}
+    </div>`;
+
+  if (!g) {
+    return html + bloco({ corpo: vazio(
+      `Nenhuma escala gerada para ${fmComp(S.competencia)}`,
+      S.papel === 'planejamento'
+        ? 'Configure os planos do mês e rode a geração para ver o calendário aqui.'
+        : 'Assim que o Planejamento publicar a escala deste mês, ela aparece aqui.',
+      S.papel === 'planejamento' ? `<button class="btn" data-ir="gerar">Ir para a geração</button>` : '') });
+  }
+
+  // Rascunho não vaza para o colaborador — no sistema real é a policy de RLS.
+  if (g.status === 'rascunho' && S.papel === 'colaborador') {
+    return html + bloco({ corpo: vazio('A escala deste mês ainda não foi publicada',
+      'O Planejamento ainda está revisando. Assim que publicar, seus dias aparecem aqui.') });
+  }
+
+  // Recorte por papel (o que a RLS faria no banco) e depois os filtros da tela.
+  const f = S.fCal;
+  const busca = f.q.trim().toLowerCase();
+  const doPapel = visiveis();
+  const pessoas = doPapel.filter(c => {
+    if (f.equipe && c.equipeId !== Number(f.equipe)) return false;
+    if (f.turno && c.turno !== f.turno) return false;
+    if (busca && !`${c.nome} ${c.cargo}`.toLowerCase().includes(busca)) return false;
+    return true;
+  });
+  const meus = new Set(pessoas.map(c => c.id));
+
+  const alocacoes = g.alocacoes.filter(a => {
+    if (!meus.has(a.colaboradorId)) return false;
+    if (!f.modalidade) return true;
+    if (f.modalidade.startsWith('U:')) {
+      return a.modalidade === 'UNIDADE' && a.unidadeId === Number(f.modalidade.slice(2));
+    }
+    return a.modalidade === f.modalidade;
+  });
+
+  const porDia = new Map();
+  for (const a of alocacoes) porDia.set(a.data, [...(porDia.get(a.data) || []), a]);
+  const confPorDia = new Map();
+  for (const c of g.conflitos) if (c.data) confPorDia.set(c.data, (confPorDia.get(c.data) || 0) + 1);
+
+  const filtroAtivo = !!(f.q || f.equipe || f.turno || f.modalidade);
+  const barra = barraFiltros([
+    { tipo: 'busca', id: 'fc-q', label: 'Buscar', valor: f.q, dica: 'Nome ou cargo' },
+    { tipo: 'sel', id: 'fc-equipe', label: 'Equipe', valor: f.equipe,
+      opcoes: [['', 'Todas as equipes'], ...EQUIPES.map(e => [String(e.id), e.nome])] },
+    { tipo: 'sel', id: 'fc-turno', label: 'Turno', valor: f.turno,
+      opcoes: [['', 'Todos'], ['D', 'Diurno'], ['N', 'Noturno']] },
+    { tipo: 'sel', id: 'fc-modalidade', label: 'Modalidade', valor: f.modalidade,
+      opcoes: [['', 'Todas'],
+        ...UNIDADES.map(u => [`U:${u.id}`, u.nome]),
+        ...['HOME', 'EXTERNO', 'FERIAS', 'FOLGA', 'FERIADO'].map(m => [m, MODALIDADES[m].label])] },
+  ], filtroAtivo ? `${pessoas.length} de ${doPapel.length} pessoas` : `${doPapel.length} pessoas`);
+
+  html += bloco({
+    tit: `Escala de ${fmComp(S.competencia)}`,
+    desc: `Versão ${g.versao} · ${esc(g.escopo)} · gerada por ${esc(g.geradaPor)}. ${g.conflitos.length} conflito(s) e ${g.alertas.length} alerta(s).`,
+    acoes: `${pilulaStatus(g.status)}
+      ${S.papel === 'planejamento' && g.status !== 'encerrada'
+        ? `<button class="btn sm${g.status === 'rascunho' ? '' : ' linha'}" data-acao="status" data-alvo="${g.status === 'rascunho' ? 'publicada' : 'encerrada'}">
+             ${g.status === 'rascunho' ? 'Publicar para a equipe' : 'Encerrar o mês'}</button>` : ''}`,
+    corpo: barra + `
+      <div class="pad linha-flex" style="justify-content:flex-end;border-bottom:1px solid var(--line)">
+        <div class="abas" role="tablist">
+          <button role="tab" aria-selected="${S.vista === 'mes'}" data-vista="mes">Calendário</button>
+          <button role="tab" aria-selected="${S.vista === 'grade'}" data-vista="grade">Grade do mês</button>
+        </div>
+      </div>
+      ${pessoas.length === 0
+        ? vazio('Nenhuma pessoa nesse filtro', 'Ajuste a busca, a equipe ou o turno para voltar a ver a escala.')
+        : S.vista === 'grade'
+          ? gradeDoMes(alocacoes, pessoas, ano, mes, nDias, g)
+          : calendarioMes(porDia, confPorDia, ano, mes, nDias)}`,
+  });
+
+  if (S.dia) html += detalheDia(g, S.dia);
+  return html;
+}
+
+function calendarioMes(porDia, confPorDia, ano, mes, nDias) {
+  let celulas = '';
+  for (let i = 0; i < diaSemana(ano, mes, 1); i++) celulas += '<div></div>';
+  for (let d = 1; d <= nDias; d++) {
+    const data = iso(ano, mes, d);
+    const dow = diaSemana(ano, mes, d);
+    const fds = dow === 0 || dow === 6;
+    const feriado = FERIADOS[data];
+    const nConf = confPorDia.get(data) || 0;
+
+    const cont = new Map();
+    for (const a of porDia.get(data) || []) {
+      if (a.modalidade === 'DESCANSO') continue;
+      const chave = a.modalidade === 'UNIDADE' ? 'U' + a.unidadeId : a.modalidade;
+      const ap = apar(a.modalidade, a.unidadeId);
+      cont.set(chave, { ...ap, n: (cont.get(chave)?.n || 0) + 1 });
+    }
+    const linhas = [...cont.values()].sort((a, b) => b.n - a.n).slice(0, 4);
+
+    celulas += `
+      <button class="dia" data-dia="${data}" data-fds="${fds || feriado ? 1 : 0}" aria-pressed="${S.dia === data}">
+        <div style="display:flex;justify-content:space-between;gap:4px">
+          <span class="dia-num">${d}</span>
+          ${nConf ? `<span class="selo num" style="color:var(--rose);background:var(--rose-bg)">${nConf}</span>` : ''}
+        </div>
+        ${feriado ? `<span style="font-size:9px;color:var(--amber);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(feriado)}</span>` : ''}
+        <div style="margin-top:auto;display:flex;flex-direction:column;gap:2px">
+          ${linhas.map(l => `<span class="dia-lin" style="background:${l.bg};color:${l.cor}"><span>${esc(l.sigla)}</span><span class="num">${l.n}</span></span>`).join('')}
+        </div>
+      </button>`;
+  }
+  return `<div class="pad">
+    <div class="cal" style="margin-bottom:6px">${DIAS_ABREV.map(d => `<div class="cal-cab">${d}</div>`).join('')}</div>
+    <div class="cal">${celulas}</div>
+    <p style="font-size:11px;color:var(--muted);margin-top:12px">Clique num dia para abrir a lista de quem está onde, travar alocações e lançar ocorrências.</p>
+  </div>`;
+}
+
+function gradeDoMes(alocacoes, listaPessoas, ano, mes, nDias, g) {
+  const dias = Array.from({ length: nDias }, (_, i) => i + 1);
+  const pessoas = listaPessoas.filter(c => c.status === 'ativo')
+    .sort((a, b) => equipePorId.get(a.equipeId).nome.localeCompare(equipePorId.get(b.equipeId).nome) || a.nome.localeCompare(b.nome));
+  const porChave = new Map(alocacoes.map(a => [`${a.colaboradorId}|${a.data}`, a]));
+
+  let corpo = '', equipeAtual = null;
+  for (const c of pessoas) {
+    if (equipeAtual !== c.equipeId) {
+      equipeAtual = c.equipeId;
+      const eq = equipePorId.get(c.equipeId);
+      corpo += `<tr class="faixa-eq"><td colspan="${1 + nDias + 3}">${esc(eq.nome)} · ${eq.regime} · turno ${eq.turno === 'N' ? 'noturno' : 'diurno'}</td></tr>`;
+    }
+    const t = { 1: 0, 2: 0, HOME: 0 };
+    const cels = dias.map(d => {
+      const a = porChave.get(`${c.id}|${iso(ano, mes, d)}`);
+      if (!a || a.modalidade === 'DESCANSO') return `<td style="text-align:center;color:var(--faint);background:var(--bg)">·</td>`;
+      if (a.modalidade === 'UNIDADE') t[a.unidadeId]++;
+      else if (a.modalidade === 'HOME') t.HOME++;
+      const ap = apar(a.modalidade, a.unidadeId);
+      return `<td><button class="cel" data-dia="${iso(ano, mes, d)}" style="background:${ap.bg};color:${ap.cor};border:0;width:100%;cursor:pointer"
+        title="${esc(c.nome)} · ${fmData(iso(ano, mes, d))} · ${esc(ap.label)}${a.travado ? ' (travado)' : ''}">${esc(ap.sigla)}${a.travado ? '<span class="pin">▪</span>' : ''}</button></td>`;
+    }).join('');
+
+    corpo += `<tr>
+      <td class="trava"><b>${esc(c.nome)}</b><div style="font-size:10.5px;color:var(--muted)">${esc(c.cargo)} · ${c.entrada}</div></td>
+      ${cels}
+      <td style="text-align:center;font-weight:600;color:${UNIDADES[0].cor}" class="num">${t[1]}</td>
+      <td style="text-align:center;font-weight:600;color:${UNIDADES[1].cor}" class="num">${t[2]}</td>
+      <td style="text-align:center;font-weight:600;color:var(--violet)" class="num">${t.HOME}</td>
+    </tr>`;
+  }
+
+  const rodape = UNIDADES.map(u => `<tr>
+    <td class="trava" style="background:var(--surface-2);font-size:11px;font-weight:600">Ocupação ${esc(u.nome)}</td>
+    ${dias.map(d => {
+      const data = iso(ano, mes, d);
+      const n = alocacoes.filter(a => a.data === data && a.modalidade === 'UNIDADE' && a.unidadeId === u.id).length;
+      const cap = (g.capacidadeDia[data] || {})[u.id] || 0;
+      const cheio = cap > 0 && n >= cap;
+      return `<td class="num" style="text-align:center;font-size:10px;font-weight:700;background:${cheio ? 'var(--rose-bg)' : 'var(--surface-2)'};color:${cheio ? 'var(--rose)' : 'var(--muted)'}" title="${n} de ${cap} posições">${n}</td>`;
+    }).join('')}
+    <td colspan="3" style="background:var(--surface-2)"></td>
+  </tr>`).join('');
+
+  return `
+    <div class="pad" style="display:flex;justify-content:flex-end;border-bottom:1px solid var(--line)">
+      <button class="btn linha sm" data-acao="csv-grade">Exportar grade em CSV</button>
+    </div>
+    <div class="planilha"><table style="min-width:${360 + nDias * 30 + 140}px">
+      <thead><tr>
+        <th class="trava">Colaborador</th>
+        ${dias.map(d => {
+          const dow = diaSemana(ano, mes, d);
+          const esp = [0, 6].includes(dow) || FERIADOS[iso(ano, mes, d)];
+          return `<th style="min-width:30px;text-align:center;padding:6px 2px;background:${esp ? 'var(--bg)' : 'var(--surface-2)'}">
+            <div style="color:var(--faint)">${DIAS_INICIAL[dow]}</div><div class="num" style="color:var(--text)">${d}</div></th>`;
+        }).join('')}
+        ${UNIDADES.map(u => `<th style="text-align:center">${u.sigla}</th>`).join('')}
+        <th style="text-align:center">HO</th>
+      </tr></thead>
+      <tbody>${corpo}</tbody>
+      <tfoot>${rodape}</tfoot>
+    </table></div>
+    <div class="legenda">
+      ${UNIDADES.map(u => selo(`${u.sigla} · ${u.nome}`, u.cor, u.bg)).join('')}
+      ${selo('HO · Home Office', '#6D28D9', '#EDE9FE')}
+      ${selo('FÉR · Férias', '#B45309', '#FEF3C7')}
+      ${selo('AUS · Ausência', '#526176', '#F1F5F9')}
+      <span style="font-size:10.5px;color:var(--muted);align-self:center">▪ marca alocação travada</span>
+    </div>`;
+}
+
+function detalheDia(g, data) {
+  const dow = dowDeIso(data);
+  const meus = new Set(visiveis().map(c => c.id));
+  const doDia = g.alocacoes.filter(a => a.data === data && meus.has(a.colaboradorId) && a.modalidade !== 'DESCANSO')
+    .map(a => ({ a, c: colabPorId.get(a.colaboradorId) }))
+    .sort((x, y) => x.c.nome.localeCompare(y.c.nome));
+
+  const ocorr = S.ocorrencias.filter(o => o.data === data);
+  const podeEditar = S.papel === 'planejamento' && g.status !== 'encerrada';
+  const contar = f => g.alocacoes.filter(a => a.data === data && meus.has(a.colaboradorId) && f(a)).length;
+  const faixa = c => {
+    const h = c.sextaReduzida && dow === 5 ? c.jornada - 1 : c.jornada;
+    return `${c.entrada}–${somaHoras(c.entrada, h + (h > 6 ? 1 : 0))}`;
+  };
+
+  const cards = UNIDADES.map(u => {
+    const n = contar(a => a.modalidade === 'UNIDADE' && a.unidadeId === u.id);
+    const cap = (g.capacidadeDia[data] || {})[u.id] || 0;
+    return `<div style="border:1px solid var(--line);border-radius:8px;padding:8px 12px">
+      <span class="rotulo" style="color:${u.cor}">${esc(u.nome)}</span>
+      <div style="font-size:20px;font-weight:600" class="num">${n}<span style="font-size:12px;color:var(--muted);font-weight:500"> / ${cap}</span></div>
+      <div style="margin-top:6px">${barra(n, cap, u.cor)}</div>
+    </div>`;
+  }).join('');
+
+  return bloco({
+    tit: `${DIAS_ABREV[dow]}, ${fmData(data)}${FERIADOS[data] ? ' · ' + esc(FERIADOS[data]) : ''}`,
+    desc: `${doDia.length} pessoa(s) em atividade neste dia.`,
+    acoes: `<button class="btn fantasma sm" data-acao="fechar-dia">Fechar</button>`,
+    corpo: `
+      <div class="pad grade g4" style="border-bottom:1px solid var(--line)">
+        ${cards}
+        <div style="border:1px solid var(--line);border-radius:8px;padding:8px 12px">
+          <span class="rotulo" style="color:var(--violet)">Home Office</span>
+          <div style="font-size:20px;font-weight:600" class="num">${contar(a => a.modalidade === 'HOME')}</div>
+        </div>
+        <div style="border:1px solid var(--line);border-radius:8px;padding:8px 12px">
+          <span class="rotulo">Ausentes</span>
+          <div style="font-size:20px;font-weight:600" class="num">${contar(a => ['FERIAS','FOLGA','AFAST','FERIADO'].includes(a.modalidade))}</div>
+        </div>
+      </div>
+      <div class="rolagem" style="max-height:420px"><table class="tab">
+        <thead><tr><th>Colaborador</th><th>Equipe · Cargo</th><th>Alocação</th><th>Horário</th>${podeEditar ? '<th class="dir">Ações</th>' : ''}</tr></thead>
+        <tbody>
+        ${doDia.length ? doDia.map(({ a, c }) => {
+          const ap = apar(a.modalidade, a.unidadeId);
+          const ocs = ocorr.filter(o => o.colaboradorId === c.id);
+          return `<tr>
+            <td>
+              <div class="linha-flex" style="gap:6px"><b>${esc(c.nome)}</b>
+                ${a.travado ? selo('travado', 'var(--brand-700)', 'var(--brand-100)') : ''}
+                ${ocs.map(o => selo(TIPOS_OCORRENCIA[o.tipo].label + (o.minutos ? ` ${o.minutos}min` : ''), TIPOS_OCORRENCIA[o.tipo].cor, 'var(--bg)')).join('')}
+              </div>
+              <div style="font-size:10.5px;color:var(--muted)" class="num">${esc(c.matricula)}</div>
+            </td>
+            <td style="color:var(--muted)">${esc(equipePorId.get(c.equipeId).nome)}<div style="font-size:10.5px">${esc(c.cargo)}</div></td>
+            <td>${podeEditar ? `
+              <div class="linha-flex" style="gap:6px">
+                <select class="campo" style="width:150px;padding:4px 8px" data-mover="${c.id}">
+                  ${UNIDADES.map(u => `<option value="UNIDADE:${u.id}"${a.modalidade === 'UNIDADE' && a.unidadeId === u.id ? ' selected' : ''}>${esc(u.nome)}</option>`).join('')}
+                  ${['HOME','EXTERNO','EVENTO','TREINA','FOLGA','AFAST'].map(m => `<option value="${m}"${a.modalidade === m ? ' selected' : ''}>${esc(MODALIDADES[m].label)}</option>`).join('')}
+                </select>
+                <button class="btn linha sm" data-acao="mover" data-colab="${c.id}">Mover</button>
+              </div>` : selo(ap.label, ap.cor, ap.bg)}</td>
+            <td class="num" style="color:var(--muted)">${['FERIAS','FOLGA','AFAST','FERIADO'].includes(a.modalidade) ? '—' : faixa(c)}</td>
+            ${podeEditar ? `<td class="dir"><button class="btn fantasma sm" data-acao="travar" data-colab="${c.id}">${a.travado ? 'Liberar' : 'Travar'}</button></td>` : ''}
+          </tr>`;
+        }).join('') : `<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--muted)">Ninguém escalado neste dia.</td></tr>`}
+        </tbody>
+      </table></div>
+      ${S.papel !== 'colaborador' && doDia.length ? `
+      <div class="pad fim-flex" style="border-top:1px solid var(--line)">
+        <label><span class="rotulo">Lançar ocorrência</span>
+          <select id="oc-colab" class="campo" style="width:200px">${doDia.map(({ c }) => `<option value="${c.id}">${esc(c.nome)}</option>`).join('')}</select></label>
+        <label><span class="rotulo">Tipo</span>
+          <select id="oc-tipo" class="campo" style="width:180px">${Object.entries(TIPOS_OCORRENCIA).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select></label>
+        <label><span class="rotulo">Minutos</span><input id="oc-min" type="number" min="0" value="0" class="campo num" style="width:90px"></label>
+        <label style="flex:1;min-width:180px"><span class="rotulo">Observação</span><input id="oc-obs" class="campo" placeholder="Contexto do lançamento"></label>
+        <button class="btn sm" data-acao="ocorrencia">Registrar</button>
+      </div>` : ''}`,
+  });
+}
+
+/* ============================================================
+   TELA — Ocupação
+   ============================================================ */
+function telaOcupacao() {
+  const g = geracao();
+  const [ano, mes] = partesIso(S.competencia);
+  const nDias = diasNoMes(ano, mes);
+
+  let html = `
+    <div class="linha-flex" style="justify-content:space-between">
+      <div>
+        <h1 style="font-size:17px">Painel de ocupação</h1>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px">Quantas posições cada unidade tem ocupadas, dia a dia — ${fmComp(S.competencia)}</p>
+      </div>
+      ${seletorMes()}
+    </div>`;
+
+  if (!g) return html + bloco({ corpo: vazio(`Sem escala gerada em ${fmComp(S.competencia)}`, 'A ocupação por unidade é calculada a partir da escala do mês.') });
+
+  const meus = new Set(visiveis().map(c => c.id));
+  const alocacoes = g.alocacoes.filter(a => meus.has(a.colaboradorId));
+  const sel = S.dia && S.dia.startsWith(S.competencia.slice(0, 7)) ? S.dia : iso(ano, mes, 1);
+
+  let tiras = '';
+  for (let d = 1; d <= nDias; d++) {
+    const data = iso(ano, mes, d);
+    const dow = diaSemana(ano, mes, d);
+    const total = alocacoes.filter(a => a.data === data && a.modalidade === 'UNIDADE').length;
+    const barras = UNIDADES.map(u => {
+      const n = alocacoes.filter(a => a.data === data && a.modalidade === 'UNIDADE' && a.unidadeId === u.id).length;
+      const cap = (g.capacidadeDia[data] || {})[u.id] || 0;
+      const h = cap > 0 ? Math.max(2, Math.round((n / cap) * 28)) : 2;
+      return `<span style="width:8px;border-radius:2px;height:${h}px;background:${cap && n >= cap ? 'var(--rose)' : u.cor}"></span>`;
+    }).join('');
+    tiras += `<button class="dia" data-dia="${data}" style="width:46px;min-height:0;flex-shrink:0;align-items:center;text-align:center" aria-pressed="${sel === data}">
+      <div style="font-size:9px;color:var(--faint);text-transform:uppercase">${DIAS_ABREV[dow]}</div>
+      <div class="dia-num">${d}</div>
+      <div style="display:flex;align-items:flex-end;justify-content:center;gap:2px;height:28px;margin-top:2px">${barras}</div>
+      <div class="num" style="font-size:9.5px;color:var(--muted)">${total}</div>
+    </button>`;
+  }
+
+  html += bloco({
+    tit: 'Ocupação por dia',
+    desc: 'Barras proporcionais às posições operacionais. Clique num dia para ver quem está onde.',
+    acoes: `<button class="btn linha sm" data-acao="csv-ocupacao">Exportar mês em CSV</button>`,
+    corpo: `<div class="pad rolagem"><div style="display:flex;gap:4px;width:max-content">${tiras}</div></div>`,
+  });
+
+  html += `<div class="grade g2">`;
+  for (const u of UNIDADES) {
+    const cap = (g.capacidadeDia[sel] || {})[u.id] || 0;
+    const pessoas = alocacoes.filter(a => a.data === sel && a.modalidade === 'UNIDADE' && a.unidadeId === u.id)
+      .map(a => colabPorId.get(a.colaboradorId)).sort((a, b) => a.nome.localeCompare(b.nome));
+    html += bloco({
+      tit: u.nome,
+      desc: `${pessoas.length} de ${cap} posições ocupadas em ${fmData(sel)} · ${u.capacidadeReservadas} reservada(s)`,
+      acoes: pessoas.length >= cap && cap ? selo('Lotado', 'var(--rose)', 'var(--rose-bg)') : '',
+      corpo: `<div style="padding:4px 16px 10px">${barra(pessoas.length, cap, u.cor)}</div>
+        ${pessoas.length ? `<ul class="lista" style="max-height:300px;overflow:auto">${pessoas.map(c => `
+          <li class="linha-flex" style="justify-content:space-between;font-size:12.5px">
+            <div><b>${esc(c.nome)}</b><div style="font-size:10.5px;color:var(--muted)">${esc(c.cargo)} · ${esc(equipePorId.get(c.equipeId).nome)}</div></div>
+            <span class="num" style="color:var(--muted)">${c.entrada} · ${c.turno === 'N' ? 'Not.' : 'Diu.'}</span>
+          </li>`).join('')}</ul>`
+          : `<p style="padding:0 16px 16px;font-size:12px;color:var(--muted)">Ninguém alocado nesta unidade no dia selecionado.</p>`}`,
+    });
+  }
+
+  const remoto = ['HOME','EXTERNO','EVENTO','TREINA','FERIAS','FOLGA','AFAST','FERIADO']
+    .map(m => ({ m, n: alocacoes.filter(a => a.data === sel && a.modalidade === m).length })).filter(x => x.n);
+  html += bloco({
+    tit: 'Remoto e ausências',
+    desc: `Distribuição fora das unidades físicas em ${fmData(sel)}.`,
+    corpo: remoto.length ? `<ul class="lista">${remoto.map(({ m, n }) => `
+      <li class="linha-flex" style="justify-content:space-between;font-size:12.5px">
+        ${selo(MODALIDADES[m].label, MODALIDADES[m].cor, MODALIDADES[m].bg)}<b class="num">${n}</b>
+      </li>`).join('')}</ul>` : `<p style="padding:16px;font-size:12px;color:var(--muted)">Ninguém fora das unidades neste dia.</p>`,
+  }) + `</div>`;
+  return html;
+}
+/* ============================================================
+   TELA — Planos do mês
+   ============================================================ */
+function telaPlanos() {
+  const pend = pendencias();
+  const pendPor = new Map();
+  for (const p of pend) pendPor.set(p.colaboradorId, [...(pendPor.get(p.colaboradorId) || []), p.msg]);
+
+  const planos = planosDoMes();
+  const planoPor = new Map(planos.map(p => [p.colaboradorId, p]));
+  const ausPor = new Map();
+  for (const a of S.ausencias) ausPor.set(a.colaboradorId, [...(ausPor.get(a.colaboradorId) || []), a]);
+  const ativos = COLABORADORES.filter(c => c.status === 'ativo');
+
+  let html = `
+    <div class="linha-flex" style="justify-content:space-between">
+      <div>
+        <h1 style="font-size:17px">Planos do mês</h1>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px">Distribuição por unidade, home office, ciclo 12x36 e ausências — ${fmComp(S.competencia)}</p>
+      </div>
+      ${seletorMes()}
+    </div>
+    <div class="grade g3">
+      ${kpi('Planos configurados', `${planos.length}/${ativos.length}`, 'Colaboradores ativos')}
+      ${kpi('Pendências', pend.length, pend.length ? 'Bloqueiam a geração do mês' : 'Nenhuma — pode gerar', pend.length ? 'var(--rose)' : null)}
+      ${kpi('Ausências no mês', S.ausencias.length, 'Inclui férias e períodos em curso')}
+    </div>`;
+
+  if (S.colabAberto) html += editorPlano(S.colabAberto, planoPor.get(S.colabAberto), ausPor.get(S.colabAberto) || [], pendPor.get(S.colabAberto) || []);
+
+  const f = S.fPlanos;
+  const busca = f.q.trim().toLowerCase();
+  const listados = ativos.filter(c => {
+    if (f.equipe && c.equipeId !== Number(f.equipe)) return false;
+    if (f.pendentes && !pendPor.has(c.id)) return false;
+    if (busca && !`${c.nome} ${c.cargo} ${c.matricula}`.toLowerCase().includes(busca)) return false;
+    return true;
+  });
+
+  html += bloco({
+    tit: 'Colaboradores',
+    desc: 'Cada linha resume o que o motor vai usar neste mês. Sem plano, o colaborador cai 100% na unidade base.',
+    corpo: barraFiltros([
+      { tipo: 'busca', id: 'fp-q', label: 'Buscar', valor: f.q, dica: 'Nome, cargo ou matrícula' },
+      { tipo: 'sel', id: 'fp-equipe', label: 'Equipe', valor: f.equipe,
+        opcoes: [['', 'Todas as equipes'], ...EQUIPES.map(e => [String(e.id), e.nome])] },
+      { tipo: 'marca', id: 'fp-pendentes', label: 'Só com pendência', valor: f.pendentes },
+    ], `${listados.length} de ${ativos.length}`) +
+    (listados.length === 0
+      ? vazio('Nenhum colaborador nesse filtro', 'Ajuste a busca, a equipe ou desmarque "só com pendência".')
+      : `<div class="rolagem" style="max-height:520px"><table class="tab">
+      <thead><tr><th>Colaborador</th><th>Equipe · Regime</th><th>Ciclo</th><th>Distribuição</th><th>Unidades fixas</th><th>Home office</th><th>Férias e ausências</th><th></th></tr></thead>
+      <tbody>${listados.map(c => {
+        const p = planoPor.get(c.id);
+        const pd = pendPor.get(c.id) || [];
+        const aus = ausPor.get(c.id) || [];
+        const ho = p && p.homeOffice;
+        return `<tr>
+          <td>
+            <b>${esc(c.nome)}</b>
+            <div style="font-size:10.5px;color:var(--muted)">${esc(c.cargo)} · entrada ${c.entrada}</div>
+            ${pd.length ? `<div style="font-size:10.5px;color:var(--rose);margin-top:3px;line-height:1.4">${esc(pd[0])}${pd.length > 1 ? ` (+${pd.length - 1})` : ''}</div>` : ''}
+          </td>
+          <td style="color:var(--muted)">${esc(equipePorId.get(c.equipeId).nome)}<div style="font-size:10.5px">${c.regime} · ${c.turno === 'N' ? 'noturno' : 'diurno'}</div></td>
+          <td>${c.regime !== '12x36' ? '<span style="color:var(--faint)">—</span>'
+            : p && p.ciclo ? selo(p.ciclo === 'IMPAR' ? 'Ímpares' : 'Pares', 'var(--brand-700)', 'var(--brand-100)')
+            : selo('Definir', 'var(--rose)', 'var(--rose-bg)')}</td>
+          <td>${p ? `<div class="linha-flex" style="gap:4px">${UNIDADES.filter(u => (p.distribuicao[u.id] || 0) > 0)
+            .map(u => selo(`${u.sigla} ${p.distribuicao[u.id]}%`, u.cor, u.bg)).join('')}</div>`
+            : selo('Sem plano', 'var(--amber)', 'var(--amber-bg)')}</td>
+          <td>${p && Object.keys(p.unidadesFixas || {}).length
+            ? `<div class="linha-flex" style="gap:4px">${Object.entries(p.unidadesFixas)
+                .sort((a, b) => a[0] - b[0])
+                .map(([dw, un]) => { const u = unidadePorId.get(Number(un));
+                  return selo(`${DIAS_ABREV[dw]} ${u.sigla}`, u.cor, u.bg); }).join('')}</div>`
+            : '<span style="color:var(--faint)">—</span>'}</td>
+          <td style="color:var(--muted)">${!c.elegHome ? '<span style="color:var(--faint)">Não elegível</span>'
+            : ho && ho.modo === 'FIXO' ? `Fixo · ${ho.diasSemana.map(d => DIAS_ABREV[d]).join(', ')}`
+            : ho && ho.modo === 'COTA' ? `Cota · ${ho.quantidade}x/semana`
+            : '<span style="color:var(--faint)">Sem home office</span>'}</td>
+          <td style="color:var(--muted);font-size:10.5px">${aus.length ? aus.slice(0, 2).map(a =>
+            `<div>${a.tipo === 'FERIAS' ? 'Férias' : esc(a.grupo + ' — ' + a.motivo)}: ${fmData(a.inicio)} a ${fmData(fimAusencia(a.inicio, a.dias))}</div>`).join('')
+            + (aus.length > 2 ? `<div>+${aus.length - 2}</div>` : '') : '<span style="color:var(--faint)">—</span>'}</td>
+          <td class="dir"><button class="btn linha sm" data-plano="${c.id}">${p ? 'Editar' : 'Configurar'}</button></td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`),
+  });
+  return html;
+}
+
+const DEGRAUS = [0, 25, 50, 75, 100];
+const UTEIS = [1, 2, 3, 4, 5];
+
+function editorPlano(colabId, plano, ausencias, pends) {
+  const c = colabPorId.get(colabId);
+  const ho = (plano && plano.homeOffice) || { modo: null, diasSemana: [], quantidade: 2, diasPreferencia: [], diasProibidos: [] };
+  const dist = (plano && plano.distribuicao) || { [c.unidadeBaseId]: 100 };
+
+  return bloco({
+    tit: `Plano de ${esc(c.nome)} — ${fmComp(S.competencia)}`,
+    desc: `${esc(c.cargo)} · ${c.regime} · turno ${c.turno === 'N' ? 'noturno' : 'diurno'} · entrada ${c.entrada} · unidade base ${esc(unidadePorId.get(c.unidadeBaseId).nome)}`,
+    acoes: `<button class="btn fantasma sm" data-acao="fechar-plano">Fechar</button>`,
+    corpo: `
+      ${pends.length ? `<ul class="lista" style="background:var(--rose-bg)">${pends.map(p =>
+        `<li style="font-size:11.5px;font-weight:600;color:var(--rose);border-color:rgba(190,18,60,.15)">${esc(p)}</li>`).join('')}</ul>` : ''}
+      <div class="pad" style="display:flex;flex-direction:column;gap:20px">
+        ${c.regime === '12x36' ? `
+        <section>
+          <span class="rotulo">Ciclo do mês (12x36)</span>
+          <div class="linha-flex">
+            ${['IMPAR', 'PAR'].map(v => `<label style="display:flex;gap:8px;align-items:center;border:1px solid var(--line-2);border-radius:6px;padding:7px 12px;font-size:12.5px;cursor:pointer">
+              <input type="radio" name="ciclo" value="${v}" class="ed-ciclo"${(plano && plano.ciclo) === v ? ' checked' : ''}> Dias ${v === 'IMPAR' ? 'ímpares' : 'pares'}
+              ${c.ciclo === v ? '<span style="font-size:10.5px;color:var(--muted)">(base do cadastro)</span>' : ''}</label>`).join('')}
+          </div>
+          <p style="font-size:11px;color:var(--muted);margin-top:6px">Meses de 31 dias invertem a paridade no mês seguinte para preservar o descanso de 36h. O motor já sugere o ciclo correto a partir do mês âncora; aqui você pode sobrepor.</p>
+        </section>` : ''}
+
+        <section>
+          <div class="linha-flex" style="justify-content:space-between;margin-bottom:6px">
+            <span class="rotulo" style="margin:0">Distribuição dos dias presenciais</span>
+            <b id="soma-dist" class="num" style="font-size:11.5px"></b>
+          </div>
+          ${UNIDADES.map(u => `<div class="linha-flex" style="margin-bottom:8px">
+            <span style="width:110px;font-size:12.5px;font-weight:500;color:${u.cor}">${esc(u.nome)}</span>
+            <div class="linha-flex" style="gap:4px">${DEGRAUS.map(d =>
+              `<button type="button" class="deg num" data-un="${u.id}" data-pct="${d}"
+                style="padding:4px 10px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid ${(dist[u.id] || 0) === d ? u.cor : 'var(--line-2)'};background:${(dist[u.id] || 0) === d ? u.cor : 'var(--surface)'};color:${(dist[u.id] || 0) === d ? '#fff' : 'var(--muted)'}">${d}%</button>`).join('')}</div>
+          </div>`).join('')}
+          <p style="font-size:11px;color:var(--muted)">Só degraus de 25% — em dias inteiros, 33% não significa nada e vira desvio de aderência que ninguém consegue explicar depois. Com duas unidades, escolher uma já define a outra.</p>
+        </section>
+
+        <section>
+          <span class="rotulo">Unidade fixa por dia da semana</span>
+          <p class="ajuda" style="margin-bottom:10px">
+            Trave um dia da semana numa unidade — por exemplo, toda terça e quarta no Morumbi.
+            Esses dias saem da distribuição percentual acima: já estão decididos e ocupam posição na unidade.
+          </p>
+          <div class="fixas" id="fixas"></div>
+          <div id="fixas-resumo"></div>
+        </section>
+
+        <section>
+          <span class="rotulo">Home office</span>
+          ${!c.elegHome ? `<p style="font-size:12px;color:var(--muted)">${esc(c.nome)} não está marcado como elegível a home office no cadastro. Ajuste em Colaboradores para liberar esta seção.</p>` : `
+          <div class="linha-flex" style="margin-bottom:10px">
+            ${[['', 'Sem home office'], ['FIXO', 'Dias fixos'], ['COTA', 'Cota semanal']].map(([v, l]) =>
+              `<label style="display:flex;gap:8px;align-items:center;border:1px solid var(--line-2);border-radius:6px;padding:7px 12px;font-size:12.5px;cursor:pointer">
+                <input type="radio" name="homodo" value="${v}" class="ed-homodo"${(ho.modo || '') === v ? ' checked' : ''}> ${l}</label>`).join('')}
+          </div>
+
+          <div id="ho-fixo" style="border:1px solid var(--line);border-radius:8px;padding:12px">
+            <span class="rotulo">Dias em home office</span>
+            <div class="linha-flex" style="gap:6px">${UTEIS.map(d =>
+              `<label style="display:flex;gap:5px;align-items:center;font-size:12px;border:1px solid var(--line-2);border-radius:5px;padding:4px 8px;cursor:pointer">
+                <input type="checkbox" class="ed-hofixo" value="${d}"${ho.diasSemana.includes(d) ? ' checked' : ''}> ${DIAS_ABREV[d]}</label>`).join('')}</div>
+            <p class="ajuda">Todo mês, nesses dias da semana. Um dia não pode ser home office fixo e unidade fixa ao mesmo tempo.</p>
+          </div>
+
+          <div id="ho-cota" style="border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:12px">
+            <label><span class="rotulo">Dias por semana</span>
+              <input type="number" min="1" max="5" value="${ho.quantidade || 2}" class="campo num ed-hoqtd" style="width:90px"></label>
+            <div><span class="rotulo">Dias de preferência</span>
+              <div class="linha-flex" style="gap:6px">${UTEIS.map(d =>
+                `<label style="display:flex;gap:5px;align-items:center;font-size:12px;border:1px solid var(--line-2);border-radius:5px;padding:4px 8px;cursor:pointer">
+                  <input type="checkbox" class="ed-hopref" value="${d}"${ho.diasPreferencia.includes(d) ? ' checked' : ''}> ${DIAS_ABREV[d]}</label>`).join('')}</div></div>
+            <div><span class="rotulo">Dias proibidos</span>
+              <div class="linha-flex" style="gap:6px">${UTEIS.map(d =>
+                `<label style="display:flex;gap:5px;align-items:center;font-size:12px;border:1px solid var(--line-2);border-radius:5px;padding:4px 8px;cursor:pointer">
+                  <input type="checkbox" class="ed-hoproib" value="${d}"${ho.diasProibidos.includes(d) ? ' checked' : ''}> ${DIAS_ABREV[d]}</label>`).join('')}</div></div>
+            <p class="ajuda">A quantidade é rígida e o dia é flexível: o motor tenta os dias de preferência primeiro e nunca usa os proibidos.</p>
+          </div>`}
+        </section>
+
+        <section>
+          <span class="rotulo">Férias e ausências</span>
+          ${ausencias.length ? `<ul class="lista" style="border:1px solid var(--line);border-radius:8px;margin-bottom:10px">${ausencias.map(a => `
+            <li class="linha-flex" style="justify-content:space-between;font-size:12.5px">
+              <span>${a.tipo === 'FERIAS' ? '<b>Férias</b>' : `<b>${esc(a.grupo)}</b> — ${esc(a.motivo)}`} ·
+                ${fmData(a.inicio)} a ${fmData(fimAusencia(a.inicio, a.dias))}
+                <span style="color:var(--muted)">(${a.dias} dia(s))</span></span>
+              <button class="btn fantasma sm" data-acao="rm-ausencia" data-id="${a.id}">Remover</button>
+            </li>`).join('')}</ul>` : ''}
+          <div class="fim-flex">
+            <label style="flex:0 1 130px"><span class="rotulo">Tipo</span>
+              <select id="au-tipo" class="campo"><option value="AUSENCIA">Ausência</option><option value="FERIAS">Férias</option></select></label>
+            <label style="flex:0 1 155px">
+              <span class="rotulo">Início <span style="color:var(--rose)">*</span></span>
+              <input type="date" id="au-inicio" class="campo" required></label>
+            <label style="flex:0 1 110px"><span class="rotulo">Dias corridos</span><input type="number" id="au-dias" min="1" max="365" value="1" class="campo num"></label>
+            <label style="flex:0 1 130px"><span class="rotulo">Grupo</span>
+              <select id="au-grupo" class="campo">${GRUPOS_AUSENCIA.map(g => `<option>${esc(g.grupo)}</option>`).join('')}</select></label>
+            <label style="flex:1 1 190px"><span class="rotulo">Motivo</span><select id="au-motivo" class="campo"></select></label>
+            <button class="btn linha sm" data-acao="add-ausencia">Adicionar</button>
+          </div>
+          ${recadoLocal('ausencia')}
+          <p style="font-size:11px;color:var(--muted);margin-top:6px">A ausência fica ligada à pessoa, não ao mês: um período que começa em um mês e termina no seguinte bloqueia os dois. Períodos sobrepostos são recusados.</p>
+        </section>
+
+        ${recadoLocal('plano')}
+        <div class="linha-flex">
+          <button class="btn" data-acao="salvar-plano" data-colab="${colabId}">Salvar plano</button>
+          <span style="font-size:11.5px;color:var(--muted)">Salvar o plano não altera a escala já gerada — é preciso gerar de novo.</span>
+        </div>
+      </div>`,
+  });
+}
+
+/* ============================================================
+   TELA — Solicitações
+   ============================================================ */
+const ABERTOS = ['AGUARDA_PARCEIRO', 'TRIAGEM', 'GESTOR', 'FILA'];
+
+function telaSolicitacoes() {
+  const eu = euSou();
+  const meus = new Set(visiveis().map(c => c.id));
+  const lista = S.solicitacoes.filter(s =>
+    S.papel === 'colaborador' ? (s.colaboradorId === eu?.id || s.parceiroId === eu?.id) : meus.has(s.colaboradorId));
+
+  const abertas = lista.filter(s => ABERTOS.includes(s.status) && s.status !== 'FILA');
+  const fila = lista.filter(s => s.status === 'FILA').sort((a, b) => (a.posicaoFila || 99) - (b.posicaoFila || 99));
+  const hist = lista.filter(s => ['APROVADA', 'RECUSADA'].includes(s.status));
+  const atual = S.aba === 'fila' ? fila : S.aba === 'historico' ? hist : abertas;
+
+  const tit = S.papel === 'planejamento' ? 'Solicitações' : S.papel === 'gestor' ? 'Aprovações da equipe' : 'Minhas solicitações';
+  const sub = S.papel === 'planejamento' ? 'Triagem, encaminhamento ao gestor e lista de espera.'
+    : S.papel === 'gestor' ? 'Pedidos da sua equipe que chegaram para decisão.'
+    : 'Seus pedidos e as trocas em que você foi convidado.';
+
+  let html = `
+    <div class="linha-flex" style="justify-content:space-between">
+      <div><h1 style="font-size:17px">${tit}</h1>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px">${sub}</p></div>
+      ${S.papel === 'colaborador' ? `<button class="btn sm" data-ir="minha-escala">Abrir nova solicitação</button>` : ''}
+    </div>
+    <div class="abas" role="tablist">
+      ${[['abertas', 'Abertas', abertas.length], ['fila', 'Lista de espera', fila.length], ['historico', 'Histórico', hist.length]]
+        .map(([k, l, n]) => `<button role="tab" aria-selected="${S.aba === k}" data-aba="${k}">${l} <span class="num" style="color:var(--faint)">${n}</span></button>`).join('')}
+    </div>`;
+
+  if (S.aba === 'fila' && fila.length) {
+    html += bloco({
+      tit: 'Ordem da lista de espera',
+      desc: 'Quando uma posição é liberada, o primeiro da fila é o próximo a ser promovido para decisão do gestor.',
+      corpo: `<ol class="lista">${fila.map((s, i) => `
+        <li class="linha-flex" style="gap:12px">
+          <span class="num" style="width:28px;height:28px;border-radius:999px;display:grid;place-items:center;font-size:11.5px;font-weight:700;background:${i === 0 ? 'var(--green-bg)' : 'var(--bg)'};color:${i === 0 ? 'var(--green)' : 'var(--muted)'}">${s.posicaoFila || i + 1}º</span>
+          <b style="font-size:12.5px">${esc(colabPorId.get(s.colaboradorId).nome)}</b>
+          <span style="font-size:12px;color:var(--muted)">${esc(TIPOS_SOLICITACAO[s.tipo].label)} · ${fmData(s.data)}</span>
+          ${S.papel === 'planejamento' ? `<button class="btn sm${i === 0 ? ' ok' : ' linha'}" style="margin-left:auto" data-acao="decidir" data-id="${s.id}" data-op="PROMOVER">Promover</button>` : ''}
+        </li>`).join('')}</ol>`,
+    });
+  }
+
+  if (!atual.length) {
+    html += bloco({ corpo: vazio('Nada por aqui',
+      S.aba === 'abertas' ? 'Não há solicitações aguardando decisão neste momento.'
+      : S.aba === 'fila' ? 'A lista de espera está vazia.' : 'Nenhuma solicitação foi concluída ainda.') });
+    return html;
+  }
+
+  for (const s of atual) html += cartaoSolicitacao(s, eu);
+  return html;
+}
+
+function cartaoSolicitacao(s, eu) {
+  const cfg = STATUS_SOLIC[s.status];
+  const tipo = TIPOS_SOLICITACAO[s.tipo];
+  const c = colabPorId.get(s.colaboradorId);
+  const souParceiro = eu && s.parceiroId === eu.id;
+  const aprovador = S.papel === 'planejamento' || S.papel === 'gestor';
+  const alteraEscala = ['TROCA_UNIDADE', 'TROCA_HORARIO', 'FOLGA', 'FERIAS'].includes(s.tipo);
+
+  let acoes = '';
+  if (souParceiro && s.status === 'AGUARDA_PARCEIRO') {
+    acoes += `<button class="btn ok sm" data-acao="decidir" data-id="${s.id}" data-op="ACEITAR_PARCEIRO">Aceitar a troca</button>
+      <button class="btn linha sm" data-acao="recusar" data-id="${s.id}" data-op="RECUSAR_PARCEIRO">Recusar a troca</button>`;
+  }
+  if (S.papel === 'planejamento' && s.status === 'TRIAGEM') {
+    acoes += `<button class="btn sm" data-acao="decidir" data-id="${s.id}" data-op="ENCAMINHAR">Encaminhar ao gestor</button>`;
+    if (tipo.fila) acoes += `<button class="btn linha sm" data-acao="decidir" data-id="${s.id}" data-op="FILA">Enviar para a lista de espera</button>`;
+    acoes += `<button class="btn linha sm" data-acao="recusar" data-id="${s.id}" data-op="RECUSAR_TRIAGEM">Recusar na triagem</button>`;
+  }
+  if (aprovador && s.status === 'GESTOR') {
+    acoes += `<button class="btn ok sm" data-acao="decidir" data-id="${s.id}" data-op="APROVAR">Aprovar</button>
+      <button class="btn linha sm" data-acao="recusar" data-id="${s.id}" data-op="RECUSAR_GESTOR">Recusar</button>
+      <span style="font-size:11px;color:var(--muted)">${alteraEscala ? 'Aprovar já altera a escala do dia e trava a alocação.' : 'Este tipo não altera a escala — a aprovação vale como registro formal.'}</span>`;
+  }
+
+  return bloco({
+    tit: `${esc(tipo.label)} · ${fmData(s.data)}`,
+    desc: `${esc(c.nome)} · ${esc(c.cargo)} · aberta em ${fmData(s.criadoEm.slice(0, 10))} · SLA de ${tipo.sla}h`,
+    acoes: `${s.posicaoFila ? selo(`${s.posicaoFila}º na fila`, 'var(--brand-700)', 'var(--brand-100)') : ''}
+      ${souParceiro && s.status === 'AGUARDA_PARCEIRO' ? selo('Aguarda sua resposta', 'var(--amber)', 'var(--amber-bg)') : ''}
+      ${s.aplicada ? selo('Aplicada na escala', 'var(--green)', 'var(--green-bg)') : ''}
+      ${pilula(cfg.label, cfg.cor, cfg.bg)}`,
+    corpo: `<div class="pad" style="display:flex;flex-direction:column;gap:10px">
+      <p style="font-size:12.5px;line-height:1.6">${esc(s.detalhe)}</p>
+      ${s.parceiroId ? `<p style="font-size:12px;color:var(--muted)">Troca com <b>${esc(colabPorId.get(s.parceiroId).nome)}</b>${s.aceiteParceiro ? ` · resposta do parceiro: ${s.aceiteParceiro.toLowerCase()}` : ''}</p>` : ''}
+      ${s.unidadeDesejadaId ? `<p style="font-size:12px;color:var(--muted)">Unidade desejada: <b>${esc(unidadePorId.get(s.unidadeDesejadaId).nome)}</b></p>` : ''}
+      ${s.motivoRecusa ? `<div style="background:var(--rose-bg);color:var(--rose);border-radius:6px;padding:8px 12px;font-size:12px"><b>Motivo da recusa:</b> ${esc(s.motivoRecusa)}</div>` : ''}
+      <details style="font-size:12px">
+        <summary style="cursor:pointer;font-weight:600;color:var(--brand-700)">Histórico (${s.eventos.length})</summary>
+        <ol class="lista" style="border-left:1px solid var(--line-2);margin:8px 0 0 4px;padding-left:14px">
+          ${s.eventos.map(e => `<li style="border:0;padding:6px 0">
+            <b>${esc(e.etapa)}</b>
+            <div style="color:var(--muted)">${esc(e.por)} · ${esc(e.em)}</div>
+            ${e.detalhe ? `<div style="color:var(--muted);margin-top:2px">${esc(e.detalhe)}</div>` : ''}</li>`).join('')}
+        </ol>
+      </details>
+      ${acoes ? `<div class="linha-flex">${acoes}</div>` : ''}
+    </div>`,
+  });
+}
+
+/* ============================================================
+   TELA — Minha escala
+   ============================================================ */
+function telaMinhaEscala() {
+  const eu = euSou();
+  const g = geracao();
+  const [ano, mes] = partesIso(S.competencia);
+  const nDias = diasNoMes(ano, mes);
+  const publicada = g && g.status !== 'rascunho';
+
+  let html = `
+    <div class="linha-flex" style="justify-content:space-between">
+      <div><h1 style="font-size:17px">Minha escala</h1>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px">${esc(eu.nome)} · ${esc(eu.cargo)} · ${fmComp(S.competencia)}</p></div>
+      ${seletorMes()}
+    </div>`;
+
+  if (!publicada) {
+    html += bloco({ corpo: vazio(`A escala de ${fmComp(S.competencia)} ainda não foi publicada`,
+      'Enquanto está em rascunho, a escala fica invisível para o colaborador — no sistema real isso é uma policy de RLS, não um filtro de tela. Você continua podendo abrir solicitações abaixo.') });
+  } else {
+    const minhas = g.alocacoes.filter(a => a.colaboradorId === eu.id);
+    const porData = new Map(minhas.map(a => [a.data, a]));
+    const faixa = dow => {
+      const h = eu.sextaReduzida && dow === 5 ? eu.jornada - 1 : eu.jornada;
+      return `${eu.entrada}–${somaHoras(eu.entrada, h + (h > 6 ? 1 : 0))}`;
+    };
+    const proximos = minhas.filter(a => a.modalidade !== 'DESCANSO').slice(0, 4);
+
+    html += `<div class="grade g4">${proximos.map(a => {
+      const ap = apar(a.modalidade, a.unidadeId);
+      const dow = dowDeIso(a.data);
+      const ausente = ['FERIAS','FOLGA','AFAST','FERIADO'].includes(a.modalidade);
+      return `<div class="kpi destaque" style="border-left-color:${ap.cor}">
+        <span class="rotulo">${DIAS_ABREV[dow]}, ${fmData(a.data)}</span>
+        <div style="font-size:15px;font-weight:600;color:${ap.cor}">${esc(ap.label)}</div>
+        ${ausente ? '' : `<div class="num" style="font-size:12px;color:var(--muted);margin-top:3px">${faixa(dow)}</div>`}
+      </div>`;
+    }).join('')}</div>`;
+
+    let cels = '';
+    for (let i = 0; i < diaSemana(ano, mes, 1); i++) cels += '<div></div>';
+    for (let d = 1; d <= nDias; d++) {
+      const data = iso(ano, mes, d);
+      const a = porData.get(data);
+      const ap = a ? apar(a.modalidade, a.unidadeId) : null;
+      const mostra = a && a.modalidade !== 'DESCANSO';
+      const trabalha = mostra && !['FERIAS','FOLGA','AFAST','FERIADO'].includes(a.modalidade);
+      cels += `<div class="dia" style="cursor:default;background:${mostra ? ap.bg : 'var(--bg)'}">
+        <span class="dia-num" style="color:${mostra ? ap.cor : 'var(--faint)'}">${d}</span>
+        ${mostra ? `<div style="margin-top:auto"><div style="font-size:10px;font-weight:700;color:${ap.cor}">${esc(ap.sigla)}</div>
+          ${trabalha ? `<div class="num" style="font-size:9px;color:${ap.cor}">${eu.entrada}</div>` : ''}</div>` : ''}
+        ${FERIADOS[data] ? `<span style="font-size:8.5px;color:var(--amber);margin-top:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(FERIADOS[data])}</span>` : ''}
+      </div>`;
+    }
+
+    html += bloco({
+      tit: `Calendário de ${fmComp(S.competencia)}`,
+      corpo: `<div class="pad">
+        <div class="cal" style="margin-bottom:6px">${DIAS_ABREV.map(d => `<div class="cal-cab">${d}</div>`).join('')}</div>
+        <div class="cal">${cels}</div>
+      </div>
+      <div class="legenda">${UNIDADES.map(u => selo(`${u.sigla} · ${u.nome}`, u.cor, u.bg)).join('')}
+        ${selo('HO · Home Office', '#6D28D9', '#EDE9FE')}${selo('FÉR · Férias', '#B45309', '#FEF3C7')}${selo('AUS · Ausência', '#526176', '#F1F5F9')}</div>`,
+    });
+  }
+
+  const colegas = COLABORADORES.filter(c => c.id !== eu.id && c.status === 'ativo' && c.regime === eu.regime && c.equipeId === eu.equipeId);
+  html += bloco({
+    tit: 'Abrir solicitação',
+    desc: 'Troca de plantão precisa do aceite do colega, depois passa pela triagem do Planejamento e só então vai ao gestor.',
+    corpo: `<div class="pad" style="display:flex;flex-direction:column;gap:12px">
+      <div class="grade g3">
+        <label><span class="rotulo">Tipo</span>
+          <select id="ns-tipo" class="campo">${Object.entries(TIPOS_SOLICITACAO).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select></label>
+        <label><span class="rotulo">Data de referência</span><input type="date" id="ns-data" class="campo" value="${iso(...partesIso(S.competencia).slice(0, 2), 15)}"></label>
+        <label id="ns-extra-wrap"><span class="rotulo">Complemento</span><select id="ns-extra" class="campo"></select></label>
+      </div>
+      <label><span class="rotulo">Justificativa</span>
+        <textarea id="ns-detalhe" rows="3" class="campo" placeholder="Explique o motivo do pedido — é o que o gestor lê para decidir."></textarea></label>
+      <div class="linha-flex">
+        <button class="btn" data-acao="abrir-solic">Enviar solicitação</button>
+        <span id="ns-dica" style="font-size:11.5px;color:var(--muted)"></span>
+      </div>
+      ${colegas.length === 0 ? `<p style="font-size:11.5px;color:var(--amber)">Não há colegas do mesmo regime e equipe para troca de plantão.</p>` : ''}
+    </div>`,
+  });
+
+  const minhasSolic = S.solicitacoes.filter(s => s.colaboradorId === eu.id || s.parceiroId === eu.id);
+  html += bloco({
+    tit: `Minhas solicitações (${minhasSolic.length})`,
+    corpo: minhasSolic.length ? `<ul class="lista">${minhasSolic.map(s => {
+      const cfg = STATUS_SOLIC[s.status];
+      const aguarda = s.parceiroId === eu.id && s.status === 'AGUARDA_PARCEIRO';
+      return `<li>
+        <div class="linha-flex">
+          <b style="font-size:12.5px">${esc(TIPOS_SOLICITACAO[s.tipo].label)}</b>
+          <span class="num" style="font-size:12px;color:var(--muted)">${fmData(s.data)}</span>
+          ${s.posicaoFila ? selo(`${s.posicaoFila}º na fila`, 'var(--brand-700)', 'var(--brand-100)') : ''}
+          ${aguarda ? selo('Aguarda sua resposta', 'var(--amber)', 'var(--amber-bg)') : ''}
+          <span style="margin-left:auto">${pilula(cfg.label, cfg.cor, cfg.bg)}</span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px">${esc(s.detalhe)}</p>
+        ${s.motivoRecusa ? `<p style="font-size:11.5px;background:var(--rose-bg);color:var(--rose);border-radius:5px;padding:5px 9px;margin-top:6px">Motivo da recusa: ${esc(s.motivoRecusa)}</p>` : ''}
+        ${aguarda ? `<button class="btn sm" style="margin-top:8px" data-ir="solicitacoes">Responder à troca</button>` : ''}
+      </li>`;
+    }).join('')}</ul>` : vazio('Nenhuma solicitação', 'Os pedidos que você abrir e as trocas em que for convidado aparecem aqui.'),
+  });
+  return html;
+}
+/* ============================================================
+   NAVEGAÇÃO E RENDER
+   ============================================================ */
+const MENUS = {
+  planejamento: [
+    { secao: 'Operação', itens: [
+      { id: 'planos', label: 'Planos do mês' }, { id: 'gerar', label: 'Gerar escala' },
+      { id: 'calendario', label: 'Calendário' }, { id: 'ocupacao', label: 'Ocupação' },
+      { id: 'solicitacoes', label: 'Solicitações' }] },
+    { secao: 'Análise', itens: [{ id: 'indicadores', label: 'Indicadores' }] },
+  ],
+  gestor: [
+    { secao: 'Minha equipe', itens: [
+      { id: 'indicadores', label: 'Indicadores' }, { id: 'calendario', label: 'Escala' },
+      { id: 'ocupacao', label: 'Ocupação' }, { id: 'solicitacoes', label: 'Aprovações' }] },
+  ],
+  colaborador: [
+    { secao: null, itens: [
+      { id: 'minha-escala', label: 'Minha escala' }, { id: 'solicitacoes', label: 'Minhas solicitações' }] },
+  ],
+};
+
+function pendentesDoPapel() {
+  const eu = euSou();
+  if (S.papel === 'planejamento') return S.solicitacoes.filter(s => s.status === 'TRIAGEM').length;
+  if (S.papel === 'gestor') {
+    const meus = new Set(visiveis().map(c => c.id));
+    return S.solicitacoes.filter(s => s.status === 'GESTOR' && meus.has(s.colaboradorId)).length;
+  }
+  return S.solicitacoes.filter(s => s.status === 'AGUARDA_PARCEIRO' && s.parceiroId === eu?.id).length;
+}
+
+function seletorMes() {
+  const [ano, mes] = partesIso(S.competencia);
+  return `<div style="display:inline-flex;align-items:center;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);overflow:hidden">
+    <button class="btn fantasma" style="padding:6px 9px" data-mes="-1" aria-label="Mês anterior">‹</button>
+    <select class="mes-sel" style="border:0;background:transparent;font-size:12.5px;font-weight:600;padding:6px 2px;cursor:pointer" aria-label="Mês">
+      ${MESES.map((m, i) => `<option value="${i}"${i === mes ? ' selected' : ''}>${m}</option>`).join('')}
+    </select>
+    <select class="ano-sel num" style="border:0;background:transparent;font-size:12.5px;font-weight:600;padding:6px 2px;cursor:pointer" aria-label="Ano">
+      ${[ano - 1, ano, ano + 1].map(a => `<option value="${a}"${a === ano ? ' selected' : ''}>${a}</option>`).join('')}
+    </select>
+    <button class="btn fantasma" style="padding:6px 9px" data-mes="1" aria-label="Próximo mês">›</button>
+  </div>`;
+}
+
+const TELAS = {
+  gerar: telaGerar, planos: telaPlanos, calendario: telaCalendario,
+  ocupacao: telaOcupacao, solicitacoes: telaSolicitacoes,
+  indicadores: telaIndicadores, 'minha-escala': telaMinhaEscala,
+};
+
+function render() {
+  const menu = MENUS[S.papel];
+  const permitidas = menu.flatMap(g => g.itens).map(i => i.id);
+  if (!permitidas.includes(S.tela)) S.tela = permitidas[0];
+  const pend = pendentesDoPapel();
+
+  document.getElementById('rail').innerHTML = menu.map(g => `
+    ${g.secao ? `<div class="rail-secao">${g.secao}</div>` : ''}
+    ${g.itens.map(i => `<a href="#${i.id}" data-tela="${i.id}"${S.tela === i.id ? ' aria-current="page"' : ''}>
+      <span>${i.label}</span>${i.id === 'solicitacoes' && pend ? `<span class="marcador num">${pend}</span>` : ''}</a>`).join('')}`).join('');
+
+  document.getElementById('papel').value = S.papel;
+  document.getElementById('quem').textContent = PAPEIS[S.papel].nome;
+  const g = geracao();
+  document.getElementById('chip-mes').innerHTML =
+    `${fmComp(S.competencia)}<span class="div"></span><span style="color:rgba(255,255,255,.75)">${g ? { rascunho: 'Rascunho', publicada: 'Publicada', encerrada: 'Encerrada' }[g.status] : 'Não gerada'}</span>`;
+
+  // Mensagem com destino próprio (`onde`) sai junto do controle que a gerou;
+  // o resto vai para o topo.
+  const rec = S.recado && !S.recado.onde
+    ? `<div class="aviso" style="border-color:${S.recado.erro ? 'var(--rose)' : 'var(--green)'};background:${S.recado.erro ? 'var(--rose-bg)' : 'var(--green-bg)'};color:${S.recado.erro ? 'var(--rose)' : 'var(--green)'}" role="status">${esc(S.recado.msg)}</div>`
+    : '';
+  const destinoRecado = S.recado?.onde ?? null;
+  const campoParaFocar = S.recado?.foco ?? null;
+  // Quem estava digitando num filtro precisa continuar digitando depois do
+  // re-render — sem isso a busca perde o foco a cada tecla.
+  const focado = document.activeElement;
+  const idFoco = focado && focado.dataset && focado.dataset.filtro ? focado.id : null;
+  const caret = idFoco && focado.selectionStart !== undefined ? focado.selectionStart : null;
+
+  document.getElementById('principal').innerHTML = rec + TELAS[S.tela]();
+  S.recado = null;
+
+  if (idFoco) {
+    const novo = document.getElementById(idFoco);
+    if (novo) {
+      novo.focus();
+      if (caret !== null && novo.setSelectionRange) novo.setSelectionRange(caret, caret);
+    }
+  }
+  if (S.tela === 'planos' && S.colabAberto) {
+    atualizarSoma(); montarMotivos(); ajustarPaineisHo(); desenharFixas();
+  }
+  if (S.tela === 'minha-escala') ajustarNovaSolic();
+
+  // Leva a mensagem local ao campo de visão — o editor é longo o bastante para
+  // ela nascer fora da tela.
+  if (destinoRecado) {
+    document.getElementById(`recado-${destinoRecado}`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // Erro de campo devolve o cursor ao campo que precisa ser corrigido.
+    if (campoParaFocar) document.getElementById(campoParaFocar)?.focus();
+  }
+}
+
+/* ── Editor de plano: estado local dos degraus ───────────── */
+let distEdit = {};
+function atualizarSoma() {
+  const c = colabPorId.get(S.colabAberto);
+  const plano = planosDoMes().find(p => p.colaboradorId === S.colabAberto);
+  if (!Object.keys(distEdit).length) {
+    distEdit = plano ? { ...plano.distribuicao } : { [c.unidadeBaseId]: 100 };
+  }
+  const soma = UNIDADES.reduce((a, u) => a + (distEdit[u.id] || 0), 0);
+  const el = document.getElementById('soma-dist');
+  if (el) { el.textContent = `Total ${soma}%`; el.style.color = soma === 100 ? 'var(--green)' : 'var(--rose)'; }
+  document.querySelectorAll('.deg').forEach(b => {
+    const un = Number(b.dataset.un), pct = Number(b.dataset.pct);
+    const u = unidadePorId.get(un);
+    const ativo = (distEdit[un] || 0) === pct;
+    b.style.background = ativo ? u.cor : 'var(--surface)';
+    b.style.color = ativo ? '#fff' : 'var(--muted)';
+    b.style.borderColor = ativo ? u.cor : 'var(--line-2)';
+  });
+}
+
+/* ── Unidade fixa por dia da semana ──────────────────────
+   Estado local do editor; só vai para o plano ao salvar. */
+let fixasEdit = {};
+
+const DIAS_LONGOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+/** Lista em português: "terça", "terça e quarta", "terça, quarta e sexta". */
+function listar(itens) {
+  if (itens.length <= 1) return itens[0] || '';
+  return itens.slice(0, -1).join(', ') + ' e ' + itens[itens.length - 1];
+}
+
+function desenharFixas() {
+  const alvo = document.getElementById('fixas');
+  if (!alvo) return;
+  const hoFixos = [...document.querySelectorAll('.ed-hofixo:checked')].map(i => Number(i.value));
+  const modoHo = document.querySelector('.ed-homodo:checked')?.value || '';
+
+  alvo.innerHTML = UTEIS.map(d => {
+    const atual = fixasEdit[d];
+    const conflito = modoHo === 'FIXO' && hoFixos.includes(d) && atual !== undefined;
+    const opcao = (valor, rotulo, cor) => {
+      const ativo = valor === '' ? atual === undefined : atual === valor;
+      return `<button type="button" data-fixa="${d}" data-fixaun="${valor}" aria-pressed="${ativo}"
+        style="${ativo && cor ? `background:${cor};border-color:${cor}` : ''}${ativo && !cor ? 'background:var(--muted);' : ''}">${esc(rotulo)}</button>`;
+    };
+    return `<div class="fixa-linha">
+      <span class="fixa-dia">${DIAS_LONGOS[d]}</span>
+      <div class="segmento">
+        ${opcao('', 'Livre', null)}
+        ${UNIDADES.map(u => opcao(u.id, u.nome, u.cor)).join('')}
+      </div>
+      ${conflito ? `<span class="fixa-nota">também marcado como home office fixo</span>` : ''}
+    </div>`;
+  }).join('');
+
+  // Resumo em linguagem natural: confere se o que foi montado é o que se quis dizer.
+  const porUnidade = new Map();
+  for (const [dow, un] of Object.entries(fixasEdit)) {
+    porUnidade.set(un, [...(porUnidade.get(un) || []), Number(dow)]);
+  }
+  const resumo = document.getElementById('fixas-resumo');
+  const nFixos = Object.keys(fixasEdit).length;
+  if (nFixos === 0) {
+    resumo.innerHTML = `<p class="ajuda">Nenhum dia fixo — os 5 dias úteis entram na distribuição percentual.</p>`;
+    return;
+  }
+  const frases = [...porUnidade.entries()].map(([un, dias]) => {
+    const u = unidadePorId.get(Number(un));
+    const nomes = dias.sort((a, b) => a - b).map(d => DIAS_LONGOS[d].toLowerCase());
+    return `<b>${listar(nomes)}</b> ${dias.length > 1 ? 'fixas' : 'fixa'} no ${esc(u.nome)}`;
+  });
+  const livres = 5 - nFixos;
+  resumo.innerHTML = `<div class="resumo">${frases.join(' · ')}.
+    ${livres === 0 ? 'A semana inteira está fixada — a distribuição percentual deixa de ter efeito.'
+      : livres === 1 ? 'Resta 1 dia útil para a distribuição percentual.'
+      : `Restam ${livres} dias úteis para a distribuição percentual.`}</div>`;
+}
+
+/** Mostra só o painel do modo escolhido: três blocos de checkbox ao mesmo
+ *  tempo não deixam claro quais valem. */
+function ajustarPaineisHo() {
+  const modo = document.querySelector('.ed-homodo:checked')?.value || '';
+  const fixo = document.getElementById('ho-fixo');
+  const cota = document.getElementById('ho-cota');
+  if (!fixo || !cota) return;
+  fixo.style.display = modo === 'FIXO' ? '' : 'none';
+  cota.style.display = modo === 'COTA' ? '' : 'none';
+}
+
+function montarMotivos() {
+  const g = document.getElementById('au-grupo'), m = document.getElementById('au-motivo');
+  if (!g || !m) return;
+  const grupo = GRUPOS_AUSENCIA.find(x => x.grupo === g.value) || GRUPOS_AUSENCIA[0];
+  m.innerHTML = grupo.motivos.map(x => `<option>${esc(x)}</option>`).join('');
+}
+
+function ajustarNovaSolic() {
+  const t = document.getElementById('ns-tipo');
+  if (!t) return;
+  const eu = euSou();
+  const wrap = document.getElementById('ns-extra-wrap');
+  const sel = document.getElementById('ns-extra');
+  const dica = document.getElementById('ns-dica');
+  const tipo = t.value;
+  const cfg = TIPOS_SOLICITACAO[tipo];
+
+  if (tipo === 'TROCA_HORARIO') {
+    const colegas = COLABORADORES.filter(c => c.id !== eu.id && c.status === 'ativo' && c.regime === eu.regime && c.equipeId === eu.equipeId);
+    wrap.style.display = '';
+    wrap.querySelector('.rotulo').textContent = 'Trocar com';
+    sel.innerHTML = colegas.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join('') || '<option value="">Nenhum colega elegível</option>';
+  } else if (tipo === 'TROCA_UNIDADE') {
+    wrap.style.display = '';
+    wrap.querySelector('.rotulo').textContent = 'Unidade desejada';
+    sel.innerHTML = UNIDADES.map(u => `<option value="${u.id}">${esc(u.nome)}</option>`).join('');
+  } else {
+    wrap.style.display = 'none';
+  }
+  dica.textContent = `Prazo de resposta previsto: ${cfg.sla}h.` +
+    (tipo === 'TROCA_HORARIO' ? ' A troca só vale após o aceite do colega, a triagem e a aprovação do gestor.' : '');
+}
+
+/* ── CSV: separador ; e BOM UTF-8, que é o que o Excel pt-BR abre certo ── */
+function baixarCsv(linhas, nome) {
+  const escapar = v => /[;"\n]/.test(String(v ?? '')) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? '');
+  const csv = linhas.map(l => l.map(escapar).join(';')).join('\r\n');
+  const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = nome; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   AÇÕES
+   ============================================================ */
+const agora = () => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+function gravarGeracao(resultado, escopo) {
+  const ant = geracao();
+  S.geracoes[S.competencia] = {
+    versao: (ant?.versao || 0) + 1, status: 'rascunho', escopo,
+    geradaEm: agora(), geradaPor: PAPEIS[S.papel].nome,
+    alocacoes: resultado.alocacoes.map(a => ({ ...a, travado: S.pins.some(p => p.colaboradorId === a.colaboradorId && p.data === a.data) })),
+    conflitos: resultado.conflitos, alertas: resultado.alertas,
+    aderencia: resultado.aderencia, capacidadeDia: resultado.capacidadeDia,
+  };
+}
+
+/** Efeito real da aprovação: grava trava + ajusta a alocação do dia. */
+function aplicarNaEscala(s) {
+  const g = geracao();
+  const travar = (colabId, data, modalidade, unidadeId) => {
+    S.pins = S.pins.filter(p => !(p.colaboradorId === colabId && p.data === data));
+    S.pins.push({ colaboradorId: colabId, data, modalidade, unidadeId });
+    if (!g) return;
+    const a = g.alocacoes.find(x => x.colaboradorId === colabId && x.data === data);
+    if (a) { a.modalidade = modalidade; a.unidadeId = unidadeId; a.travado = true; }
+  };
+
+  if (s.tipo === 'TROCA_UNIDADE' && s.unidadeDesejadaId) {
+    travar(s.colaboradorId, s.data, 'UNIDADE', s.unidadeDesejadaId);
+    return `Alocação de ${fmData(s.data)} movida para ${unidadePorId.get(s.unidadeDesejadaId).nome} e travada.`;
+  }
+  if (s.tipo === 'TROCA_HORARIO' && s.parceiroId && g) {
+    const meu = g.alocacoes.find(a => a.colaboradorId === s.colaboradorId && a.data === s.data);
+    const dele = g.alocacoes.find(a => a.colaboradorId === s.parceiroId && a.data === s.data);
+    if (!meu || !dele) return '';
+    const mm = { m: meu.modalidade, u: meu.unidadeId }, dd = { m: dele.modalidade, u: dele.unidadeId };
+    travar(s.colaboradorId, s.data, dd.m, dd.u);
+    travar(s.parceiroId, s.data, mm.m, mm.u);
+    for (const id of [s.colaboradorId, s.parceiroId]) {
+      S.ocorrencias.push({ id: ++S.seq, colaboradorId: id, data: s.data, tipo: 'TROCA', minutos: 0, obs: `Troca aprovada (solicitação #${s.id})` });
+    }
+    return `Plantões de ${fmData(s.data)} trocados entre os dois colaboradores.`;
+  }
+  if (s.tipo === 'FOLGA' || s.tipo === 'FERIAS') {
+    const tipo = s.tipo === 'FERIAS' ? 'FERIAS' : 'AUSENCIA';
+    const coberto = S.ausencias.some(a => a.colaboradorId === s.colaboradorId && a.inicio <= s.data && fimAusencia(a.inicio, a.dias) >= s.data);
+    if (!coberto) {
+      S.ausencias.push({ id: ++S.seq, colaboradorId: s.colaboradorId, tipo, inicio: s.data, dias: 1,
+        grupo: tipo === 'AUSENCIA' ? 'Folga' : '', motivo: tipo === 'AUSENCIA' ? 'Compensação' : '' });
+    }
+    travar(s.colaboradorId, s.data, s.tipo === 'FERIAS' ? 'FERIAS' : 'FOLGA', null);
+    return `${fmData(s.data)} lançado como ${s.tipo === 'FERIAS' ? 'férias' : 'ausência'} e travado na escala.`;
+  }
+  return '';
+}
+
+const TRANSICOES = {
+  ACEITAR_PARCEIRO: { de: ['AGUARDA_PARCEIRO'], para: 'TRIAGEM',  etapa: 'Aceita pelo parceiro' },
+  RECUSAR_PARCEIRO: { de: ['AGUARDA_PARCEIRO'], para: 'RECUSADA', etapa: 'Recusada pelo parceiro', motivo: true },
+  ENCAMINHAR:       { de: ['TRIAGEM'], para: 'GESTOR',   etapa: 'Encaminhada ao gestor' },
+  FILA:             { de: ['TRIAGEM'], para: 'FILA',     etapa: 'Enviada para a lista de espera' },
+  PROMOVER:         { de: ['FILA'],    para: 'GESTOR',   etapa: 'Promovida da lista de espera' },
+  RECUSAR_TRIAGEM:  { de: ['TRIAGEM'], para: 'RECUSADA', etapa: 'Recusada na triagem', motivo: true },
+  APROVAR:          { de: ['GESTOR'],  para: 'APROVADA', etapa: 'Aprovada pelo gestor' },
+  RECUSAR_GESTOR:   { de: ['GESTOR'],  para: 'RECUSADA', etapa: 'Recusada pelo gestor', motivo: true },
+};
+
+function decidir(id, op, motivo) {
+  const s = S.solicitacoes.find(x => x.id === id);
+  const r = TRANSICOES[op];
+  if (!s || !r || !r.de.includes(s.status)) { S.recado = { erro: true, msg: 'Essa solicitação não aceita mais essa ação.' }; return; }
+  if (r.motivo && (!motivo || motivo.trim().length < 5)) { S.recado = { erro: true, msg: 'Uma recusa precisa de justificativa.' }; return; }
+
+  const eraFila = s.status === 'FILA';
+  let efeito = '';
+  if (op === 'APROVAR') { efeito = aplicarNaEscala(s); s.aplicada = !!efeito; }
+  if (op === 'ACEITAR_PARCEIRO') s.aceiteParceiro = 'ACEITO';
+  if (op === 'RECUSAR_PARCEIRO') s.aceiteParceiro = 'RECUSADO';
+  if (r.motivo) s.motivoRecusa = motivo.trim();
+  if (op === 'FILA') s.posicaoFila = Math.max(0, ...S.solicitacoes.filter(x => x.status === 'FILA').map(x => x.posicaoFila || 0)) + 1;
+  if (op === 'PROMOVER' || r.para === 'RECUSADA' || r.para === 'APROVADA') delete s.posicaoFila;
+
+  s.status = r.para;
+  s.eventos.push({ etapa: r.etapa, por: PAPEIS[S.papel].nome, em: agora(), detalhe: motivo || efeito || (op === 'APROVAR' ? 'Este tipo não altera a escala — vale como registro formal.' : '') });
+
+  // Ao sair da fila, renumera quem ficou para trás.
+  if (op === 'PROMOVER' || (eraFila && r.para === 'RECUSADA')) {
+    S.solicitacoes.filter(x => x.status === 'FILA').sort((a, b) => (a.posicaoFila || 99) - (b.posicaoFila || 99))
+      .forEach((x, i) => { x.posicaoFila = i + 1; });
+  }
+  S.recado = { erro: false, msg: efeito ? `${r.etapa}. ${efeito}` : `${r.etapa}.` };
+}
+
+/* ============================================================
+   EVENTOS
+   ============================================================ */
+document.addEventListener('click', ev => {
+  const alvo = ev.target.closest('[data-tela],[data-ir],[data-acao],[data-dia],[data-vista],[data-aba],[data-plano],[data-mes],[data-un],[data-fixa]');
+  if (!alvo) return;
+  const d = alvo.dataset;
+
+  if (d.fixa !== undefined) {
+    const dow = Number(d.fixa);
+    if (d.fixaun === '') delete fixasEdit[dow];
+    else fixasEdit[dow] = Number(d.fixaun);
+    return desenharFixas();
+  }
+
+  if (d.tela || d.ir) { ev.preventDefault(); S.tela = d.tela || d.ir; S.dia = null; S.colabAberto = null; distEdit = {}; fixasEdit = {}; return render(); }
+  if (d.vista) { S.vista = d.vista; return render(); }
+  if (d.aba) { S.aba = d.aba; return render(); }
+  if (d.mes !== undefined && !d.acao) {
+    const [a, m] = partesIso(S.competencia);
+    const dt = new Date(a, m + Number(d.mes), 1);
+    S.competencia = iso(dt.getFullYear(), dt.getMonth(), 1);
+    S.dia = null;
+    if (!S.planos[S.competencia]) S.planos[S.competencia] = montarPlanos(S.competencia);
+    return render();
+  }
+  if (d.plano) {
+    S.colabAberto = Number(d.plano);
+    const p = planosDoMes().find(x => x.colaboradorId === S.colabAberto);
+    distEdit = {};
+    fixasEdit = p ? { ...p.unidadesFixas } : {};
+    S.rolarAoEditor = true;
+    return render();
+  }
+  if (d.un !== undefined && d.pct !== undefined) {
+    const un = Number(d.un), pct = Number(d.pct);
+    if (UNIDADES.length === 2) {
+      const outra = UNIDADES.find(u => u.id !== un);
+      distEdit = { [un]: pct, [outra.id]: 100 - pct };
+    } else distEdit[un] = pct;
+    return atualizarSoma();
+  }
+  if (d.dia && !d.acao) { S.dia = S.dia === d.dia ? null : d.dia; return render(); }
+
+  const acoes = {
+    simular() {
+      const r = gerarEscala(contexto());
+      S.simulacao = { resultado: r, escopo: 'Mês completo', travas: [] };
+    },
+    'simular-parcial'() {
+      const eqs = [...document.querySelectorAll('.eq-parcial:checked')].map(i => Number(i.value));
+      const de = document.getElementById('parcial-de').value;
+      const ate = document.getElementById('parcial-ate').value;
+      const g = geracao();
+      const travas = S.pins.slice();
+      if (g) {
+        for (const a of g.alocacoes) {
+          const c = colabPorId.get(a.colaboradorId);
+          const foraEq = eqs.length && !eqs.includes(c.equipeId);
+          const foraJanela = (de && a.data < de) || (ate && a.data > ate);
+          if (foraEq || foraJanela) travas.push({ colaboradorId: a.colaboradorId, data: a.data, modalidade: a.modalidade, unidadeId: a.unidadeId });
+        }
+      }
+      const ctx = { ...contexto(), pins: travas };
+      const escopo = `Parcial — ${eqs.length ? EQUIPES.filter(e => eqs.includes(e.id)).map(e => e.nome).join(', ') : 'todas as equipes'} · ${de || ate ? `${de ? fmData(de) : 'início'} a ${ate ? fmData(ate) : 'fim'}` : 'mês inteiro'}`;
+      S.simulacao = { resultado: gerarEscala(ctx), escopo, travas };
+    },
+    'confirmar-sim'() {
+      const sim = S.simulacao;
+      gravarGeracao(sim.resultado, sim.escopo);
+      S.simulacao = null;
+      S.recado = { erro: false, msg: `Escala gravada como rascunho (versão ${geracao().versao}). Publique quando estiver revisada.` };
+      S.tela = 'calendario';
+    },
+    'descartar-sim'() { S.simulacao = null; S.recado = { erro: false, msg: 'Simulação descartada. Nada foi gravado.' }; },
+    'liberar-travas'() { const n = S.pins.length; S.pins = []; S.recado = { erro: false, msg: `${n} trava(s) liberada(s). A próxima geração decide tudo de novo.` }; },
+    status() {
+      const g = geracao();
+      g.status = d.alvo;
+      S.recado = { erro: false, msg: d.alvo === 'publicada' ? 'Escala publicada — agora visível para os colaboradores.' : 'Mês encerrado. Não aceita mais alterações.' };
+    },
+    'fechar-dia'() { S.dia = null; },
+    'fechar-plano'() { S.colabAberto = null; distEdit = {}; fixasEdit = {}; },
+    travar() {
+      const g = geracao(), colabId = Number(d.colab);
+      const a = g.alocacoes.find(x => x.colaboradorId === colabId && x.data === S.dia);
+      const existe = S.pins.some(p => p.colaboradorId === colabId && p.data === S.dia);
+      if (existe) { S.pins = S.pins.filter(p => !(p.colaboradorId === colabId && p.data === S.dia)); a.travado = false; S.recado = { erro: false, msg: 'Trava removida.' }; }
+      else { S.pins.push({ colaboradorId: colabId, data: S.dia, modalidade: a.modalidade, unidadeId: a.unidadeId }); a.travado = true; S.recado = { erro: false, msg: 'Alocação travada — sobrevive à próxima regeração.' }; }
+    },
+    mover() {
+      const colabId = Number(d.colab);
+      const destino = document.querySelector(`[data-mover="${colabId}"]`).value;
+      const [modalidade, un] = destino.split(':');
+      const unidadeId = modalidade === 'UNIDADE' ? Number(un) : null;
+      const g = geracao();
+      const a = g.alocacoes.find(x => x.colaboradorId === colabId && x.data === S.dia);
+      a.modalidade = modalidade; a.unidadeId = unidadeId; a.travado = true;
+      S.pins = S.pins.filter(p => !(p.colaboradorId === colabId && p.data === S.dia));
+      S.pins.push({ colaboradorId: colabId, data: S.dia, modalidade, unidadeId });
+      S.recado = { erro: false, msg: `${colabPorId.get(colabId).nome} movido e travado em ${fmData(S.dia)}.` };
+    },
+    ocorrencia() {
+      const colabId = Number(document.getElementById('oc-colab').value);
+      S.ocorrencias.push({ id: ++S.seq, colaboradorId: colabId, data: S.dia,
+        tipo: document.getElementById('oc-tipo').value,
+        minutos: Number(document.getElementById('oc-min').value) || 0,
+        obs: document.getElementById('oc-obs').value.trim() });
+      S.recado = { erro: false, msg: 'Ocorrência registrada.' };
+    },
+    decidir() { decidir(Number(d.id), d.op); },
+    recusar() {
+      const motivo = prompt('Justificativa da recusa (obrigatória — é o que a pessoa vai ler):');
+      if (motivo === null) return;
+      decidir(Number(d.id), d.op, motivo);
+    },
+    'salvar-plano'() {
+      const colabId = Number(d.colab);
+      const c = colabPorId.get(colabId);
+      const soma = UNIDADES.reduce((a, u) => a + (distEdit[u.id] || 0), 0);
+      if (soma !== 100) { S.recado = { erro: true, msg: `A distribuição soma ${soma}% — precisa somar exatamente 100%.`, onde: 'plano' }; return; }
+      const modo = document.querySelector('.ed-homodo:checked')?.value || '';
+      const marcados = cls => [...document.querySelectorAll(cls + ':checked')].map(i => Number(i.value));
+      const ciclo = document.querySelector('.ed-ciclo:checked')?.value || null;
+      if (c.regime === '12x36' && !ciclo) { S.recado = { erro: true, msg: 'Regime 12x36 exige definir o ciclo do mês.', onde: 'plano' }; return; }
+      const diasFixos = marcados('.ed-hofixo');
+      if (modo === 'FIXO' && !diasFixos.length) { S.recado = { erro: true, msg: 'Home office fixo precisa de ao menos um dia da semana.', onde: 'plano' }; return; }
+
+      // Um dia não pode estar preso a uma unidade e ser home office ao mesmo
+      // tempo — o motor teria duas regras rígidas se contradizendo.
+      if (modo === 'FIXO') {
+        const choque = diasFixos.filter(dw => fixasEdit[dw] !== undefined);
+        if (choque.length) {
+          S.recado = { erro: true, msg: `${listar(choque.map(dw => DIAS_LONGOS[dw].toLowerCase()))} está marcado como home office fixo e como unidade fixa ao mesmo tempo. Escolha um dos dois.`, onde: 'plano' };
+          return;
+        }
+      }
+
+      const lista = S.planos[S.competencia];
+      const i = lista.findIndex(p => p.colaboradorId === colabId);
+      const novo = {
+        colaboradorId: colabId, competencia: S.competencia,
+        ciclo: c.regime === '12x36' ? ciclo : null,
+        distribuicao: { ...distEdit }, unidadesFixas: { ...fixasEdit },
+        homeOffice: {
+          modo: modo || null, diasSemana: modo === 'FIXO' ? diasFixos : [],
+          quantidade: modo === 'COTA' ? Number(document.querySelector('.ed-hoqtd').value) || 1 : 0,
+          diasPreferencia: modo === 'COTA' ? marcados('.ed-hopref') : [],
+          diasProibidos: modo === 'COTA' ? marcados('.ed-hoproib') : [],
+        },
+      };
+      if (i >= 0) lista[i] = novo; else lista.push(novo);
+      S.recado = { erro: false, msg: `Plano de ${c.nome} salvo. A escala já gerada não muda — é preciso gerar de novo.` };
+      S.colabAberto = null; distEdit = {}; fixasEdit = {};
+    },
+    'add-ausencia'() {
+      const tipo = document.getElementById('au-tipo').value;
+      const inicio = document.getElementById('au-inicio').value;
+      const dias = Number(document.getElementById('au-dias').value);
+      if (!inicio) { S.recado = { erro: true, msg: 'Informe a data de início da ausência.', onde: 'ausencia', foco: 'au-inicio' }; return; }
+      if (!(dias >= 1)) { S.recado = { erro: true, msg: 'A quantidade de dias precisa ser ao menos 1.', onde: 'ausencia', foco: 'au-dias' }; return; }
+      const fim = fimAusencia(inicio, dias);
+      const choque = S.ausencias.find(a => a.colaboradorId === S.colabAberto && inicio <= fimAusencia(a.inicio, a.dias) && a.inicio <= fim);
+      if (choque) { S.recado = { erro: true, msg: `Já existe uma ausência entre ${fmData(choque.inicio)} e ${fmData(fimAusencia(choque.inicio, choque.dias))} que se sobrepõe a esse período.`, onde: 'ausencia', foco: 'au-inicio' }; return; }
+      S.ausencias.push({ id: ++S.seq, colaboradorId: S.colabAberto, tipo, inicio, dias,
+        grupo: tipo === 'AUSENCIA' ? document.getElementById('au-grupo').value : '',
+        motivo: tipo === 'AUSENCIA' ? document.getElementById('au-motivo').value : '' });
+      S.recado = { erro: false, msg: `Ausência de ${fmData(inicio)} a ${fmData(fim)} lançada.`, onde: 'ausencia' };
+    },
+    'rm-ausencia'() { S.ausencias = S.ausencias.filter(a => a.id !== Number(d.id)); S.recado = { erro: false, msg: 'Ausência removida.', onde: 'ausencia' }; },
+    'abrir-solic'() {
+      const eu = euSou();
+      const tipo = document.getElementById('ns-tipo').value;
+      const data = document.getElementById('ns-data').value;
+      const detalhe = document.getElementById('ns-detalhe').value.trim();
+      if (!data) { S.recado = { erro: true, msg: 'Informe a data de referência.' }; return; }
+      if (detalhe.length < 5) { S.recado = { erro: true, msg: 'Descreva a justificativa da solicitação.' }; return; }
+      const extra = document.getElementById('ns-extra').value;
+      if (tipo === 'TROCA_HORARIO' && !extra) { S.recado = { erro: true, msg: 'Não há colega elegível para a troca.' }; return; }
+      const s = {
+        id: ++S.seq, colaboradorId: eu.id, tipo, data, detalhe,
+        status: tipo === 'TROCA_HORARIO' ? 'AGUARDA_PARCEIRO' : 'TRIAGEM', aplicada: false,
+        criadoEm: new Date().toISOString().slice(0, 16),
+        eventos: [{ etapa: 'Aberta', por: eu.nome, em: agora(), detalhe: `${TIPOS_SOLICITACAO[tipo].label} para ${fmData(data)}` }],
+      };
+      if (tipo === 'TROCA_HORARIO') { s.parceiroId = Number(extra); s.aceiteParceiro = 'PENDENTE'; }
+      if (tipo === 'TROCA_UNIDADE') s.unidadeDesejadaId = Number(extra);
+      S.solicitacoes.unshift(s);
+      S.recado = { erro: false, msg: tipo === 'TROCA_HORARIO'
+        ? 'Solicitação enviada. Troque para o papel Colaborador do colega convidado para ver o aceite.'
+        : 'Solicitação enviada e aguardando triagem do Planejamento.' };
+    },
+    'csv-grade'() {
+      const g = geracao();
+      const [ano, mes] = partesIso(S.competencia);
+      const nDias = diasNoMes(ano, mes);
+      const dias = Array.from({ length: nDias }, (_, i) => i + 1);
+      // O CSV sai igual ao que está na tela — exportar mais do que se vê
+      // costuma ser descoberto tarde, depois de já ter sido enviado.
+      const fc = S.fCal;
+      const buscaCsv = fc.q.trim().toLowerCase();
+      const pessoas = visiveis().filter(c => {
+        if (c.status !== 'ativo') return false;
+        if (fc.equipe && c.equipeId !== Number(fc.equipe)) return false;
+        if (fc.turno && c.turno !== fc.turno) return false;
+        if (buscaCsv && !`${c.nome} ${c.cargo}`.toLowerCase().includes(buscaCsv)) return false;
+        return true;
+      });
+      const porChave = new Map(g.alocacoes.map(a => [`${a.colaboradorId}|${a.data}`, a]));
+      baixarCsv([
+        ['Colaborador', 'Matrícula', 'Equipe', 'Cargo', 'Entrada', ...dias.map(String), ...UNIDADES.map(u => u.sigla), 'HO'],
+        ...pessoas.map(c => {
+          const t = { 1: 0, 2: 0, HOME: 0 };
+          const cels = dias.map(dd => {
+            const a = porChave.get(`${c.id}|${iso(ano, mes, dd)}`);
+            if (!a || a.modalidade === 'DESCANSO') return '';
+            if (a.modalidade === 'UNIDADE') t[a.unidadeId]++; else if (a.modalidade === 'HOME') t.HOME++;
+            return apar(a.modalidade, a.unidadeId).sigla;
+          });
+          return [c.nome, c.matricula, equipePorId.get(c.equipeId).nome, c.cargo, c.entrada, ...cels, String(t[1]), String(t[2]), String(t.HOME)];
+        }),
+      ], `escala-${S.competencia.slice(0, 7)}.csv`);
+      return 'sem-render';
+    },
+    'csv-ocupacao'() {
+      const g = geracao();
+      baixarCsv([
+        ['Data', 'Colaborador', 'Matrícula', 'Equipe', 'Cargo', 'Modalidade', 'Entrada', 'Turno'],
+        ...g.alocacoes.filter(a => a.modalidade !== 'DESCANSO').map(a => {
+          const c = colabPorId.get(a.colaboradorId);
+          return [fmData(a.data), c.nome, c.matricula, equipePorId.get(c.equipeId).nome, c.cargo,
+            a.modalidade === 'UNIDADE' ? unidadePorId.get(a.unidadeId).nome : MODALIDADES[a.modalidade].label,
+            c.entrada, c.turno === 'N' ? 'Noturno' : 'Diurno'];
+        }),
+      ], `ocupacao-${S.competencia.slice(0, 7)}.csv`);
+      return 'sem-render';
+    },
+  };
+
+  if (d.acao && acoes[d.acao]) {
+    ev.preventDefault();
+    if (acoes[d.acao]() !== 'sem-render') render();
+  }
+});
+
+/** Filtros reagem enquanto se digita, sem botão "Filtrar". */
+function aplicarFiltro(t) {
+  const campo = t.dataset.filtro;
+  if (!campo) return false;
+  const alvo = campo.startsWith('fp-') ? S.fPlanos : S.fCal;
+  const chave = campo.slice(3);
+  alvo[chave] = t.type === 'checkbox' ? t.checked : t.value;
+  render();
+  return true;
+}
+
+document.addEventListener('input', ev => {
+  if (ev.target.dataset && ev.target.dataset.filtro) aplicarFiltro(ev.target);
+});
+
+document.addEventListener('change', ev => {
+  const t = ev.target;
+  if (t.dataset && t.dataset.filtro) return aplicarFiltro(t);
+  if (t.id === 'papel') { S.papel = t.value; S.dia = null; S.colabAberto = null; S.aba = 'abertas'; return render(); }
+  if (t.classList.contains('mes-sel') || t.classList.contains('ano-sel')) {
+    const [ano, mes] = partesIso(S.competencia);
+    const novoMes = t.classList.contains('mes-sel') ? Number(t.value) : mes;
+    const novoAno = t.classList.contains('ano-sel') ? Number(t.value) : ano;
+    S.competencia = iso(novoAno, novoMes, 1);
+    S.dia = null;
+    if (!S.planos[S.competencia]) S.planos[S.competencia] = montarPlanos(S.competencia);
+    return render();
+  }
+  if (t.classList.contains('ed-homodo')) { ajustarPaineisHo(); return desenharFixas(); }
+  if (t.classList.contains('ed-hofixo')) return desenharFixas();
+  if (t.id === 'au-grupo') return montarMotivos();
+  if (t.id === 'ns-tipo') return ajustarNovaSolic();
+});
+
+/* Abre já com uma escala publicada, para todas as telas terem conteúdo.
+   O fluxo simular → confirmar → publicar continua disponível pelo botão Regerar. */
+(function inicial() {
+  gravarGeracao(gerarEscala(contexto()), 'Mês completo');
+  geracao().status = 'publicada';
+  geracao().geradaPor = 'KAMYLA';
+  geracao().geradaEm = '05/08/2026 18:22';
+  render();
+})();
+</script>

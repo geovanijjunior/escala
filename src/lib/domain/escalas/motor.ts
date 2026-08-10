@@ -1,0 +1,411 @@
+import {
+  addDias,
+  cicloEfetivo,
+  diaSemana,
+  diasNoMes,
+  fimAusencia,
+  formatarData,
+  iso,
+  competenciaDe,
+  DIAS_ABREV,
+} from './datas';
+import type {
+  Alocacao,
+  Aviso,
+  Ciclo,
+  Colaborador,
+  GerarEscalaInput,
+  GerarEscalaOutput,
+  Modalidade,
+  PlanoMensal,
+  Unidade,
+} from './tipos';
+
+/** Uma equipe inteira concentrada numa unidade acima disso aciona o desempate por balanceamento. */
+const LIMITE_CONCENTRACAO_EQUIPE = 4;
+
+interface Candidato {
+  colab: Colaborador;
+  preferida: number;
+  urgencia: number;
+  flex: number;
+}
+
+/**
+ * Motor de geração da escala do mês.
+ *
+ * Função pura: recebe o retrato completo do mês e devolve alocações, conflitos e
+ * aderência, sem tocar em banco nem em estado global. Isso permite rodar a mesma
+ * chamada como simulação (dry-run) e como geração definitiva — a diferença está
+ * só em gravar ou não o resultado.
+ *
+ * A precedência aplicada está documentada em REGRAS_MOTOR (constantes.ts) e é a
+ * ordem literal dos blocos abaixo.
+ */
+export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
+  const {
+    ano, mes, feriados, cicloAncora, toleranciaAderencia, coberturaMinima,
+  } = input;
+
+  const nDias = diasNoMes(ano, mes);
+  const competencia = competenciaDe(ano, mes);
+  const unidades = input.unidades.filter(u => u.ativa).sort((a, b) => a.ordem - b.ordem || a.id - b.id);
+  const idsUnidades = unidades.map(u => u.id);
+  const nomeUnidade = new Map(unidades.map(u => [u.id, u.nome] as const));
+
+  // Ordem estável de entrada: sem isso, duas gerações com os mesmos dados podem
+  // divergir só porque o banco devolveu as linhas em outra ordem.
+  const colaboradores = input.colaboradores
+    .filter(c => c.status === 'ativo')
+    .slice()
+    .sort((a, b) => a.id - b.id);
+
+  const planoPorColab = new Map<number, PlanoMensal>(input.planos.map(p => [p.colaboradorId, p]));
+  const pinPorChave = new Map(input.pins.map(p => [`${p.colaboradorId}|${p.data}`, p] as const));
+
+  const ausenciasPorColab = new Map<number, { tipo: 'FERIAS' | 'AUSENCIA'; inicio: string; fim: string }[]>();
+  for (const a of input.ausencias) {
+    const lista = ausenciasPorColab.get(a.colaboradorId) ?? [];
+    lista.push({ tipo: a.tipo, inicio: a.inicio, fim: fimAusencia(a.inicio, a.dias) });
+    ausenciasPorColab.set(a.colaboradorId, lista);
+  }
+
+  const capEspecifica = new Map<string, { total: number; reservadas: number }>();
+  const capSemanal = new Map<string, { total: number; reservadas: number }>();
+  for (const c of input.capacidades) {
+    const valor = { total: c.total, reservadas: c.reservadas };
+    if (c.data) capEspecifica.set(`${c.unidadeId}|${c.data}`, valor);
+    else if (c.dow !== null) capSemanal.set(`${c.unidadeId}|${c.dow}`, valor);
+  }
+
+  /** Posições realmente disponíveis: total menos as reservadas. */
+  const posicoesDoDia = (unidade: Unidade, data: string, dow: number): number => {
+    const cfg =
+      capEspecifica.get(`${unidade.id}|${data}`) ??
+      capSemanal.get(`${unidade.id}|${dow}`) ??
+      { total: unidade.capacidadeTotal, reservadas: unidade.capacidadeReservadas };
+    return Math.max(0, cfg.total - cfg.reservadas);
+  };
+
+  const conflitos: Aviso[] = [];
+  const alertas: Aviso[] = [];
+  const datas: string[] = [];
+  for (let d = 1; d <= nDias; d++) datas.push(iso(ano, mes, d));
+
+  /** colabId -> data -> alocação decidida. */
+  const escala = new Map<number, Map<string, { modalidade: Modalidade; unidadeId: number | null; travado: boolean }>>();
+  const ocupacao: Record<string, Record<number, number>> = {};
+  const capacidadeDia: Record<string, Record<number, number>> = {};
+  for (const data of datas) {
+    ocupacao[data] = Object.fromEntries(idsUnidades.map(id => [id, 0]));
+    const dow = diaSemana(ano, mes, Number(data.slice(8)));
+    capacidadeDia[data] = Object.fromEntries(unidades.map(u => [u.id, posicoesDoDia(u, data, dow)]));
+  }
+
+  const definir = (colabId: number, data: string, modalidade: Modalidade, unidadeId: number | null, travado = false) => {
+    const dias = escala.get(colabId) ?? new Map();
+    dias.set(data, { modalidade, unidadeId, travado });
+    escala.set(colabId, dias);
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Regras 1 a 8: tudo que é rígido, decidido pessoa a pessoa.
+  // Sobra a lista de dias "presenciais" — candidatos a uma unidade física.
+  // ─────────────────────────────────────────────────────────────
+  const presenciais = new Map<number, string[]>();
+  const fixados = new Map<number, Set<string>>();
+  const cotaRestante = new Map<number, Map<number, number>>();
+
+  const dowDoPrimeiro = diaSemana(ano, mes, 1);
+  const semanaDoMes = (dia: number) => Math.floor((dia + dowDoPrimeiro - 1) / 7);
+
+  for (const c of colaboradores) {
+    const plano = planoPorColab.get(c.id);
+    const livres: string[] = [];
+    const fixos = new Set<string>();
+    presenciais.set(c.id, livres);
+    fixados.set(c.id, fixos);
+
+    const ausencias = ausenciasPorColab.get(c.id) ?? [];
+    const ho = plano?.homeOffice;
+    const unidadesFixas = plano?.unidadesFixas ?? {};
+
+    const cicloBase: Ciclo = plano?.ciclo ?? c.ciclo ?? 'IMPAR';
+    // O ciclo salvo no plano é decisão explícita do Planejamento e vale como
+    // está; sem plano, deriva-se a paridade do mês a partir da âncora.
+    const ciclo: Ciclo = c.regime === '12x36'
+      ? (plano?.ciclo ?? cicloEfetivo(cicloBase, competencia, cicloAncora))
+      : 'IMPAR';
+
+    let ultimoPlantao: number | null = null;
+
+    for (let d = 1; d <= nDias; d++) {
+      const data = datas[d - 1];
+      const dow = diaSemana(ano, mes, d);
+
+      // 1. Trava manual — decisão já tomada, entra antes de qualquer regra.
+      const pin = pinPorChave.get(`${c.id}|${data}`);
+      if (pin) {
+        definir(c.id, data, pin.modalidade, pin.unidadeId, true);
+        if (pin.modalidade === 'UNIDADE' && pin.unidadeId !== null) fixos.add(data);
+        if (c.regime === '12x36' && pin.modalidade !== 'DESCANSO') ultimoPlantao = d;
+        continue;
+      }
+
+      // 2/3. Férias e demais ausências — bloqueio absoluto.
+      const ausencia = ausencias.find(a => data >= a.inicio && data <= a.fim);
+      if (ausencia) {
+        definir(c.id, data, ausencia.tipo === 'FERIAS' ? 'FERIAS' : 'FOLGA', null);
+        continue;
+      }
+
+      // 4. Regime de trabalho.
+      if (c.regime === '12x36') {
+        const ehImpar = d % 2 === 1;
+        const trabalha = (ciclo === 'IMPAR' && ehImpar) || (ciclo === 'PAR' && !ehImpar);
+        if (!trabalha) { definir(c.id, data, 'DESCANSO', null); continue; }
+        if (ultimoPlantao === d - 1) {
+          conflitos.push({
+            nivel: 'erro', colaboradorId: c.id, colaborador: c.nome, data,
+            msg: 'Plantões 12x36 em dias consecutivos — o descanso de 36h fica violado.',
+          });
+        }
+        ultimoPlantao = d; // o plantão conta mesmo se cumprido em home office
+      } else {
+        if (dow === 0 || dow === 6) { definir(c.id, data, 'DESCANSO', null); continue; }
+        if (feriados[data]) { definir(c.id, data, 'FERIADO', null); continue; }
+      }
+
+      const unidadeFixa = unidadesFixas[dow];
+      const temFixa = unidadeFixa !== undefined && idsUnidades.includes(unidadeFixa);
+
+      // 5. Home office fixo no dia da semana.
+      if (c.elegHome && ho?.modo === 'FIXO' && ho.diasSemana.includes(dow)) {
+        if (temFixa) {
+          conflitos.push({
+            nivel: 'erro', colaboradorId: c.id, colaborador: c.nome, data,
+            msg: `${DIAS_ABREV[dow]} está marcado como home office fixo e como unidade fixa (${nomeUnidade.get(unidadeFixa!)}) ao mesmo tempo.`,
+          });
+        }
+        definir(c.id, data, 'HOME', null);
+        continue;
+      }
+
+      // 6. Unidade fixa do dia da semana — ocupa posição, sai do rateio livre.
+      if (temFixa) {
+        definir(c.id, data, 'UNIDADE', unidadeFixa!);
+        livres.push(data);
+        fixos.add(data);
+        continue;
+      }
+
+      // 8 (primeira passada). Cota semanal de home office nos dias preferidos.
+      if (c.elegHome && ho?.modo === 'COTA') {
+        const semana = semanaDoMes(d);
+        const porSemana = cotaRestante.get(c.id) ?? new Map<number, number>();
+        if (!porSemana.has(semana)) porSemana.set(semana, ho.quantidade);
+        cotaRestante.set(c.id, porSemana);
+
+        const proibido = ho.diasProibidos.includes(dow);
+        const preferido = ho.diasPreferencia.includes(dow);
+        if (!proibido && preferido && (porSemana.get(semana) ?? 0) > 0) {
+          porSemana.set(semana, (porSemana.get(semana) ?? 0) - 1);
+          definir(c.id, data, 'HOME', null);
+          continue;
+        }
+      }
+
+      livres.push(data);
+    }
+  }
+
+  // ── Regra 8 (segunda passada): completa a cota que a preferência não cobriu.
+  for (const c of colaboradores) {
+    if (!c.elegHome) continue;
+    const ho = planoPorColab.get(c.id)?.homeOffice;
+    if (ho?.modo !== 'COTA') continue;
+    const porSemana = cotaRestante.get(c.id);
+    if (!porSemana) continue;
+
+    for (const [semana, restante] of porSemana) {
+      let falta = restante;
+      if (falta <= 0) continue;
+      const disponiveis = presenciais.get(c.id) ?? [];
+      for (const data of [...disponiveis]) {
+        if (falta <= 0) break;
+        const dia = Number(data.slice(8));
+        if (semanaDoMes(dia) !== semana) continue;
+        if (ho.diasProibidos.includes(diaSemana(ano, mes, dia))) continue;
+        if (fixados.get(c.id)?.has(data)) continue; // dia preso a uma unidade
+        definir(c.id, data, 'HOME', null);
+        presenciais.set(c.id, (presenciais.get(c.id) ?? []).filter(x => x !== data));
+        falta--;
+      }
+      if (falta > 0) {
+        alertas.push({
+          nivel: 'aviso', colaboradorId: c.id, colaborador: c.nome,
+          msg: `Cota de home office não atendida na semana ${semana + 1}: faltam ${falta} dia(s) elegíveis.`,
+        });
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Regra 9: metas por unidade, pelo método do maior resto.
+  // ─────────────────────────────────────────────────────────────
+  const metas: Record<number, Record<number, number>> = {};
+  for (const c of colaboradores) {
+    const plano = planoPorColab.get(c.id);
+    const dist = plano?.distribuicao ?? {};
+    const somaDist = idsUnidades.reduce((acc, id) => acc + (dist[id] ?? 0), 0);
+    // Sem plano configurado, tudo vai pra unidade base — é o comportamento mais
+    // previsível e o que o Planejamento vê como "ainda não distribuído".
+    const efetiva: Record<number, number> = somaDist > 0
+      ? dist
+      : { [c.unidadeBaseId]: 100 };
+
+    const total = (presenciais.get(c.id) ?? []).length;
+    const divisor = somaDist > 0 ? somaDist : 100;
+    const base = idsUnidades.map(id => {
+      const exato = (total * (efetiva[id] ?? 0)) / divisor;
+      return { id, piso: Math.floor(exato), resto: exato - Math.floor(exato) };
+    });
+    let sobra = total - base.reduce((acc, b) => acc + b.piso, 0);
+    // Empate no resto: unidade de menor id primeiro, pra a geração ser reprodutível.
+    [...base].sort((a, b) => b.resto - a.resto || a.id - b.id).forEach(b => {
+      if (sobra > 0) { b.piso++; sobra--; }
+    });
+    metas[c.id] = Object.fromEntries(base.map(b => [b.id, b.piso]));
+  }
+
+  const alocado: Record<number, Record<number, number>> = {};
+  for (const c of colaboradores) alocado[c.id] = Object.fromEntries(idsUnidades.map(id => [id, 0]));
+
+  // ─────────────────────────────────────────────────────────────
+  // Regras 7 e 11: preenche o dia respeitando capacidade e balanceamento.
+  // ─────────────────────────────────────────────────────────────
+  for (let d = 1; d <= nDias; d++) {
+    const data = datas[d - 1];
+    const capacidade = capacidadeDia[data];
+
+    // Travas e unidades fixas já ocupam posição e contam pra meta.
+    for (const c of colaboradores) {
+      const decidido = escala.get(c.id)?.get(data);
+      if (!decidido || decidido.modalidade !== 'UNIDADE' || decidido.unidadeId === null) continue;
+      ocupacao[data][decidido.unidadeId]++;
+      alocado[c.id][decidido.unidadeId]++;
+    }
+
+    // Um dia pode estourar só com o que foi fixado — precisa ser reportado, já
+    // que o motor não tem como desfazer uma decisão rígida.
+    for (const u of unidades) {
+      if (ocupacao[data][u.id] <= capacidade[u.id]) continue;
+      const nomes = colaboradores
+        .filter(c => {
+          const a = escala.get(c.id)?.get(data);
+          return a?.modalidade === 'UNIDADE' && a.unidadeId === u.id;
+        })
+        .map(c => c.nome);
+      conflitos.push({
+        nivel: 'erro', data,
+        msg: `${u.nome} em ${formatarData(data)} tem ${ocupacao[data][u.id]} pessoas fixadas para ${capacidade[u.id]} posições. Revise as travas e unidades fixas de: ${nomes.slice(0, 6).join(', ')}${nomes.length > 6 ? '…' : ''}.`,
+      });
+    }
+
+    const candidatos: Candidato[] = colaboradores
+      .filter(c => (presenciais.get(c.id) ?? []).includes(data) && !escala.get(c.id)?.get(data))
+      .map(c => {
+        const faltas = idsUnidades.map(id => ({ id, falta: (metas[c.id][id] ?? 0) - alocado[c.id][id] }));
+        const maior = faltas.reduce((a, b) => (b.falta > a.falta ? b : a), faltas[0]);
+        return { colab: c, preferida: maior.id, urgencia: maior.falta, flex: faltas.filter(f => f.falta > 0).length };
+      })
+      // Menos flexível primeiro (quem só cabe numa unidade), depois quem está
+      // mais atrasado na meta. Id como último critério mantém determinismo.
+      .sort((a, b) => a.flex - b.flex || b.urgencia - a.urgencia || a.colab.id - b.colab.id);
+
+    const concentracao: Record<number, Record<number, number>> = Object.fromEntries(
+      idsUnidades.map(id => [id, {} as Record<number, number>])
+    );
+
+    for (const { colab, preferida } of candidatos) {
+      const ordem = [preferida, ...idsUnidades.filter(id => id !== preferida)];
+      let colocado = false;
+
+      for (const id of ordem) {
+        if (ocupacao[data][id] >= capacidade[id]) continue;
+        const conc = concentracao[id][colab.equipeId] ?? 0;
+        const alternativa = ordem.find(x => x !== id && ocupacao[data][x] < capacidade[x]);
+        // Balanceamento só desempata quando não custa a meta da pessoa.
+        if (id !== preferida && alternativa !== undefined && conc > LIMITE_CONCENTRACAO_EQUIPE) continue;
+        definir(colab.id, data, 'UNIDADE', id);
+        ocupacao[data][id]++;
+        alocado[colab.id][id]++;
+        concentracao[id][colab.equipeId] = conc + 1;
+        colocado = true;
+        break;
+      }
+
+      if (!colocado) {
+        definir(colab.id, data, 'EXTERNO', null);
+        const detalhe = unidades.map(u => `${u.nome} ${ocupacao[data][u.id]}/${capacidade[u.id]}`).join(', ');
+        conflitos.push({
+          nivel: 'erro', colaboradorId: colab.id, colaborador: colab.nome, data,
+          msg: `Sem posição disponível em nenhuma unidade (${detalhe}). Alocado como Trabalho Externo.`,
+        });
+      }
+    }
+
+    // Regra 11: cobertura mínima, só nos dias em que alguém de fato trabalha.
+    const alguemTrabalha = colaboradores.some(c => {
+      const a = escala.get(c.id)?.get(data);
+      return a && a.modalidade !== 'DESCANSO' && a.modalidade !== 'FERIADO';
+    });
+    if (alguemTrabalha && coberturaMinima > 0) {
+      for (const u of unidades) {
+        if (ocupacao[data][u.id] < coberturaMinima) {
+          alertas.push({
+            nivel: 'aviso', data,
+            msg: `${u.nome} com ${ocupacao[data][u.id]} pessoa(s) em ${formatarData(data)} — abaixo da cobertura mínima de ${coberturaMinima}.`,
+          });
+        }
+      }
+    }
+  }
+
+  // ── Aderência: planejado x realizado por unidade.
+  const aderencia = colaboradores.map(c => {
+    const desvios = idsUnidades.map(id => ({
+      unidadeId: id,
+      planejado: metas[c.id][id] ?? 0,
+      realizado: alocado[c.id][id] ?? 0,
+    }));
+    const ok = desvios.every(x => Math.abs(x.planejado - x.realizado) <= toleranciaAderencia);
+    if (!ok) {
+      alertas.push({
+        nivel: 'aviso', colaboradorId: c.id, colaborador: c.nome,
+        msg: `Distribuição fora da tolerância: ${desvios
+          .map(x => `${nomeUnidade.get(x.unidadeId)} ${x.realizado}/${x.planejado}`)
+          .join(' · ')}`,
+      });
+    }
+    return { colaboradorId: c.id, colaborador: c.nome, desvios, ok };
+  });
+
+  const alocacoes: Alocacao[] = [];
+  for (const c of colaboradores) {
+    const dias = escala.get(c.id);
+    if (!dias) continue;
+    for (const data of datas) {
+      const a = dias.get(data);
+      if (!a) continue;
+      alocacoes.push({ colaboradorId: c.id, data, modalidade: a.modalidade, unidadeId: a.unidadeId, travado: a.travado });
+    }
+  }
+
+  return { alocacoes, conflitos, alertas, ocupacao, capacidadeDia, aderencia, metas };
+}
+
+/** Dias corridos cobertos por uma ausência, para exibir o fim calculado. */
+export function janelaAusencia(inicio: string, dias: number): { inicio: string; fim: string } {
+  return { inicio, fim: addDias(inicio, Math.max(1, dias) - 1) };
+}
