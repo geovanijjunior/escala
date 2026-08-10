@@ -10,9 +10,10 @@
 -- ser migrado.
 
 alter table solicitacoes
-  add column data_fim date;
+  add column if not exists data_fim date;
 
 alter table solicitacoes
+  drop constraint if exists solicitacoes_periodo_valido,
   add constraint solicitacoes_periodo_valido
   check (data_fim is null or data_fim >= data);
 
@@ -20,6 +21,7 @@ alter table solicitacoes
 -- pontuais, e deixar isso no banco evita que uma tela nova invente um intervalo
 -- de "ajuste de ponto", que não significaria nada.
 alter table solicitacoes
+  drop constraint if exists solicitacoes_periodo_so_para_ausencia,
   add constraint solicitacoes_periodo_so_para_ausencia
   check (data_fim is null or tipo in ('FERIAS', 'FOLGA'));
 

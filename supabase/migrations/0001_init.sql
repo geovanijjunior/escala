@@ -7,7 +7,7 @@
 create extension if not exists "pgcrypto";
 
 -- ========================= CONTAS (tenants) =========================
-create table contas (
+create table if not exists contas (
   id uuid primary key default gen_random_uuid(),
   nome text not null,
   criado_em timestamptz not null default now()
@@ -20,7 +20,7 @@ create table contas (
 --   planejamento — configura, gera, publica e faz a triagem das solicitações
 --   gestor       — enxerga e aprova apenas a própria equipe
 --   colaborador  — enxerga apenas a si mesmo e abre solicitações
-create table perfis (
+create table if not exists perfis (
   id uuid primary key references auth.users(id) on delete cascade,
   conta_id uuid not null references contas(id) on delete cascade,
   nome text not null,
@@ -31,7 +31,7 @@ create table perfis (
   bloqueado boolean not null default false,
   criado_em timestamptz not null default now()
 );
-create index perfis_conta_id_idx on perfis(conta_id);
+create index if not exists perfis_conta_id_idx on perfis(conta_id);
 
 -- Helpers usados por praticamente toda policy. Security definer para não
 -- recursar na RLS da própria tabela.
@@ -60,15 +60,19 @@ $$;
 alter table contas enable row level security;
 alter table perfis enable row level security;
 
+drop policy if exists contas_select on contas;
 create policy contas_select on contas for select using (id = conta_id());
+drop policy if exists contas_update on contas;
 create policy contas_update on contas for update
   using (id = conta_id() and eh_planejamento())
   with check (id = conta_id() and eh_planejamento());
 
+drop policy if exists perfis_select on perfis;
 create policy perfis_select on perfis for select using (conta_id = conta_id());
 
 -- Self-update com as colunas sensíveis congeladas: sem isso, um colaborador
 -- se promoveria a planejamento batendo direto na API REST, fora da tela.
+drop policy if exists perfis_update_self on perfis;
 create policy perfis_update_self on perfis for update
   using (id = auth.uid())
   with check (
@@ -77,10 +81,12 @@ create policy perfis_update_self on perfis for update
     and conta_id = (select p.conta_id from perfis p where p.id = auth.uid())
   );
 
+drop policy if exists perfis_update_planejamento on perfis;
 create policy perfis_update_planejamento on perfis for update
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists perfis_insert_planejamento on perfis;
 create policy perfis_insert_planejamento on perfis for insert
   with check (conta_id = conta_id() and eh_planejamento());
 
@@ -120,6 +126,7 @@ begin
 end;
 $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_novo_usuario();

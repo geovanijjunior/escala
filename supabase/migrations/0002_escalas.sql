@@ -9,7 +9,7 @@
 -- ========================= UNIDADES =========================
 -- No protótipo as unidades eram duas constantes no código (MORUMBI/PAULISTA).
 -- Aqui são dados da conta: dá pra ter 1, 2 ou N unidades sem tocar no motor.
-create table unidades (
+create table if not exists unidades (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   codigo text not null,
@@ -25,11 +25,11 @@ create table unidades (
   unique (conta_id, codigo),
   check (capacidade_reservadas <= capacidade_total)
 );
-create index unidades_conta_id_idx on unidades(conta_id);
+create index if not exists unidades_conta_id_idx on unidades(conta_id);
 
 -- Capacidade excepcional: por dia da semana (0=dom..6=sáb) ou por data exata.
 -- Precedência na leitura: data exata > dia da semana > capacidade padrão da unidade.
-create table capacidades (
+create table if not exists capacidades (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   unidade_id bigint not null references unidades(id) on delete cascade,
@@ -40,12 +40,12 @@ create table capacidades (
   check (num_nonnulls(dow, data) = 1),
   check (reservadas <= total)
 );
-create index capacidades_conta_id_idx on capacidades(conta_id);
-create unique index capacidades_dow_uniq on capacidades(unidade_id, dow) where dow is not null;
-create unique index capacidades_data_uniq on capacidades(unidade_id, data) where data is not null;
+create index if not exists capacidades_conta_id_idx on capacidades(conta_id);
+create unique index if not exists capacidades_dow_uniq on capacidades(unidade_id, dow) where dow is not null;
+create unique index if not exists capacidades_data_uniq on capacidades(unidade_id, data) where data is not null;
 
 -- ========================= EQUIPES =========================
-create table equipes (
+create table if not exists equipes (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   codigo text not null,
@@ -56,13 +56,13 @@ create table equipes (
   criado_em timestamptz not null default now(),
   unique (conta_id, codigo)
 );
-create index equipes_conta_id_idx on equipes(conta_id);
+create index if not exists equipes_conta_id_idx on equipes(conta_id);
 
 -- ========================= COLABORADORES =========================
 -- perfil_id liga o colaborador a um usuário do sistema (opcional): sem ele a
 -- pessoa entra na escala mas não faz login. É o que permite ao papel
 -- "colaborador" enxergar exatamente a própria linha.
-create table colaboradores (
+create table if not exists colaboradores (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   perfil_id uuid references perfis(id) on delete set null,
@@ -90,26 +90,26 @@ create table colaboradores (
   check (desligamento is null or desligamento >= admissao),
   check (regime <> '12x36' or ciclo is not null)
 );
-create index colaboradores_conta_id_idx on colaboradores(conta_id);
-create index colaboradores_equipe_id_idx on colaboradores(equipe_id);
-create unique index colaboradores_perfil_uniq on colaboradores(perfil_id) where perfil_id is not null;
+create index if not exists colaboradores_conta_id_idx on colaboradores(conta_id);
+create index if not exists colaboradores_equipe_id_idx on colaboradores(equipe_id);
+create unique index if not exists colaboradores_perfil_uniq on colaboradores(perfil_id) where perfil_id is not null;
 
 -- ========================= FERIADOS =========================
-create table feriados (
+create table if not exists feriados (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   data date not null,
   nome text not null,
   unique (conta_id, data)
 );
-create index feriados_conta_id_idx on feriados(conta_id);
+create index if not exists feriados_conta_id_idx on feriados(conta_id);
 
 -- ========================= AUSÊNCIAS =========================
 -- Férias e demais ausências moram na mesma tabela e são ligadas ao COLABORADOR,
 -- não ao plano do mês. No protótipo estavam dentro do plano mensal, então uma
 -- ausência de 40 dias iniciada em julho sumia da escala de agosto — aqui o motor
 -- lê qualquer ausência que intercepte o mês.
-create table ausencias (
+create table if not exists ausencias (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   colaborador_id bigint not null references colaboradores(id) on delete cascade,
@@ -122,12 +122,12 @@ create table ausencias (
   criado_por uuid references perfis(id) on delete set null,
   check (tipo = 'FERIAS' or (grupo <> '' and motivo <> ''))
 );
-create index ausencias_conta_id_idx on ausencias(conta_id);
-create index ausencias_colaborador_idx on ausencias(colaborador_id, inicio);
+create index if not exists ausencias_conta_id_idx on ausencias(conta_id);
+create index if not exists ausencias_colaborador_idx on ausencias(colaborador_id, inicio);
 
 -- ========================= PLANOS MENSAIS =========================
 -- competencia é sempre o dia 1º do mês (o mês inteiro é a unidade de planejamento).
-create table planos (
+create table if not exists planos (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   colaborador_id bigint not null references colaboradores(id) on delete cascade,
@@ -143,11 +143,11 @@ create table planos (
   unique (colaborador_id, competencia),
   check (date_part('day', competencia) = 1)
 );
-create index planos_conta_id_idx on planos(conta_id);
-create index planos_competencia_idx on planos(conta_id, competencia);
+create index if not exists planos_conta_id_idx on planos(conta_id);
+create index if not exists planos_competencia_idx on planos(conta_id, competencia);
 
 -- Distribuição percentual do plano entre as unidades (deve somar 100).
-create table plano_distribuicao (
+create table if not exists plano_distribuicao (
   plano_id bigint not null references planos(id) on delete cascade,
   unidade_id bigint not null references unidades(id) on delete cascade,
   percentual int not null check (percentual between 0 and 100),
@@ -155,7 +155,7 @@ create table plano_distribuicao (
 );
 
 -- Unidade travada para um dia da semana (ex.: toda terça na Paulista).
-create table plano_unidade_fixa (
+create table if not exists plano_unidade_fixa (
   plano_id bigint not null references planos(id) on delete cascade,
   dow int not null check (dow between 0 and 6),
   unidade_id bigint not null references unidades(id) on delete cascade,
@@ -163,7 +163,7 @@ create table plano_unidade_fixa (
 );
 
 -- ========================= GERAÇÕES =========================
-create table geracoes (
+create table if not exists geracoes (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   competencia date not null,
@@ -180,12 +180,12 @@ create table geracoes (
   unique (conta_id, competencia, versao),
   check (date_part('day', competencia) = 1)
 );
-create index geracoes_conta_id_idx on geracoes(conta_id);
-create unique index geracoes_atual_uniq on geracoes(conta_id, competencia) where atual;
+create index if not exists geracoes_conta_id_idx on geracoes(conta_id);
+create unique index if not exists geracoes_atual_uniq on geracoes(conta_id, competencia) where atual;
 
 -- Uma linha por (pessoa, dia). Normalizado — no protótipo era um objeto solto em
 -- memória, com o id da unidade e o tipo de ausência misturados na mesma string.
-create table alocacoes (
+create table if not exists alocacoes (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   geracao_id bigint not null references geracoes(id) on delete cascade,
@@ -198,14 +198,14 @@ create table alocacoes (
   unique (geracao_id, colaborador_id, data),
   check (modalidade <> 'UNIDADE' or unidade_id is not null)
 );
-create index alocacoes_conta_id_idx on alocacoes(conta_id);
-create index alocacoes_geracao_data_idx on alocacoes(geracao_id, data);
-create index alocacoes_colaborador_idx on alocacoes(colaborador_id, data);
+create index if not exists alocacoes_conta_id_idx on alocacoes(conta_id);
+create index if not exists alocacoes_geracao_data_idx on alocacoes(geracao_id, data);
+create index if not exists alocacoes_colaborador_idx on alocacoes(colaborador_id, data);
 
 -- ========================= TRAVAS MANUAIS =========================
 -- Ajuste manual que sobrevive a uma regeração: o motor lê a trava antes de
 -- qualquer regra e a respeita como decisão já tomada.
-create table pins (
+create table if not exists pins (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   colaborador_id bigint not null references colaboradores(id) on delete cascade,
@@ -219,10 +219,10 @@ create table pins (
   unique (colaborador_id, data),
   check (modalidade <> 'UNIDADE' or unidade_id is not null)
 );
-create index pins_conta_id_idx on pins(conta_id);
+create index if not exists pins_conta_id_idx on pins(conta_id);
 
 -- ========================= SOLICITAÇÕES =========================
-create table solicitacoes (
+create table if not exists solicitacoes (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   colaborador_id bigint not null references colaboradores(id) on delete cascade,
@@ -243,12 +243,12 @@ create table solicitacoes (
   check (tipo <> 'TROCA_HORARIO' or parceiro_id is not null),
   check (parceiro_id is null or parceiro_id <> colaborador_id)
 );
-create index solicitacoes_conta_id_idx on solicitacoes(conta_id);
-create index solicitacoes_colaborador_idx on solicitacoes(colaborador_id);
-create index solicitacoes_status_idx on solicitacoes(conta_id, status);
+create index if not exists solicitacoes_conta_id_idx on solicitacoes(conta_id);
+create index if not exists solicitacoes_colaborador_idx on solicitacoes(colaborador_id);
+create index if not exists solicitacoes_status_idx on solicitacoes(conta_id, status);
 
 -- Trilha append-only de cada transição de estado.
-create table solicitacao_eventos (
+create table if not exists solicitacao_eventos (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   solicitacao_id bigint not null references solicitacoes(id) on delete cascade,
@@ -258,10 +258,10 @@ create table solicitacao_eventos (
   por_nome text not null default '',
   em timestamptz not null default now()
 );
-create index solic_eventos_solicitacao_idx on solicitacao_eventos(solicitacao_id);
+create index if not exists solic_eventos_solicitacao_idx on solicitacao_eventos(solicitacao_id);
 
 -- ========================= OCORRÊNCIAS =========================
-create table ocorrencias (
+create table if not exists ocorrencias (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   colaborador_id bigint not null references colaboradores(id) on delete cascade,
@@ -273,11 +273,11 @@ create table ocorrencias (
   criado_em timestamptz not null default now(),
   registrado_por uuid references perfis(id) on delete set null
 );
-create index ocorrencias_conta_id_idx on ocorrencias(conta_id);
-create index ocorrencias_colaborador_idx on ocorrencias(colaborador_id, data);
+create index if not exists ocorrencias_conta_id_idx on ocorrencias(conta_id);
+create index if not exists ocorrencias_colaborador_idx on ocorrencias(colaborador_id, data);
 
 -- ========================= PARÂMETROS E AUDITORIA =========================
-create table config (
+create table if not exists config (
   conta_id uuid primary key references contas(id) on delete cascade,
   -- Mês âncora do ciclo 12x36: a partir dele a paridade par/ímpar é derivada
   -- pelos dias decorridos, o que corrige sozinho a virada de mês de 31 dias.
@@ -286,7 +286,7 @@ create table config (
   cobertura_minima int not null default 1 check (cobertura_minima >= 0)
 );
 
-create table logs (
+create table if not exists logs (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   usuario_id uuid references perfis(id) on delete set null,
@@ -295,7 +295,7 @@ create table logs (
   detalhe text not null default '',
   criado_em timestamptz not null default now()
 );
-create index logs_conta_id_idx on logs(conta_id, criado_em desc);
+create index if not exists logs_conta_id_idx on logs(conta_id, criado_em desc);
 
 -- ========================= VISIBILIDADE POR PAPEL =========================
 -- Um único predicado, usado por todas as policies que dependem de "de quem é
@@ -340,77 +340,101 @@ alter table logs enable row level security;
 
 -- Referência compartilhada: quem tem qualquer papel no módulo lê; só o
 -- Planejamento escreve.
+drop policy if exists unidades_select on unidades;
 create policy unidades_select on unidades for select
   using (conta_id = conta_id());
+drop policy if exists unidades_write on unidades;
 create policy unidades_write on unidades for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists capacidades_select on capacidades;
 create policy capacidades_select on capacidades for select
   using (conta_id = conta_id());
+drop policy if exists capacidades_write on capacidades;
 create policy capacidades_write on capacidades for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists equipes_select on equipes;
 create policy equipes_select on equipes for select
   using (conta_id = conta_id());
+drop policy if exists equipes_write on equipes;
 create policy equipes_write on equipes for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists feriados_select on feriados;
 create policy feriados_select on feriados for select
   using (conta_id = conta_id());
+drop policy if exists feriados_write on feriados;
 create policy feriados_write on feriados for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists config_select on config;
 create policy config_select on config for select
   using (conta_id = conta_id());
+drop policy if exists config_write on config;
 create policy config_write on config for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
 -- Dados de pessoa: recorte por papel também na leitura.
+drop policy if exists colaboradores_select on colaboradores;
 create policy colaboradores_select on colaboradores for select
   using (conta_id = conta_id() and pode_ver_colaborador(id));
+drop policy if exists colaboradores_write on colaboradores;
 create policy colaboradores_write on colaboradores for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists ausencias_select on ausencias;
 create policy ausencias_select on ausencias for select
   using (conta_id = conta_id() and pode_ver_colaborador(colaborador_id));
+drop policy if exists ausencias_write on ausencias;
 create policy ausencias_write on ausencias for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists planos_select on planos;
 create policy planos_select on planos for select
   using (conta_id = conta_id() and pode_ver_colaborador(colaborador_id));
+drop policy if exists planos_write on planos;
 create policy planos_write on planos for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists plano_distribuicao_select on plano_distribuicao;
 create policy plano_distribuicao_select on plano_distribuicao for select
   using (exists (select 1 from planos p
     where p.id = plano_id and p.conta_id = conta_id() and pode_ver_colaborador(p.colaborador_id)));
+drop policy if exists plano_distribuicao_write on plano_distribuicao;
 create policy plano_distribuicao_write on plano_distribuicao for all
   using (eh_planejamento() and exists (select 1 from planos p where p.id = plano_id and p.conta_id = conta_id()))
   with check (eh_planejamento() and exists (select 1 from planos p where p.id = plano_id and p.conta_id = conta_id()));
 
+drop policy if exists plano_unidade_fixa_select on plano_unidade_fixa;
 create policy plano_unidade_fixa_select on plano_unidade_fixa for select
   using (exists (select 1 from planos p
     where p.id = plano_id and p.conta_id = conta_id() and pode_ver_colaborador(p.colaborador_id)));
+drop policy if exists plano_unidade_fixa_write on plano_unidade_fixa;
 create policy plano_unidade_fixa_write on plano_unidade_fixa for all
   using (eh_planejamento() and exists (select 1 from planos p where p.id = plano_id and p.conta_id = conta_id()))
   with check (eh_planejamento() and exists (select 1 from planos p where p.id = plano_id and p.conta_id = conta_id()));
 
+drop policy if exists pins_select on pins;
 create policy pins_select on pins for select
   using (conta_id = conta_id() and pode_ver_colaborador(colaborador_id));
+drop policy if exists pins_write on pins;
 create policy pins_write on pins for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists ocorrencias_select on ocorrencias;
 create policy ocorrencias_select on ocorrencias for select
   using (conta_id = conta_id() and pode_ver_colaborador(colaborador_id));
+drop policy if exists ocorrencias_write on ocorrencias;
 create policy ocorrencias_write on ocorrencias for all
   using (conta_id = conta_id() and papel() in ('planejamento', 'gestor')
          and pode_ver_colaborador(colaborador_id))
@@ -419,32 +443,39 @@ create policy ocorrencias_write on ocorrencias for all
 
 -- Geração: rascunho só aparece pro Planejamento. O colaborador só enxerga a
 -- escala depois de publicada — no protótipo o rascunho vazava pra todo mundo.
+drop policy if exists geracoes_select on geracoes;
 create policy geracoes_select on geracoes for select
   using (conta_id = conta_id()
          and (status <> 'rascunho' or papel() in ('planejamento', 'gestor')));
+drop policy if exists geracoes_write on geracoes;
 create policy geracoes_write on geracoes for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists alocacoes_select on alocacoes;
 create policy alocacoes_select on alocacoes for select
   using (conta_id = conta_id() and pode_ver_colaborador(colaborador_id)
          and exists (select 1 from geracoes g where g.id = geracao_id
                      and (g.status <> 'rascunho' or papel() in ('planejamento', 'gestor'))));
+drop policy if exists alocacoes_write on alocacoes;
 create policy alocacoes_write on alocacoes for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
 -- Solicitações: o colaborador vê as próprias e aquelas em que é o parceiro de troca.
+drop policy if exists solicitacoes_select on solicitacoes;
 create policy solicitacoes_select on solicitacoes for select
   using (conta_id = conta_id() and (
     pode_ver_colaborador(colaborador_id)
     or (parceiro_id is not null and pode_ver_colaborador(parceiro_id))));
+drop policy if exists solicitacoes_insert on solicitacoes;
 create policy solicitacoes_insert on solicitacoes for insert
   with check (conta_id = conta_id() and pode_ver_colaborador(colaborador_id));
 -- O parceiro de troca precisa poder responder ao convite, mas só isso. Sem
 -- congelar as colunas abaixo, ele conseguiria — batendo direto na API REST —
 -- mudar a data do pedido, apontá-lo para outra pessoa ou saltar direto para
 -- APROVADA, pulando triagem e gestor. Mesmo padrão de perfis_update_self (0007).
+drop policy if exists solicitacoes_update on solicitacoes;
 create policy solicitacoes_update on solicitacoes for update
   using (conta_id = conta_id() and (
     papel() in ('planejamento', 'gestor')
@@ -463,14 +494,18 @@ create policy solicitacoes_update on solicitacoes for update
       and data = (select s.data from solicitacoes s where s.id = solicitacoes.id)
     )));
 
+drop policy if exists solic_eventos_select on solicitacao_eventos;
 create policy solic_eventos_select on solicitacao_eventos for select
   using (exists (select 1 from solicitacoes s where s.id = solicitacao_id and s.conta_id = conta_id()
     and (pode_ver_colaborador(s.colaborador_id)
          or (s.parceiro_id is not null and pode_ver_colaborador(s.parceiro_id)))));
+drop policy if exists solic_eventos_insert on solicitacao_eventos;
 create policy solic_eventos_insert on solicitacao_eventos for insert
   with check (conta_id = conta_id());
 
+drop policy if exists logs_select on logs;
 create policy logs_select on logs for select
   using (conta_id = conta_id() and papel() in ('planejamento', 'gestor'));
+drop policy if exists logs_insert on logs;
 create policy logs_insert on logs for insert
   with check (conta_id = conta_id());

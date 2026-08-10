@@ -20,7 +20,7 @@ drop index if exists unidades_pai_idx;
 alter table unidades drop column if exists pai_id;
 
 -- ── Postos ───────────────────────────────────────────────────────
-create table postos (
+create table if not exists postos (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   unidade_id bigint not null references unidades(id) on delete cascade,
@@ -32,11 +32,11 @@ create table postos (
   criado_em timestamptz not null default now(),
   unique (unidade_id, nome)
 );
-create index postos_conta_id_idx on postos(conta_id);
-create index postos_unidade_idx on postos(unidade_id);
+create index if not exists postos_conta_id_idx on postos(conta_id);
+create index if not exists postos_unidade_idx on postos(unidade_id);
 
 -- ── Atribuição do posto no plano mensal ──────────────────────────
-create table plano_posto (
+create table if not exists plano_posto (
   id bigint generated always as identity primary key,
   conta_id uuid not null references contas(id) on delete cascade,
   plano_id bigint not null references planos(id) on delete cascade,
@@ -48,25 +48,29 @@ create table plano_posto (
   semana int check (semana between 1 and 6),
   unique (plano_id, posto_id)
 );
-create index plano_posto_plano_idx on plano_posto(plano_id);
+create index if not exists plano_posto_plano_idx on plano_posto(plano_id);
 
 -- ── Marca na alocação ────────────────────────────────────────────
 alter table alocacoes
-  add column posto_id bigint references postos(id) on delete set null;
-create index alocacoes_posto_idx on alocacoes(posto_id) where posto_id is not null;
+  add column if not exists posto_id bigint references postos(id) on delete set null;
+create index if not exists alocacoes_posto_idx on alocacoes(posto_id) where posto_id is not null;
 
 -- ── RLS ──────────────────────────────────────────────────────────
 alter table postos enable row level security;
 alter table plano_posto enable row level security;
 
+drop policy if exists postos_select on postos;
 create policy postos_select on postos for select
   using (conta_id = conta_id());
+drop policy if exists postos_write on postos;
 create policy postos_write on postos for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());
 
+drop policy if exists plano_posto_select on plano_posto;
 create policy plano_posto_select on plano_posto for select
   using (conta_id = conta_id());
+drop policy if exists plano_posto_write on plano_posto;
 create policy plano_posto_write on plano_posto for all
   using (conta_id = conta_id() and eh_planejamento())
   with check (conta_id = conta_id() and eh_planejamento());

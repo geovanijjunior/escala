@@ -9,9 +9,9 @@
 -- sub-unidade ocupa lugar nela E na unidade que a contém.
 
 alter table unidades
-  add column pai_id bigint references unidades(id) on delete restrict;
+  add column if not exists pai_id bigint references unidades(id) on delete restrict;
 
-create index unidades_pai_idx on unidades(pai_id);
+create index if not exists unidades_pai_idx on unidades(pai_id);
 
 -- Um nível só. Sub-unidade de sub-unidade transformaria a soma de capacidade
 -- numa árvore, e nada no domínio pede isso: um posto pertence a um prédio.
@@ -43,6 +43,7 @@ begin
 end;
 $$;
 
+drop trigger if exists unidades_hierarquia on unidades;
 create trigger unidades_hierarquia
   before insert or update of pai_id on unidades
   for each row execute function checa_hierarquia_unidade();

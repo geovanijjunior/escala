@@ -17,7 +17,7 @@
 -- novo que ele, e não foi causado pela própria pessoa, está por ler.
 
 alter table perfis
-  add column notificacoes_vistas_em timestamptz not null default now();
+  add column if not exists notificacoes_vistas_em timestamptz not null default now();
 
 -- A consulta do sino filtra por data e ordena por data decrescente.
 create index if not exists solic_eventos_em_idx on solicitacao_eventos(em desc);

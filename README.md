@@ -80,8 +80,13 @@ ausências entre meses e determinismo.
 
 Em [supabase.com](https://supabase.com), crie um projeto. Em **SQL Editor**,
 rode os arquivos de `supabase/migrations/` na ordem numérica — cada um depende
-dos anteriores. Abra cada arquivo, copie o **conteúdo
-inteiro** e cole no editor; o nome do arquivo não é o comando.
+dos anteriores. Abra cada arquivo, copie o **conteúdo inteiro** e cole no
+editor; o nome do arquivo não é o comando.
+
+As migrations são **idempotentes**: rodar de novo não quebra nada e não duplica
+nada. Na dúvida sobre o que já foi aplicado, rode tudo de novo na ordem — é o
+caminho mais seguro. (Verificado rodando a sequência inteira três vezes seguidas
+no mesmo banco.)
 
 Em **Authentication → Providers**, deixe **Email** habilitado. Para testar sem
 confirmar e-mail, desative "Confirm email" nas configurações de Auth.
