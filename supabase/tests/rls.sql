@@ -13,7 +13,15 @@
 \pset pager off
 
 -- Um papel sem BYPASSRLS, para as policies realmente valerem.
-drop role if exists app_user;
+-- `drop owned by` antes do drop do papel: sem isso a segunda execução falha,
+-- porque os grants da rodada anterior ainda dependem do papel.
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'app_user') then
+    execute 'drop owned by app_user';
+    execute 'drop role app_user';
+  end if;
+end $$;
+
 create role app_user nologin;
 grant usage on schema public, auth to app_user;
 grant select, insert, update, delete on all tables in schema public to app_user;
@@ -21,6 +29,12 @@ grant select on auth.users to app_user;
 grant usage on all sequences in schema public to app_user;
 
 -- ───────────────── massa de teste ─────────────────
+-- Zera antes de semear, para a suíte poder rodar quantas vezes for preciso.
+-- `contas` cascateia para todo o domínio; auth.users é limpa à parte porque
+-- vive fora do schema public.
+truncate contas cascade;
+delete from auth.users;
+
 insert into contas (id, nome) values
   ('11111111-1111-1111-1111-111111111111', 'Hospital A'),
   ('22222222-2222-2222-2222-222222222222', 'Hospital B');
@@ -49,6 +63,10 @@ insert into equipes (id, conta_id, codigo, nome, regime, gestor_id) overriding s
   (1, '11111111-1111-1111-1111-111111111111', 'EQ1', 'Equipe do Gestor A', '5x2', 'aaaaaaa1-0000-0000-0000-000000000002'),
   (2, '11111111-1111-1111-1111-111111111111', 'EQ2', 'Equipe sem gestor',  '5x2', null),
   (3, '22222222-2222-2222-2222-222222222222', 'EQB', 'Equipe B',           '5x2', null);
+
+-- Cota da conta A, para o teste de vazamento entre contas ter o que não ver.
+insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, limite) values
+  ('11111111-1111-1111-1111-111111111111', 1, 1, null, 5);
 
 insert into colaboradores (id, conta_id, perfil_id, nome, matricula, equipe_id, unidade_base_id) overriding system value values
   (1, '11111111-1111-1111-1111-111111111111', 'aaaaaaa1-0000-0000-0000-000000000003', 'Colab A',  '001', 1, 1),
@@ -133,4 +151,39 @@ end $$;
 
 \echo '=== Colaborador NÃO pode escrever na escala (deve afetar 0 linhas) ==='
 update alocacoes set modalidade = 'HOME' where colaborador_id = 1;
-insert into unidades (conta_id, codigo, nome, sigla) values ('11111111-1111-1111-1111-111111111111','X','X','X');
+
+-- Este bloco já existia como comando solto. A RLS o bloqueava certo, mas com
+-- ON_ERROR_STOP o script morria aqui: quem rodasse via um "ERROR" no fim e não
+-- tinha como distinguir teste que passou de suíte que quebrou.
+\echo '=== Colaborador NÃO pode criar unidade (deve falhar) ==='
+do $$ begin
+  insert into unidades (conta_id, codigo, nome, sigla)
+  values ('11111111-1111-1111-1111-111111111111','X','X','X');
+  raise exception 'FALHA DE SEGURANCA: colaborador criou unidade';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Colaborador NÃO pode definir cota de equipe (deve falhar) ==='
+do $$ begin
+  insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, limite)
+  values ('11111111-1111-1111-1111-111111111111', 1, 1, null, 99);
+  raise exception 'FALHA DE SEGURANCA: colaborador definiu cota de equipe';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Conta B não enxerga cota de equipe da conta A ==='
+set request.jwt.claim.sub = 'bbbbbbb1-0000-0000-0000-000000000001';
+do $$
+declare n int; begin
+  select count(*) into n from cotas_equipe;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: conta B enxergou % cota(s) da conta A', n;
+  end if;
+  raise notice 'ok: conta B nao ve cotas da conta A';
+end $$;
+
+reset role;
+\echo ''
+\echo '>>> TODOS OS TESTES DE RLS PASSARAM'

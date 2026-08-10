@@ -217,6 +217,19 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
   }
 
   .esc-num { font-variant-numeric: tabular-nums; }
+
+  /* Placeholder de carregamento. A pulsação é lenta de propósito: rápida demais
+     lê como erro piscando em vez de "estou trabalhando". */
+  .esc-esqueleto {
+    background: var(--line);
+    border-radius: 6px;
+    animation: esc-pulsa 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes esc-pulsa {
+  0%, 100% { opacity: .6; }
+  50% { opacity: .25; }
 }
 
 @media (prefers-reduced-motion: reduce) {
