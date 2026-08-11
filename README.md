@@ -15,6 +15,13 @@ banco.
 - **Supabase** — Postgres, Auth e Row Level Security
 - **Tailwind CSS v4** — tema claro corporativo, Inter + IBM Plex Mono
 
+## Manual de operação
+
+[`docs/manual.html`](docs/manual.html) é o manual de quem vai usar o sistema, não
+de quem o programa: implantação passo a passo, a rotina de cada mês, o que cada
+papel enxerga, as doze regras do motor e o que fazer quando algo dá errado. Abre
+no navegador com dois cliques.
+
 ## Experimente antes de instalar
 
 [`docs/prototipo-escalas.html`](docs/prototipo-escalas.html) é um arquivo único

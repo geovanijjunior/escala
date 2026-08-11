@@ -1,0 +1,926 @@
+<title>Manual do Escala</title>
+
+<style>
+  :root {
+    --tinta:      #0E1726;
+    --navio:      #0B2D5B;
+    --azul:       #1A5FB4;
+    --azul-suave: #E6EFFA;
+    --fundo:      #F6F8FB;
+    --papel:      #FFFFFF;
+    --apagado:    #5A6A80;
+    --linha:      #DDE4EE;
+    --linha-forte:#C3CFDF;
+
+    --planejamento: #0B2D5B;
+    --gestor:       #0A6360;
+    --colaborador:  #8A4A12;
+
+    --ok:    #14612F;
+    --ok-bg: #E3F3E8;
+    --atencao:    #92400E;
+    --atencao-bg: #FBF0DC;
+    --erro:    #9F1239;
+    --erro-bg: #FBE7EC;
+
+    --capa: #0B2D5B;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --serifa: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --tinta:      #E8EDF5;
+      --navio:      #9DC0EC;
+      --azul:       #8AB6EE;
+      --azul-suave: #16233A;
+      --fundo:      #0C1220;
+      --papel:      #131B2B;
+      --apagado:    #93A2B8;
+      --linha:      #26324A;
+      --linha-forte:#3A4761;
+      --capa: #0A1729;
+      --planejamento: #9DC0EC;
+      --gestor:       #63C6BE;
+      --colaborador:  #DDA35F;
+      --ok:    #7BD69B;
+      --ok-bg: #14301F;
+      --atencao:    #E3B269;
+      --atencao-bg: #33270F;
+      --erro:    #F09CB2;
+      --erro-bg: #351320;
+    }
+  }
+
+  :root[data-theme='dark'] {
+    --tinta:      #E8EDF5;
+    --navio:      #9DC0EC;
+    --azul:       #8AB6EE;
+    --azul-suave: #16233A;
+    --fundo:      #0C1220;
+    --papel:      #131B2B;
+    --apagado:    #93A2B8;
+    --linha:      #26324A;
+    --linha-forte:#3A4761;
+    --capa: #0A1729;
+    --planejamento: #9DC0EC;
+    --gestor:       #63C6BE;
+    --colaborador:  #DDA35F;
+    --ok:    #7BD69B;
+    --ok-bg: #14301F;
+    --atencao:    #E3B269;
+    --atencao-bg: #33270F;
+    --erro:    #F09CB2;
+    --erro-bg: #351320;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--fundo);
+    color: var(--tinta);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .capa {
+    background: var(--capa);
+    color: #fff;
+    padding: 40px 24px 34px;
+  }
+  .capa-interna { max-width: 1180px; margin: 0 auto; }
+  .capa .marca {
+    font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    color: rgba(255,255,255,.62); font-weight: 600;
+  }
+  .capa h1 {
+    font-size: clamp(30px, 5vw, 44px); line-height: 1.08; margin: 10px 0 12px;
+    letter-spacing: -.022em; font-weight: 680; text-wrap: balance;
+  }
+  .capa p {
+    margin: 0; max-width: 62ch; color: rgba(255,255,255,.8);
+    font-size: 16.5px; line-height: 1.6;
+  }
+
+  .corpo {
+    max-width: 1180px; margin: 0 auto; padding: 0 24px 96px;
+    display: grid; grid-template-columns: 218px minmax(0, 1fr); gap: 52px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .corpo { grid-template-columns: 1fr; gap: 0; padding-bottom: 64px; }
+    .sumario { position: static; margin: 24px 0 8px; }
+  }
+
+  .sumario {
+    position: sticky; top: 24px; padding-top: 34px;
+    font-size: 13.5px; line-height: 1.45;
+  }
+  .sumario h2 {
+    font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--apagado); margin: 0 0 12px; font-weight: 700;
+  }
+  .sumario ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .sumario a {
+    display: block; padding: 5px 10px; border-radius: 6px;
+    color: var(--tinta); text-decoration: none; border-left: 2px solid transparent;
+  }
+  .sumario a:hover { background: var(--azul-suave); }
+  .sumario a:focus-visible { outline: 2px solid var(--azul); outline-offset: 1px; }
+  .sumario .grupo {
+    margin-top: 14px; padding: 0 10px 4px;
+    font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--apagado); font-weight: 700;
+  }
+
+  main { padding-top: 34px; min-width: 0; }
+
+  section { scroll-margin-top: 20px; margin-bottom: 46px; }
+  section > *:first-child { margin-top: 0; }
+
+  h2 {
+    font-size: 25px; line-height: 1.2; letter-spacing: -.018em;
+    margin: 0 0 6px; font-weight: 670; text-wrap: balance;
+  }
+  h3 {
+    font-size: 17px; line-height: 1.3; letter-spacing: -.008em;
+    margin: 30px 0 8px; font-weight: 650;
+  }
+  h4 {
+    font-size: 13.5px; margin: 22px 0 6px; font-weight: 660;
+    letter-spacing: .01em;
+  }
+  p, li { max-width: 68ch; }
+  p { margin: 0 0 13px; }
+
+  .entrada {
+    color: var(--apagado); font-size: 16.5px; margin-bottom: 22px; max-width: 66ch;
+  }
+
+  a { color: var(--azul); }
+
+  code {
+    font-family: var(--mono); font-size: .88em;
+    background: var(--azul-suave); color: var(--tinta);
+    padding: 1px 5px; border-radius: 4px;
+  }
+
+  /* Notas de contexto: serifa marca "por que é assim", não "faça isso". */
+  .porque {
+    font-family: var(--serifa); font-size: 15.5px; line-height: 1.68;
+    border-left: 2px solid var(--linha-forte); padding: 2px 0 2px 16px;
+    margin: 16px 0; color: var(--apagado); max-width: 64ch;
+  }
+  .porque strong { color: var(--tinta); font-weight: 600; }
+
+  .aviso {
+    border-radius: 8px; padding: 13px 16px; margin: 18px 0;
+    font-size: 14.5px; line-height: 1.55; max-width: 68ch;
+    border-left: 3px solid;
+  }
+  .aviso.atencao { background: var(--atencao-bg); border-color: var(--atencao); }
+  .aviso.atencao strong { color: var(--atencao); }
+  .aviso.parada  { background: var(--erro-bg); border-color: var(--erro); }
+  .aviso.parada strong { color: var(--erro); }
+  .aviso p:last-child { margin-bottom: 0; }
+
+  ol.passos { counter-reset: p; list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 14px; }
+  ol.passos > li {
+    counter-increment: p; position: relative; padding-left: 38px; max-width: 68ch;
+  }
+  ol.passos > li::before {
+    content: counter(p);
+    position: absolute; left: 0; top: 1px;
+    width: 25px; height: 25px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--azul-suave); color: var(--azul);
+    font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  ol.passos strong { font-weight: 640; }
+
+  ul.marcado { margin: 14px 0; padding-left: 20px; display: grid; gap: 7px; }
+
+  .tabela-rolo { overflow-x: auto; margin: 18px 0; }
+  table {
+    border-collapse: collapse; width: 100%; font-size: 14.5px;
+    background: var(--papel); border: 1px solid var(--linha); border-radius: 8px;
+  }
+  th, td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--linha); vertical-align: top; }
+  th {
+    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--apagado); font-weight: 700; white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  .num { font-variant-numeric: tabular-nums; }
+  td.num { text-align: right; white-space: nowrap; }
+
+  .papeis { display: grid; gap: 14px; margin: 20px 0 8px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .papel {
+    background: var(--papel); border: 1px solid var(--linha);
+    border-top: 3px solid var(--cor); border-radius: 8px; padding: 15px 17px;
+  }
+  .papel h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--cor); }
+  .papel p { font-size: 14px; margin: 0 0 10px; color: var(--apagado); }
+  .papel ul { margin: 0; padding-left: 17px; font-size: 13.5px; display: grid; gap: 4px; }
+
+  .fita { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 650; }
+  .fita.planejamento { background: var(--azul-suave); color: var(--planejamento); }
+  .fita.gestor { background: var(--ok-bg); color: var(--gestor); }
+  .fita.colaborador { background: var(--atencao-bg); color: var(--colaborador); }
+
+  h2 .fita { vertical-align: middle; margin-left: 8px; font-size: 11px; }
+
+  /* Fluxo da solicitação */
+  .fluxo { display: grid; gap: 10px; margin: 20px 0; }
+  .etapa {
+    background: var(--papel); border: 1px solid var(--linha); border-radius: 8px;
+    padding: 12px 15px; display: grid; grid-template-columns: 132px minmax(0,1fr); gap: 14px;
+    align-items: baseline;
+  }
+  @media (max-width: 620px) { .etapa { grid-template-columns: 1fr; gap: 4px; } }
+  .etapa .nome {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--navio); letter-spacing: .01em;
+  }
+  .etapa .oque { font-size: 14.5px; }
+  .etapa .oque em { font-style: normal; color: var(--apagado); }
+  .seta { text-align: center; color: var(--linha-forte); font-size: 15px; line-height: 1; }
+
+  .regras { counter-reset: r; list-style: none; margin: 18px 0; padding: 0;
+            border: 1px solid var(--linha); border-radius: 8px; background: var(--papel); overflow: hidden; }
+  .regras li {
+    counter-increment: r; display: grid; grid-template-columns: 34px minmax(0,1fr) 74px;
+    gap: 12px; padding: 11px 15px; border-bottom: 1px solid var(--linha);
+    font-size: 14.5px; max-width: none; align-items: baseline;
+  }
+  .regras li:last-child { border-bottom: 0; }
+  .regras li::before {
+    content: counter(r); font-variant-numeric: tabular-nums;
+    color: var(--apagado); font-size: 12.5px; font-weight: 700;
+  }
+  .regras .tit { font-weight: 620; }
+  .regras .desc { display: block; font-weight: 400; color: var(--apagado); font-size: 13.5px; margin-top: 1px; }
+  .regras .tipo { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; font-weight: 700; text-align: right; }
+  .regras .rigida { color: var(--erro); }
+  .regras .flexivel { color: var(--apagado); }
+  @media (max-width: 620px) {
+    .regras li { grid-template-columns: 26px minmax(0,1fr); }
+    .regras .tipo { grid-column: 2; text-align: left; margin-top: 3px; }
+  }
+
+  .rodape {
+    max-width: 1180px; margin: 0 auto; padding: 24px;
+    border-top: 1px solid var(--linha); color: var(--apagado); font-size: 13.5px;
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  @media print {
+    .sumario { display: none; }
+    .corpo { grid-template-columns: 1fr; }
+    .capa { background: none; color: var(--tinta); border-bottom: 2px solid var(--tinta); }
+    .capa p, .capa .marca { color: var(--apagado); }
+  }
+</style>
+
+<header class="capa">
+  <div class="capa-interna">
+    <div class="marca">Manual de operação</div>
+    <h1>Escala</h1>
+    <p>
+      Como montar, publicar e manter a escala mensal de equipes em regime 12x36 e 5x2 —
+      presença distribuída entre unidades, home office, férias e o fluxo de solicitações.
+    </p>
+  </div>
+</header>
+
+<div class="corpo">
+  <nav class="sumario" aria-label="Sumário">
+    <h2>Neste manual</h2>
+    <ol>
+      <li><a href="#visao">O que o sistema faz</a></li>
+      <li><a href="#papeis">Os três papéis</a></li>
+      <li><a href="#implantacao">Implantação</a></li>
+      <li class="grupo">Rotina</li>
+      <li><a href="#parametros">Parâmetros</a></li>
+      <li><a href="#colaboradores">Colaboradores</a></li>
+      <li><a href="#planos">Plano do mês</a></li>
+      <li><a href="#gerar">Gerar e publicar</a></li>
+      <li><a href="#solicitacoes">Solicitações</a></li>
+      <li><a href="#calendario">Calendário e ajustes</a></li>
+      <li class="grupo">Referência</li>
+      <li><a href="#motor">Como o motor decide</a></li>
+      <li><a href="#notificacoes">Notificações</a></li>
+      <li><a href="#colaborador">Guia do colaborador</a></li>
+      <li><a href="#gestor">Guia do gestor</a></li>
+      <li><a href="#problemas">Quando algo dá errado</a></li>
+      <li><a href="#glossario">Glossário</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section id="visao">
+      <h2>O que o sistema faz</h2>
+      <p class="entrada">
+        O Escala responde a uma pergunta por dia útil: <strong>quem está onde</strong>.
+      </p>
+      <p>
+        Você descreve as regras uma vez — quantos lugares cada unidade tem, quem é de qual equipe,
+        que percentual da presença de cada pessoa vai para cada unidade, quem tem home office e
+        quem está de férias. O sistema monta o mês inteiro a partir disso, mostra o que vai
+        acontecer <em>antes</em> de gravar, e só publica quando você mandar.
+      </p>
+      <p>
+        Depois de publicada, a escala vira a referência da equipe: cada pessoa vê a própria, pede
+        troca ou folga por ali, e o pedido percorre triagem e aprovação sem passar por planilha
+        nem e-mail.
+      </p>
+      <div class="porque">
+        <strong>A geração não é uma caixa-preta.</strong> Existe uma ordem de precedência fixa e
+        publicada — doze regras, das quais as nove primeiras nunca são violadas. Quando o
+        resultado surpreende, a explicação está nessa ordem, e a tela de geração lista os
+        conflitos que ela não conseguiu resolver sozinha.
+      </div>
+    </section>
+
+    <section id="papeis">
+      <h2>Os três papéis</h2>
+      <p>
+        Cada pessoa tem exatamente um papel, e é ele que decide o que ela vê e o que pode fazer.
+        Não é filtro de tela: o próprio banco de dados recusa a leitura fora do papel, então nem
+        pela API alguém alcança o que não lhe cabe.
+      </p>
+
+      <div class="papeis">
+        <div class="papel" style="--cor: var(--planejamento)">
+          <h3>Planejamento</h3>
+          <p>Enxerga a conta inteira</p>
+          <ul>
+            <li>Configura unidades, equipes e feriados</li>
+            <li>Monta o plano mensal de cada pessoa</li>
+            <li>Gera, ajusta e publica a escala</li>
+            <li>Faz a triagem das solicitações</li>
+          </ul>
+        </div>
+        <div class="papel" style="--cor: var(--gestor)">
+          <h3>Gestor</h3>
+          <p>Só as equipes que gerencia</p>
+          <ul>
+            <li>Acompanha escala e indicadores da equipe</li>
+            <li>Aprova ou recusa o que chega a ele</li>
+            <li>Lança ocorrências (atraso, falta)</li>
+          </ul>
+        </div>
+        <div class="papel" style="--cor: var(--colaborador)">
+          <h3>Colaborador</h3>
+          <p>Só a si mesmo</p>
+          <ul>
+            <li>Consulta a própria escala publicada</li>
+            <li>Abre solicitações</li>
+            <li>Aceita ou recusa convites de troca</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="porque">
+        Quem cria a organização entra como <strong>Planejamento</strong>. Todos os outros acessos
+        nascem na tela de Usuários, com o papel definido ali. Um colaborador não consegue se
+        promover, nem pela tela nem por fora dela.
+      </div>
+    </section>
+
+    <section id="implantacao">
+      <h2>Implantação</h2>
+      <p class="entrada">
+        A ordem abaixo importa: cada passo usa o que o anterior criou.
+      </p>
+
+      <ol class="passos">
+        <li>
+          <strong>Crie a organização.</strong> Na tela de entrada, clique em “Criar agora”.
+          Você vira o Planejamento.
+        </li>
+        <li>
+          <strong>Cadastre as unidades</strong> em Parâmetros → Unidades e capacidade. Cada uma
+          precisa de nome, sigla, capacidade total e quantas posições ficam reservadas.
+        </li>
+        <li>
+          <strong>Cadastre as equipes.</strong> A equipe define o regime (12x36 ou 5x2) e quem é
+          o gestor. Sem gestor, os pedidos daquela equipe param na triagem.
+        </li>
+        <li>
+          <strong>Cadastre os feriados do ano.</strong> Feriado muda quem trabalha; sem ele a
+          escala sai errada para todo o time 5x2.
+        </li>
+        <li>
+          <strong>Crie os acessos</strong> em Usuários. Cada pessoa recebe uma senha temporária
+          mostrada <em>uma única vez</em> — copie antes de sair da tela.
+        </li>
+        <li>
+          <strong>Cadastre os colaboradores</strong> e ligue cada um ao respectivo usuário pelo
+          campo <code>Usuário do sistema</code>.
+        </li>
+        <li>
+          <strong>Monte o plano do primeiro mês</strong> e gere a escala.
+        </li>
+      </ol>
+
+      <div class="aviso atencao">
+        <p>
+          <strong>Colaborador e usuário são coisas diferentes.</strong> O usuário faz login; o
+          colaborador aparece na escala. Nem todo colaborador precisa de login (quem não usa o
+          sistema), e nem todo usuário precisa estar na escala (você mesmo, provavelmente).
+        </p>
+        <p>
+          É o vínculo entre os dois que faz “Minha escala” mostrar os dias certos. Sem ele, a
+          pessoa entra e não vê nada.
+        </p>
+      </div>
+    </section>
+
+    <section id="parametros">
+      <h2>Parâmetros <span class="fita planejamento">Planejamento</span></h2>
+      <p class="entrada">
+        É aqui que vivem as regras que valem para todo mundo. Mexer nelas muda a próxima geração,
+        não a escala já publicada.
+      </p>
+
+      <h3>Unidades</h3>
+      <p>
+        <strong>Capacidade total</strong> é quantas pessoas cabem no local.
+        <strong>Posições reservadas</strong> são lugares que existem mas não entram no rateio —
+        visitante, sala de reunião, um posto de manutenção. O motor nunca aloca acima de
+        <em>total menos reservadas</em>.
+      </p>
+
+      <h3>Capacidade e posições reservadas por dia</h3>
+      <p>
+        A capacidade padrão vale todos os dias. Quando um dia é diferente — “segunda e sexta eu
+        guardo 2 lugares” — cadastre a exceção aqui, marcando quantos dias da semana quiser de
+        uma vez. Também aceita uma data específica, que vence o dia da semana.
+      </p>
+      <p>
+        Deixar o <strong>Total</strong> em branco mantém a capacidade padrão da unidade. Use assim
+        quando só as reservadas mudam.
+      </p>
+
+      <h3>Cota de posições por equipe</h3>
+      <p>
+        Reparte as posições de uma unidade entre as equipes: no Morumbi, 5 para técnicos 12x36 e
+        3 para analistas. Equipe sem cota cadastrada não tem teto próprio — só a capacidade da
+        unidade a limita.
+      </p>
+      <div class="porque">
+        A cota é um <strong>teto</strong>, mas vira <strong>garantia</strong> quando as cotas de
+        uma unidade somam a capacidade livre dela. Com técnicos em 5 e analistas em 3 num prédio
+        de 8, o quarto analista não ocupa o lugar que sobrou de técnico. Quem quer apenas limitar
+        deixa folga; quem quer garantir faz as cotas fecharem o total.
+      </div>
+
+      <h3>Postos dentro das unidades</h3>
+      <p>
+        Um posto é uma <em>função exercida dentro</em> da unidade — o Corpo Clínico dentro do
+        Morumbi. Não é outra unidade: quem cobre o posto ocupa uma posição normal do Morumbi, e
+        por isso capacidade e rateio não mudam.
+      </p>
+      <p>
+        Cadastre o posto aqui (nome, unidade, quantas pessoas cabem nele ao mesmo tempo). Quem
+        cobre e por quantos dias é definido no plano do mês de cada pessoa.
+      </p>
+
+      <h3>Motor</h3>
+      <div class="tabela-rolo">
+        <table>
+          <thead>
+            <tr><th>Ajuste</th><th>O que faz</th><th>Sugestão</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Âncora do ciclo 12x36</strong></td>
+              <td>Mês de referência a partir do qual a alternância par/ímpar é contada. Mudá-la desloca o ciclo de todo mundo de uma vez.</td>
+              <td>Não mexa</td>
+            </tr>
+            <tr>
+              <td><strong>Tolerância de aderência</strong></td>
+              <td>Quantos dias de diferença entre o planejado e o realizado você aceita antes de a pessoa entrar na lista de avisos. Não bloqueia nada.</td>
+              <td class="num">2 ou 3</td>
+            </tr>
+            <tr>
+              <td><strong>Cobertura mínima</strong></td>
+              <td>Mínimo de pessoas presenciais por unidade nos dias em que alguém trabalha. Gera aviso, não impede a geração.</td>
+              <td class="num">0 ou 1</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="aviso atencao">
+        <p>
+          <strong>Cobertura mínima em 1 pode gerar ruído no fim de semana.</strong> Sábado e
+          domingo o time 5x2 descansa e o 12x36 trabalha, então uma unidade sem gente de 12x36
+          aparece com zero pessoas e o aviso se repete sem que haja problema. Se incomodar,
+          use <span class="num">0</span>.
+        </p>
+      </div>
+    </section>
+
+    <section id="colaboradores">
+      <h2>Colaboradores <span class="fita planejamento">Planejamento</span></h2>
+      <p>
+        O cadastro de quem entra na escala. Regime e turno vêm da equipe escolhida; o turno pode
+        ser sobreposto caso a caso.
+      </p>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Campo</th><th>Para que serve</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Equipe</strong></td><td>Define regime (12x36 ou 5x2) e o gestor que aprova</td></tr>
+            <tr><td><strong>Unidade base</strong></td><td>Para onde a presença vai quando não há distribuição configurada</td></tr>
+            <tr><td><strong>Ciclo</strong></td><td>Só para 12x36: se trabalha nos dias pares ou ímpares</td></tr>
+            <tr><td><strong>Elegível a home office</strong></td><td>Desmarcado, a pessoa nunca recebe home, mesmo com plano configurado</td></tr>
+            <tr><td><strong>Usuário do sistema</strong></td><td>Liga o cadastro ao login. Sem isso, a pessoa não vê a própria escala</td></tr>
+            <tr><td><strong>Situação</strong></td><td>Só quem está <em>ativo</em> entra na geração</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="planos">
+      <h2>Plano do mês <span class="fita planejamento">Planejamento</span></h2>
+      <p class="entrada">
+        O plano é o retrato do que você quer para cada pessoa naquele mês. É a tela onde você
+        passa mais tempo.
+      </p>
+
+      <h3>Distribuição entre unidades</h3>
+      <p>
+        Escolha o percentual dos dias presenciais em cada unidade. Só existem os degraus
+        0 / 25 / 50 / 75 / 100 — em dias inteiros, valores como 33% não significam nada e só
+        geram desvio que ninguém consegue explicar depois. A soma precisa fechar em 100%.
+      </p>
+
+      <h3>Unidade fixa por dia da semana</h3>
+      <p>
+        Para quando o dia é combinado: “Felipe fica terça e quarta no Morumbi”. Esses dias saem
+        do rateio livre e nunca são movidos pelo balanceamento.
+      </p>
+
+      <h3>Postos</h3>
+      <p>
+        Se a distribuição mandar a pessoa a uma unidade que tenha posto, o sistema pergunta se ela
+        vai cobri-lo e por quantos dias. A cobertura é <strong>semanal e contígua, a partir da
+        segunda</strong>: 5 dias é a semana inteira, 3 é de segunda a quarta.
+      </p>
+      <p>
+        Deixe a semana no automático para o motor rodiziar o posto entre as pessoas; fixe uma
+        quando precisar de alguém numa semana específica.
+      </p>
+      <div class="aviso atencao">
+        <p>
+          <strong>Quem é 12x36 não cobre posto em dias seguidos</strong> — trabalha em dias
+          alternados, por definição. Se você atribuir, o sistema recusa e explica, em vez de
+          reservar o posto em dias nos quais a pessoa não estará lá.
+        </p>
+      </div>
+
+      <h3>Home office</h3>
+      <p>
+        Dois modos. <strong>Fixo</strong>: dias da semana definidos, sempre os mesmos.
+        <strong>Cota</strong>: uma quantidade por semana, com dias de preferência e dias
+        proibidos, e o sistema escolhe.
+      </p>
+      <div class="porque">
+        Na cota, <strong>a preferência manda</strong>: quem marcou sexta vai na sexta, ainda que
+        isso concentre gente. O espalhamento pelo mês age <em>dentro</em> do que foi marcado —
+        entre dois dias preferidos, ganha o menos cheio — e só decide sozinho para quem não marcou
+        preferência nenhuma. Dia proibido é barreira absoluta, acima das duas coisas.
+      </div>
+
+      <h3>Férias e ausências</h3>
+      <p>
+        Os dois são lançados como intervalo de datas. Nas ausências, deixar o fim em branco
+        significa um único dia. Períodos sobrepostos são recusados na gravação.
+      </p>
+      <div class="porque">
+        <strong>A ausência pertence à pessoa, não ao mês.</strong> Um período de 25/11 a 05/12
+        bloqueia os dois meses automaticamente — não é preciso lançar duas vezes.
+      </div>
+    </section>
+
+    <section id="gerar">
+      <h2>Gerar e publicar <span class="fita planejamento">Planejamento</span></h2>
+
+      <ol class="passos">
+        <li>
+          <strong>Resolva as pendências.</strong> A tela lista o que impede a geração — plano sem
+          distribuição, 12x36 sem ciclo definido. Enquanto houver pendência, o botão fica travado.
+        </li>
+        <li>
+          <strong>Simule.</strong> A simulação roda o motor de verdade e mostra exatamente o que
+          vai acontecer: alocações, conflitos e aderência. <em>Nada é gravado.</em>
+        </li>
+        <li>
+          <strong>Gere.</strong> A escala é gravada como <strong>rascunho</strong>. Os
+          colaboradores ainda não a enxergam.
+        </li>
+        <li>
+          <strong>Ajuste à mão, se precisar.</strong> Em Calendário, abra qualquer dia e mova uma
+          pessoa. O ajuste fica travado e sobrevive a uma nova geração.
+        </li>
+        <li>
+          <strong>Publique.</strong> A partir daí a equipe vê a escala e pode abrir solicitações
+          sobre ela.
+        </li>
+      </ol>
+
+      <div class="porque">
+        Simular e gerar chamam <strong>a mesma função</strong> do motor. A única diferença é
+        gravar ou não o resultado — é isso que garante que a prévia não minta.
+      </div>
+
+      <p>
+        <strong>Encerrar o mês</strong> fecha o período: não entram mais solicitações nem
+        alterações naquela competência. Faça isso quando o mês acabar e os ajustes estiverem
+        conferidos.
+      </p>
+    </section>
+
+    <section id="solicitacoes">
+      <h2>Solicitações</h2>
+      <p class="entrada">
+        Todo pedido segue o mesmo caminho, e cada passo fica registrado com autor e horário.
+      </p>
+
+      <div class="fluxo">
+        <div class="etapa">
+          <span class="nome">AGUARDA PARCEIRO</span>
+          <span class="oque">Só em troca de plantão. <em>O colega precisa aceitar antes de o pedido seguir.</em></span>
+        </div>
+        <div class="seta" aria-hidden="true">↓</div>
+        <div class="etapa">
+          <span class="nome">TRIAGEM</span>
+          <span class="oque">Com o Planejamento, que tem três saídas: <strong>encaminhar ao gestor</strong>, <strong>aprovar direto</strong> ou <strong>recusar</strong> — e pode ainda mandar para a lista de espera.</span>
+        </div>
+        <div class="seta" aria-hidden="true">↓</div>
+        <div class="etapa">
+          <span class="nome">GESTOR</span>
+          <span class="oque">Com o gestor da equipe, que aprova ou recusa. <em>Recusar exige justificativa.</em></span>
+        </div>
+        <div class="seta" aria-hidden="true">↓</div>
+        <div class="etapa">
+          <span class="nome">APROVADA / RECUSADA</span>
+          <span class="oque">Fim do caminho. Aprovar já altera a escala nos tipos que mexem no dia.</span>
+        </div>
+      </div>
+
+      <p>
+        A <strong>lista de espera</strong> existe para trocas: quando não há posição no dia
+        pedido, o pedido entra na fila em ordem, e o primeiro é promovido assim que uma posição
+        se abre.
+      </p>
+
+      <h3>O que cada tipo faz ao ser aprovado</h3>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Tipo</th><th class="num">Prazo</th><th>Efeito da aprovação</th></tr></thead>
+          <tbody>
+            <tr><td>Férias</td><td class="num">120 h</td><td>Lança o período inteiro como férias e trava os dias</td></tr>
+            <tr><td>Folgas</td><td class="num">48 h</td><td>Lança o período como ausência e trava os dias</td></tr>
+            <tr><td>Troca de Unidade</td><td class="num">72 h</td><td>Move a alocação do dia e trava</td></tr>
+            <tr><td>Troca de Horário</td><td class="num">48 h</td><td>Troca os plantões entre as duas pessoas e registra ocorrência nos dois</td></tr>
+            <tr><td>Ajuste de Ponto</td><td class="num">48 h</td><td>Registro formal — não altera a escala</td></tr>
+            <tr><td>Banco de Horas</td><td class="num">72 h</td><td>Registro formal</td></tr>
+            <tr><td>Justificativa de Atraso</td><td class="num">24 h</td><td>Registro formal</td></tr>
+            <tr><td>Pausas</td><td class="num">24 h</td><td>Registro formal</td></tr>
+            <tr><td>Saída Antecipada</td><td class="num">24 h</td><td>Registro formal</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="porque">
+        <strong>Aprovar férias marca o plano do mês.</strong> Um pedido de 10/11 a 20/11 aprovado
+        vira uma ausência do período completo, e o plano de novembro já abre com as férias
+        marcadas. Ninguém relança à mão.
+      </div>
+    </section>
+
+    <section id="calendario">
+      <h2>Calendário e ajustes <span class="fita planejamento">Planejamento</span></h2>
+      <p>
+        A visão do mês, com filtro por nome (a lista suspensa também aceita digitar), equipe,
+        modalidade e turno. Clicar num dia abre quem está onde e permite mover pessoas.
+      </p>
+      <p>
+        Todo ajuste manual vira uma <strong>trava</strong>: ele sobrevive a uma nova geração e só
+        sai se você destravar. É assim que a exceção combinada com alguém não se perde na próxima
+        vez que o mês for regerado.
+      </p>
+
+      <h3>Modalidades</h3>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Sigla</th><th>Significa</th></tr></thead>
+          <tbody>
+            <tr><td><code>HO</code></td><td>Home Office</td></tr>
+            <tr><td><code>EXT</code></td><td>Trabalho Externo — usado quando não sobrou posição em nenhuma unidade</td></tr>
+            <tr><td><code>FÉR</code></td><td>Férias</td></tr>
+            <tr><td><code>AUS</code></td><td>Ausência (folga, licença, atestado)</td></tr>
+            <tr><td><code>FRD</code></td><td>Feriado</td></tr>
+            <tr><td><code>—</code></td><td>Descanso do ciclo 12x36</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        A exportação disponível é CSV, com separador <code>;</code> e acentuação que o Excel em
+        português abre sem embaralhar.
+      </p>
+    </section>
+
+    <section id="motor">
+      <h2>Como o motor decide</h2>
+      <p class="entrada">
+        As regras rodam nesta ordem. As nove primeiras são rígidas e nunca são violadas; as três
+        últimas são otimizadas dentro do que sobrou.
+      </p>
+
+      <ol class="regras">
+        <li><span><span class="tit">Travas manuais</span><span class="desc">Ajuste feito no calendário é decisão tomada — vem antes de tudo</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Férias</span><span class="desc">Bloqueio absoluto; nenhuma regra reabre o dia</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Ausências</span><span class="desc">Folga, licença e atestado, mesmo iniciados em outro mês</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Regime de trabalho</span><span class="desc">12x36 alterna dias; 5x2 folga fim de semana e feriado</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Home office fixo</span><span class="desc">Dias marcados não entram na distribuição por unidade</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Unidade fixa por dia da semana</span><span class="desc">Ocupa posição e sai do rateio livre</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Capacidade da unidade</span><span class="desc">Nunca aloca acima de total menos reservadas</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Cota de posições por equipe</span><span class="desc">Teto por equipe, opcionalmente por dia da semana</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Cota semanal de home office</span><span class="desc">A quantidade é rígida; o dia é flexível</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Preferência de home office</span><span class="desc">Escolhe o dia; o espalhamento desempata dentro dela</span></span><span class="tipo flexivel">Flexível</span></li>
+        <li><span><span class="tit">Distribuição percentual</span><span class="desc">Reparte os dias presenciais pelo método do maior resto</span></span><span class="tipo flexivel">Flexível</span></li>
+        <li><span><span class="tit">Balanceamento e cobertura</span><span class="desc">Evita concentrar a mesma equipe e avisa sobre cobertura baixa</span></span><span class="tipo flexivel">Flexível</span></li>
+      </ol>
+
+      <h3>Prioridade por cargo</h3>
+      <p>
+        Quando duas pessoas disputam a mesma coisa, o cargo desempata: <strong>analista tem
+        preferência no home office</strong> e <strong>técnico na posição presencial</strong> —
+        é quem precisa estar perto do equipamento. Quem não é nem um nem outro não ganha nem
+        perde prioridade.
+      </p>
+
+      <h3>Por que a mesma entrada dá sempre a mesma escala</h3>
+      <div class="porque">
+        Todos os critérios de desempate terminam no identificador da pessoa, então não há sorteio
+        em lugar nenhum. Regerar o mesmo mês sem mudar nada produz exatamente a mesma escala —
+        e é isso que torna a simulação confiável.
+      </div>
+    </section>
+
+    <section id="notificacoes">
+      <h2>Notificações</h2>
+      <p>
+        O sino no topo mostra o que mudou desde a última vez que você olhou. O que aparece
+        depende do papel, sem você configurar nada:
+      </p>
+      <ul class="marcado">
+        <li><strong>Colaborador</strong> — a devolutiva dos próprios pedidos e os convites de troca</li>
+        <li><strong>Gestor</strong> — o que chega da equipe para decisão</li>
+        <li><strong>Planejamento</strong> — o que entra em triagem</li>
+      </ul>
+      <p>
+        O que você mesmo fez não aparece. “Marcar como lidas” zera o contador; o histórico
+        completo continua na própria solicitação.
+      </p>
+      <div class="aviso atencao">
+        <p>
+          <strong>Nada sai do sistema.</strong> Não há e-mail nem push. Quem precisa responder
+          rápido deve abrir o Escala — o sino avisa lá dentro, não na caixa de entrada.
+        </p>
+      </div>
+    </section>
+
+    <section id="colaborador">
+      <h2>Guia do colaborador <span class="fita colaborador">Colaborador</span></h2>
+      <p>Você tem duas telas.</p>
+
+      <h3>Minha escala</h3>
+      <p>
+        Seus dias do mês, com a unidade de cada um. Só aparece depois que o Planejamento publica —
+        antes disso a escala ainda é rascunho e pode mudar.
+      </p>
+
+      <h3>Minhas solicitações</h3>
+      <p>
+        Abra um pedido pela própria escala. Para <strong>férias</strong>, informe início e fim: o
+        período inteiro é considerado, e quando aprovado já entra na escala daquele mês.
+      </p>
+      <p>
+        Em <strong>troca de plantão</strong>, o colega escolhido precisa aceitar antes de o pedido
+        chegar ao Planejamento. Se ele recusar, o pedido termina ali — e você é avisado no sino.
+      </p>
+      <div class="aviso atencao">
+        <p>
+          <strong>Não vê nada em “Minha escala”?</strong> Seu login provavelmente não está ligado
+          ao seu cadastro de colaborador. A própria tela diz isso quando é o caso. Peça ao
+          Planejamento para fazer o vínculo.
+        </p>
+      </div>
+    </section>
+
+    <section id="gestor">
+      <h2>Guia do gestor <span class="fita gestor">Gestor</span></h2>
+      <p>
+        Você enxerga <strong>apenas as equipes que gerencia</strong> — em todas as telas, inclusive
+        nos números.
+      </p>
+      <ul class="marcado">
+        <li><strong>Indicadores</strong> — absenteísmo, atrasos e aderência da sua equipe</li>
+        <li><strong>Escala</strong> — o calendário do mês, filtrado à sua equipe</li>
+        <li><strong>Ocupação</strong> — quantas pessoas <em>suas</em> estão em cada unidade</li>
+        <li><strong>Aprovações</strong> — o que a triagem encaminhou para você decidir</li>
+      </ul>
+      <div class="aviso atencao">
+        <p>
+          <strong>Ocupação mostra um recorte, não o prédio.</strong> Como você não enxerga as
+          outras equipes, “Morumbi 3” significa três pessoas <em>suas</em> ali — o prédio pode
+          estar cheio. A tela avisa isso no topo.
+        </p>
+      </div>
+      <p>
+        Recusar exige justificativa: ela vai para quem pediu e fica no histórico do pedido.
+      </p>
+    </section>
+
+    <section id="problemas">
+      <h2>Quando algo dá errado</h2>
+
+      <h3>A geração está bloqueada</h3>
+      <p>
+        Há pendência em algum plano. A tela de geração lista quais e de quem. As mais comuns:
+        distribuição que não soma 100%, e pessoa 12x36 sem ciclo definido no mês.
+      </p>
+
+      <h3>Alguém saiu como “Trabalho Externo”</h3>
+      <p>
+        Não sobrou posição para ela em nenhuma unidade elegível. O conflito na tela de geração diz
+        se faltou <em>lugar físico</em> ou se foi a <em>cota da equipe</em> que fechou — são
+        problemas diferentes e a mensagem distingue os dois.
+      </p>
+
+      <h3>Uma unidade aparece estourada</h3>
+      <p>
+        Decisões rígidas — travas e unidades fixas — podem, somadas, passar da capacidade. O motor
+        não desfaz decisão rígida, então reporta o conflito nomeando quem está fixado ali. Revise
+        as travas do dia ou a capacidade daquela data.
+      </p>
+
+      <h3>Muita gente em home no mesmo dia</h3>
+      <p>
+        Isso é esperado quando todos marcaram o mesmo dia de preferência — a preferência é a regra
+        primária. Para espalhar, remova a preferência de parte do time, ou marque dois dias em vez
+        de um: o sistema equilibra entre os dias marcados.
+      </p>
+
+      <h3>Não consigo excluir uma unidade</h3>
+      <p>
+        Se ela já tem escala gerada, a exclusão é recusada de propósito: a alocação é histórico
+        (“no dia 10/11 o Felipe estava no Morumbi”). Use <strong>desativar</strong> — a unidade
+        sai das próximas gerações e o passado continua íntegro.
+      </p>
+
+      <div class="aviso parada">
+        <p>
+          <strong>Mês encerrado não aceita mais nada.</strong> Nem solicitação, nem ajuste, nem
+          aprovação. Se precisar corrigir algo depois de encerrar, reabra o mês antes.
+        </p>
+      </div>
+    </section>
+
+    <section id="glossario">
+      <h2>Glossário</h2>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Termo</th><th>Significa</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Competência</strong></td><td>O mês de referência da escala</td></tr>
+            <tr><td><strong>Geração</strong></td><td>Uma versão da escala do mês. Cada nova geração cria uma versão nova</td></tr>
+            <tr><td><strong>Rascunho</strong></td><td>Escala gerada e ainda invisível para os colaboradores</td></tr>
+            <tr><td><strong>Trava</strong></td><td>Ajuste manual que sobrevive a novas gerações</td></tr>
+            <tr><td><strong>Posição operacional</strong></td><td>Capacidade total menos as reservadas — o que o motor pode usar</td></tr>
+            <tr><td><strong>Posto</strong></td><td>Função exercida dentro de uma unidade, por dias seguidos de uma semana</td></tr>
+            <tr><td><strong>Aderência</strong></td><td>Quanto o realizado se aproximou da distribuição planejada, em dias</td></tr>
+            <tr><td><strong>Ciclo (12x36)</strong></td><td>Se a pessoa trabalha nos dias pares ou nos ímpares do mês</td></tr>
+            <tr><td><strong>Ocorrência</strong></td><td>Registro de atraso, falta ou observação lançado pelo gestor</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="rodape">
+  Escala — manual de operação. A precedência das regras também aparece dentro do sistema, em
+  Parâmetros → Regras do motor.
+</footer>
