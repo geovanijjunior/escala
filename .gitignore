@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# derivado de docs/manual.html por scripts/manual-artefato.mjs
+docs/manual-artefato.html
