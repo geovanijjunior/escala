@@ -97,21 +97,14 @@ roteiro.push(['ana', async p => {
   await foto(p, 'calendario-mes', `/calendario?${COMP}`);
   await foto(p, 'calendario-grade', `/calendario?${COMP}&vista=grade`, { janela: { width: 2100, height: 1320 } });
   await foto(p, 'calendario-dia', `/calendario?${COMP}&vista=dia&dia=2026-11-09`);
-  await foto(p, 'ocorrencia', `/calendario?${COMP}&vista=dia&dia=2026-11-09`, {
+  // A gaveta de ajuste: mover, travar e lançar ocorrência, um assunto embaixo
+  // do outro. Antes tudo isso ficava na linha da tabela, lado a lado.
+  await foto(p, 'ajustar-linha', `/calendario?${COMP}&vista=dia&dia=2026-11-09`, {
     recorte: 'table',
     antes: async pg => {
-      await pg.locator('button:text("Lançar ocorrência")').nth(4).click();
+      await pg.locator('button:text("Ajustar")').nth(4).click();
       await pg.locator('form:has(button:text("Registrar")) select[name="tipo"]').first().selectOption('SAIDA_ANTEC');
       await pg.waitForTimeout(300);
-    },
-  });
-  // Novembro está publicada, então a linha traz o seletor de quem avisar — é o
-  // que diferencia mexer na escala antes e depois de publicar.
-  await foto(p, 'alterar-publicada', `/calendario?${COMP}&vista=dia&dia=2026-11-11`, {
-    recorte: 'table',
-    antes: async pg => {
-      await pg.locator('select[name="alcance"]').first().selectOption('todos');
-      await pg.waitForTimeout(200);
     },
   });
   await foto(p, 'calendario-filtro', `/calendario?${COMP}&q=felipe`);
@@ -147,6 +140,37 @@ roteiro.push(['ana', async p => {
     await foto(p, 'gerar-bloqueado', `/gerar?${COMP}`);
   } finally {
     await db.query(`delete from plano_unidade_fixa where plano_id = $1 and dow = 3`, [plano]);
+  }
+}]);
+
+// ── A caixa de saída, com alterações de verdade dentro ──────────────
+//
+// A barra só existe quando há o que comunicar, e o que há de comunicar vem de
+// mover gente. O roteiro move duas pessoas pela própria tela, fotografa, e
+// devolve tudo ao lugar — as outras fotos precisam do mês limpo.
+roteiro.push(['ana', async p => {
+  const mover = async (dia, destino) => {
+    await p.goto(`${BASE}/calendario?${COMP}&vista=dia&dia=${dia}`, { waitUntil: 'networkidle' });
+    await p.locator('button:text("Ajustar")').first().click();
+    await p.waitForTimeout(150);
+    const f = p.locator('form:has(button:text("Mover"))').first();
+    const antes = await f.locator('select[name="destino"]').inputValue();
+    await f.locator('select[name="destino"]').selectOption(destino);
+    await f.locator('button:text("Mover")').click();
+    await p.waitForLoadState('networkidle');
+    return antes;
+  };
+
+  const original10 = await mover('2026-11-10', 'HOME');
+  const original12 = await mover('2026-11-12', 'EXTERNO');
+  try {
+    await foto(p, 'alteracoes-pendentes', `/calendario?${COMP}`, {
+      recorte: '#alteracoes-pendentes',
+    });
+  } finally {
+    await mover('2026-11-10', original10);
+    await mover('2026-11-12', original12);
+    await db.query('delete from alteracoes_pendentes');
   }
 }]);
 

@@ -9,7 +9,7 @@ export const MODALIDADES: Record<
   Exclude<Modalidade, 'UNIDADE'>,
   { label: string; sigla: string; cor: string; bg: string; tipo: 'REMOTO' | 'AUSENCIA' }
 > = {
-  HOME: { label: 'Home Office', sigla: 'HO', cor: '#6D28D9', bg: '#EDE9FE', tipo: 'REMOTO' },
+  HOME: { label: 'Home Office', sigla: 'HOME', cor: '#6D28D9', bg: '#EDE9FE', tipo: 'REMOTO' },
   EXTERNO: { label: 'Trabalho Externo', sigla: 'EXT', cor: '#0A6E8A', bg: '#CFFAFE', tipo: 'REMOTO' },
   EVENTO: { label: 'Evento', sigla: 'EVT', cor: '#C2410C', bg: '#FFEDD5', tipo: 'REMOTO' },
   TREINA: { label: 'Treinamento', sigla: 'TRE', cor: '#7C3AED', bg: '#F3E8FF', tipo: 'REMOTO' },

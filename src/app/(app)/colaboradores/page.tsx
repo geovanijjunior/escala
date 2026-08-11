@@ -153,7 +153,7 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
                             <div className="flex gap-1 mt-0.5">
                               <Badge cor="var(--brand-700)" bg="var(--brand-100)">{c.regime}</Badge>
                               <Badge cor="var(--muted)" bg="var(--bg)">{c.turno === 'N' ? 'Noturno' : 'Diurno'}</Badge>
-                              {c.elegHome && <Badge cor="#6D28D9" bg="#EDE9FE">HO</Badge>}
+                              {c.elegHome && <Badge cor="#6D28D9" bg="#EDE9FE">HOME</Badge>}
                             </div>
                           </td>
                           <td className="esc-num" style={{ color: 'var(--muted)' }}>

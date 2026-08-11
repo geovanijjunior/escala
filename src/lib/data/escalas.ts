@@ -208,6 +208,38 @@ export interface ContextoMes {
   config: ConfigEscalas;
 }
 
+/**
+ * Plano do mês, caindo para o mês anterior de quem ainda não tem um.
+ *
+ * A distribuição entre unidades, o home office, a unidade fixa e o posto são
+ * configuração recorrente: mudam de vez em quando, não todo mês. Exigir que
+ * fossem redigitados a cada competência produzia meses sem plano nenhum — e
+ * mês sem plano não é "mês sem regra", é uma pessoa que o motor distribui como
+ * se nada tivesse sido combinado com ela.
+ *
+ * O que NÃO é herdado são férias e ausências, e não por esquecimento: elas são
+ * eventos datados, vêm de solicitação aprovada, e repeti-las no mês seguinte
+ * marcaria de férias quem já voltou. Por isso elas nem passam por aqui — vivem
+ * em `ausencias`, com data própria.
+ *
+ * `linhas` vem ordenada da competência mais recente para a mais antiga, então
+ * a primeira ocorrência de cada colaborador é o plano mais novo que ele tem.
+ */
+function comHeranca(linhas: LinhaPlano[], competencia: string): PlanoMensal[] {
+  const escolhido = new Map<number, LinhaPlano>();
+  for (const l of linhas) {
+    if (!escolhido.has(l.colaborador_id)) escolhido.set(l.colaborador_id, l);
+  }
+  return [...escolhido.values()].map(l => ({
+    ...paraPlano(l),
+    // A competência passa a ser a do mês pedido: o motor trabalha sobre este
+    // mês, e um plano que se apresenta como sendo de outro romperia toda
+    // comparação por competência daqui pra frente.
+    competencia,
+    herdadoDe: l.competencia === competencia ? null : l.competencia,
+  }));
+}
+
 export async function carregarContextoMes(competencia: string, contaId: string): Promise<ContextoMes> {
   const supabase = await createClient();
   const [ano, mes] = partesIso(competencia);
@@ -219,10 +251,15 @@ export async function carregarContextoMes(competencia: string, contaId: string):
     listarEquipes(),
     listarColaboradores(),
     getConfig(contaId),
+    // O mês em questão e os doze anteriores, na mesma consulta: os anteriores
+    // servem para herdar as regras de quem ainda não tem plano deste mês. Ver
+    // `comHeranca` logo abaixo.
     supabase
       .from('planos')
       .select('*, plano_distribuicao(unidade_id, percentual), plano_unidade_fixa(dow, unidade_id), plano_posto(posto_id, dias, semana)')
-      .eq('competencia', competencia),
+      .lte('competencia', competencia)
+      .gte('competencia', iso(ano - 1, mes, 1))
+      .order('competencia', { ascending: false }),
     // Ausências que interceptam o mês, mesmo tendo começado antes dele.
     supabase
       .from('ausencias')
@@ -249,7 +286,7 @@ export async function carregarContextoMes(competencia: string, contaId: string):
 
   return {
     competencia, ano, mes, unidades, equipes, colaboradores, config,
-    planos: ((planosRes.data ?? []) as LinhaPlano[]).map(paraPlano),
+    planos: comHeranca((planosRes.data ?? []) as LinhaPlano[], competencia),
     ausencias,
     capacidades: ((capRes.data ?? []) as { unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[])
       .map(c => ({ unidadeId: c.unidade_id, dow: c.dow, data: c.data, total: c.total, reservadas: c.reservadas })),
@@ -547,4 +584,91 @@ export async function listarNotificacoes(
     .slice(0, limite);
 
   return { itens, naoLidas: itens.filter(i => i.naoLida).length };
+}
+
+/** Uma ausência de outra pessoa que cai dentro do período pedido. */
+export interface AusenciaSobreposta {
+  colaboradorId: number;
+  nome: string;
+  tipo: 'FERIAS' | 'AUSENCIA';
+  motivo: string;
+  inicio: string;
+  fim: string;
+}
+
+/**
+ * Quem mais está fora no período — o contexto que falta para decidir férias.
+ *
+ * O gestor decidia com um pedido isolado na tela e nenhuma noção de quantos da
+ * equipe já estavam fora naquelas semanas. A informação existia (em Planos, mês
+ * a mês), mas exigia sair da decisão para procurá-la, e na prática ninguém saía:
+ * aprovava-se, e o buraco aparecia na semana da folha.
+ *
+ * A RLS já recorta — o gestor enxerga a equipe dele. O pedido em questão sai da
+ * lista, senão a pessoa apareceria como concorrente de si mesma.
+ */
+export async function listarAusenciasSobrepostas(
+  inicio: string,
+  fim: string,
+  exceto: number,
+): Promise<AusenciaSobreposta[]> {
+  const supabase = await createClient();
+
+  // `ausencias` guarda início e duração, não fim, então a consulta não consegue
+  // filtrar o fim no banco: busca uma janela generosa para trás e recorta aqui.
+  const linhas = conferir('listarAusenciasSobrepostas', await supabase
+    .from('ausencias')
+    .select('colaborador_id, tipo, motivo, inicio, dias, colaboradores(nome)')
+    .lte('inicio', fim)
+    .gte('inicio', addDias(inicio, -365))) ?? [];
+
+  return (linhas as unknown as {
+    colaborador_id: number; tipo: 'FERIAS' | 'AUSENCIA'; motivo: string | null;
+    inicio: string; dias: number; colaboradores: { nome: string } | null;
+  }[])
+    .filter(a => a.colaborador_id !== exceto)
+    .map(a => ({
+      colaboradorId: a.colaborador_id,
+      nome: a.colaboradores?.nome ?? `Colaborador ${a.colaborador_id}`,
+      tipo: a.tipo,
+      motivo: a.motivo ?? '',
+      inicio: a.inicio,
+      fim: addDias(a.inicio, Math.max(1, a.dias) - 1),
+    }))
+    .filter(a => a.fim >= inicio)
+    .sort((x, y) => x.inicio.localeCompare(y.inicio) || x.nome.localeCompare(y.nome));
+}
+
+/** Uma alteração feita na escala publicada e ainda não comunicada. */
+export interface AlteracaoPendente {
+  id: number;
+  colaboradorId: number;
+  colaboradorNome: string;
+  data: string;
+  de: string;
+  para: string;
+  porNome: string;
+}
+
+/** A caixa de saída da geração: o que mudou e ainda não foi avisado. */
+export async function listarAlteracoesPendentes(geracaoId: number): Promise<AlteracaoPendente[]> {
+  const supabase = await createClient();
+  const linhas = conferir('listarAlteracoesPendentes', await supabase
+    .from('alteracoes_pendentes')
+    .select('id, colaborador_id, data, de, para, por_nome, colaboradores(nome)')
+    .eq('geracao_id', geracaoId)
+    .order('data')) ?? [];
+
+  return (linhas as unknown as {
+    id: number; colaborador_id: number; data: string; de: string; para: string;
+    por_nome: string; colaboradores: { nome: string } | null;
+  }[]).map(l => ({
+    id: l.id,
+    colaboradorId: l.colaborador_id,
+    colaboradorNome: l.colaboradores?.nome ?? `Colaborador ${l.colaborador_id}`,
+    data: l.data,
+    de: l.de,
+    para: l.para,
+    porNome: l.por_nome,
+  }));
 }

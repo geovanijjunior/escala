@@ -926,16 +926,38 @@
 
       <p>Os três cartões do topo respondem, em ordem, às três perguntas do começo do mês:</p>
       <dl class="campos">
-        <div><dt>Planos configurados</dt><dd>Quantas pessoas ativas já têm plano deste mês. Falta alguém? A linha dela está na tabela, sem distribuição.</dd></div>
+        <div><dt>Planos em vigor</dt><dd>Quantas pessoas ativas têm plano valendo neste mês, e quantos desses vieram herdados. Falta alguém? A linha dela está na tabela, sem distribuição.</dd></div>
         <div><dt>Pendências</dt><dd>Erros de configuração que <b>bloqueiam a geração</b>. Enquanto for maior que zero, a tela de geração não simula.</dd></div>
         <div><dt>Ausências no mês</dt><dd>Férias e ausências que tocam este mês, inclusive as que começaram no mês anterior.</dd></div>
       </dl>
 
+      <h3>O plano se carrega de um mês para o outro</h3>
       <p>
-        O botão <strong>Copiar de <em>mês anterior</em></strong> aparece quando o mês anterior
-        tem planos e este ainda não está completo. Ele traz a configuração de quem ainda não
-        tem plano, sem sobrescrever quem já tem.
+        Distribuição entre unidades, home office, unidade fixa e posto são configuração
+        recorrente: mudam de vez em quando, não todo mês. Quem não tem plano deste mês
+        <strong>continua valendo o do mês anterior</strong> — a linha dela na tabela traz a
+        etiqueta <em>herda <span class="esc-num">mês/ano</span></em>, e o editor abre já com as
+        regras herdadas, avisando de onde vieram.
       </p>
+      <div class="aviso atencao">
+        <p>
+          <strong>Férias e ausências nunca são herdadas.</strong> Elas são eventos datados e
+          vêm exclusivamente das solicitações aprovadas. Repetir as férias de novembro em
+          dezembro marcaria de férias quem já voltou.
+        </p>
+      </div>
+      <p>
+        Salvar o plano fixa uma cópia neste mês; a partir daí, editar o mês de origem não mexe
+        mais aqui. O botão <strong>Fixar aqui as regras de <em>mês anterior</em></strong> faz
+        isso de uma vez para todo mundo que está herdando.
+      </p>
+      <div class="porque">
+        <strong>Por que herdar em vez de exigir o redigite.</strong> Antes, mês sem plano era
+        mês sem regra: a pessoa caía 100% na unidade base e o combinado com ela — dois dias de
+        home office, quarta no Paulista — simplesmente sumia até alguém reconfigurar. Herdar
+        transforma o esquecimento em continuidade, que é o comportamento que quase sempre está
+        certo, e deixa visível quando a regra é só repetição do que já vinha.
+      </div>
 
       <h3>O editor de plano</h3>
       <p>
@@ -1155,6 +1177,15 @@
         A escala pronta, em três formas de olhar: o mês, a grade e o dia.
       </p>
 
+      <div class="porque">
+        <strong>Mês sem escala gerada ainda mostra alguma coisa.</strong> Férias e ausências
+        aprovadas não dependem da escala — já são fato antes de qualquer geração. Por isso o
+        Planejamento e o gestor veem, num mês ainda não gerado, um calendário só com quem está
+        fora. Antes esta tela era um beco com o aviso de que nada foi gerado, e quem montava
+        dezembro em novembro tinha de ir a <em>Planos do mês</em>, uma pessoa por vez, para
+        descobrir quem estaria de férias.
+      </div>
+
       <h3>Vista de mês</h3>
       <figure class="tela">
         <img src="imagens/calendario-mes.png" alt="Calendário de novembro de 2026 em formato de mês, com cada dia mostrando as contagens por unidade, home office e férias, e os feriados nomeados.">
@@ -1194,25 +1225,37 @@
           o posto que ele cobre naquela semana.
         </figcaption>
       </figure>
-      <p>É a tela do ajuste fino. Nela você pode:</p>
+      <p>
+        É a tela do ajuste fino. A tabela mostra o estado — quem está onde, o horário, o posto,
+        as ocorrências do dia — e cada linha tem um botão <strong>Ajustar</strong> que abre uma
+        gaveta logo abaixo dela, com três assuntos separados:
+      </p>
       <ul class="marcado">
         <li>
-          <strong>Mover</strong> alguém para outra unidade ou modalidade — Home Office,
-          Trabalho Externo, Evento, Treinamento, Folga, Afastamento.
+          <strong>Alocação</strong> — mover a pessoa para outra unidade ou modalidade: Home
+          Office, Trabalho Externo, Evento, Treinamento, Folga, Afastamento.
         </li>
         <li>
-          <strong>Travar</strong> a alocação. Trava é decisão tomada: o motor a respeita antes
-          de qualquer outra regra e ela sobrevive a uma nova geração.
+          <strong>Trava</strong> — decisão tomada. O motor a respeita antes de qualquer outra
+          regra e ela sobrevive a uma nova geração.
         </li>
         <li>
-          <strong>Lançar ocorrência</strong> pelo botão na linha da própria pessoa.
+          <strong>Ocorrência</strong> — o que aconteceu no dia, com a pessoa já escolhida.
         </li>
       </ul>
 
+      <figure class="tela">
+        <img src="imagens/ajustar-linha.png" alt="Tabela do dia com a gaveta de Felipe Souza aberta: a seção Alocação com o seletor de unidade, o botão Mover e Travar neste dia, e abaixo a seção Lançar ocorrência com o tipo Saída antecipada e o campo de horário.">
+        <figcaption>
+          <b>A gaveta de ajuste</b> — um botão por linha, e dentro dele os controles agrupados
+          por assunto. Antes tudo isso ficava na própria linha, lado a lado: em treze linhas
+          seguidas, os controles para mudar a escala escondiam a escala.
+        </figcaption>
+      </figure>
+
       <h4>Lançar ocorrência</h4>
       <p>
-        O botão fica na linha de cada colaborador e abre o formulário logo abaixo dela, com a pessoa
-        já escolhida. Os campos mudam conforme o tipo, porque cada tipo mede uma coisa diferente:
+        Os campos mudam conforme o tipo, porque cada tipo mede uma coisa diferente:
       </p>
       <div class="tabela-rolo">
         <table>
@@ -1228,13 +1271,19 @@
           </tbody>
         </table>
       </div>
-      <figure class="tela">
-        <img src="imagens/ocorrencia.png" alt="Tabela do dia com o formulário de ocorrência aberto sob a linha de Felipe Souza, mostrando o tipo Saída antecipada e o campo de horário de saída.">
-        <figcaption>
-          <b>Ocorrência</b> — em <em>Saída antecipada</em> você informa a hora; quantos minutos isso
-          deu é conta do sistema, contra a jornada da pessoa naquele dia.
-        </figcaption>
-      </figure>
+      <p>
+        Em <em>Saída antecipada</em> você informa a hora; quantos minutos isso deu é conta do
+        sistema, contra a jornada da pessoa naquele dia.
+      </p>
+      <div class="aviso atencao">
+        <p>
+          <strong>Ocorrência só existe em escala publicada.</strong> Enquanto o mês está em
+          rascunho a gaveta traz apenas a alocação e a trava. Ocorrência é registro do que
+          aconteceu, e nada acontece contra uma escala que ninguém viu: em rascunho o dia ainda
+          é hipótese, e lançar o atraso de um turno que pode nem existir na versão publicada só
+          cria registro para apagar depois.
+        </p>
+      </div>
       <div class="aviso atencao">
         <p>
           <strong>Trava é para exceção, não para rotina.</strong> Cada trava é um pedaço da
@@ -1248,22 +1297,32 @@
         Antes de publicar, o Planejamento mexe à vontade: ninguém organizou nada em cima daquilo
         ainda. Depois de publicar é diferente — mover alguém muda o dia de uma pessoa que já se
         programou. A escala publicada continua editável, pelo Planejamento <em>e</em> pelo gestor
-        da equipe, mas cada alteração passa a avisar quem depende dela.
+        da equipe, mas o que muda vira uma alteração <strong>pendente de comunicação</strong>.
+      </p>
+      <p>
+        Na prática: você move as pessoas normalmente, quantas forem preciso. A escala muda na
+        hora — você vê o resultado e os conflitos recalculados a cada movimento — e ninguém é
+        avisado ainda. No topo da tela aparece uma barra com tudo o que está esperando para ser
+        comunicado.
       </p>
       <figure class="tela">
-        <img src="imagens/alterar-publicada.png" alt="Tabela do detalhe do dia com a escala publicada: além do seletor de alocação e do botão Mover, cada linha tem um seletor Avisar com as opções Só quem mudou e Toda a escala.">
+        <img src="imagens/alteracoes-pendentes.png" alt="Barra amarela no topo do calendário: 2 alterações que a equipe ainda não recebeu, com o seletor Avisar, o botão Publicar alterações, o botão Não avisar e a lista das duas mudanças de Bruno Alencar.">
         <figcaption>
-          <b>Mover com aviso</b> — na escala publicada, cada linha ganha o seletor
-          <em>Avisar</em>. Na linha de Bruno Alencar ele está em <em>Toda a escala</em>; nas
-          demais, no padrão <em>Só quem mudou</em>.
+          <b>A caixa de saída</b> — o que já mudou na escala e a equipe ainda não sabe. Enquanto
+          esta barra estiver aqui, o que você vê e o que a equipe vê são coisas diferentes.
         </figcaption>
       </figure>
+      <ol class="passos">
+        <li><strong>Mexa o quanto precisar.</strong> Cada movimento entra na lista. Mover a mesma pessoa três vezes no mesmo dia conta como uma alteração, do ponto de partida ao destino final.</li>
+        <li><strong>Confira os conflitos.</strong> O cabeçalho da escala mostra os conflitos e alertas <em>do estado atual</em>, recalculados a cada movimento.</li>
+        <li><strong>Escolha quem avisar</strong> e clique em <strong>Publicar alterações</strong>. É o momento em que a equipe recebe.</li>
+      </ol>
       <dl class="campos">
         <div>
           <dt>Avisar: Só quem mudou</dt>
           <dd>
-            É o padrão. A pessoa movida recebe o aviso no sino. Serve para o ajuste que só
-            afeta ela — trocar a unidade de um dia, mandar alguém para home office.
+            É o padrão. Cada pessoa movida recebe o aviso no sino, com o dia e o destino. Serve
+            para o ajuste que só afeta ela.
           </dd>
         </div>
         <div>
@@ -1273,14 +1332,45 @@
             rotina dos outros: fechar um andar, cancelar um evento, remanejar um plantão.
           </dd>
         </div>
+        <div>
+          <dt>Não avisar</dt>
+          <dd>
+            Esvazia a lista sem mandar nada. <strong>A escala continua alterada</strong> — o que
+            se descarta é o aviso, não a mudança. Use para correção de digitação, não para
+            mudança de verdade.
+          </dd>
+        </div>
       </dl>
       <div class="porque">
-        <strong>Por que o gestor é sempre avisado.</strong> A escolha acima decide quem <em>mais</em>
-        recebe o aviso — o gestor da pessoa movida recebe nos dois casos, e não há como
+        <strong>Por que não avisar a cada movimento.</strong> A versão anterior mandava o aviso
+        na hora de cada clique. Reorganizar dez linhas mandava dez avisos para as mesmas pessoas,
+        e alguns descreviam estados intermediários que não sobreviveram aos cinco minutos
+        seguintes — mover A antes de mover B lota a unidade no meio do caminho. O efeito prático
+        era que ninguém reorganizava nada, ou reorganizava correndo. Agora o trabalho é livre e
+        a comunicação é um ato consciente.
+      </div>
+      <div class="porque">
+        <strong>Conflito aqui não trava nada.</strong> Durante a reorganização o sistema mostra
+        os conflitos e alertas, mas nenhuma ação é impedida. É deliberado: para chegar num estado
+        válido às vezes é preciso passar por um inválido, e travar a primeira metade da operação
+        impediria a segunda. Na geração é o contrário — lá o conflito bloqueia, porque não há
+        segunda metade nenhuma vindo.
+      </div>
+      <div class="porque">
+        <strong>Por que o gestor é sempre avisado.</strong> A escolha de alcance decide quem
+        <em>mais</em> recebe — o gestor da pessoa movida recebe nos dois casos, e não há como
         desmarcar. A alteração é da equipe dele e é ele quem responde por ela na segunda-feira;
         descobrir a mudança pela pessoa, e não pelo sistema, é o arranjo que corrói a confiança
-        na escala. Toda alteração também entra no log de auditoria, com autor, data e o que
-        mudou, visível ao Planejamento e ao gestor em <em>Parâmetros → Auditoria</em>.
+        na escala. Toda alteração também entra no log de auditoria no instante em que acontece,
+        com autor, data e o que mudou, visível ao Planejamento e ao gestor em
+        <em>Parâmetros → Auditoria</em> — o log não espera pela publicação.
+      </div>
+      <div class="aviso atencao">
+        <p>
+          <strong>Regerar o mês limpa a caixa de saída.</strong> As alterações pendentes descrevem
+          movimentos sobre uma versão da escala que a nova geração substituiu; comunicá-las depois
+          avisaria a equipe de mudanças que já foram refeitas ou desfeitas.
+        </p>
       </div>
       <div class="aviso atencao">
         <p>
@@ -1344,7 +1434,7 @@
         <div class="seta">↓</div>
         <div class="etapa"><span class="nome">Em triagem</span><span class="oque">O Planejamento confere se cabe na escala e decide o encaminhamento.</span></div>
         <div class="seta">↓</div>
-        <div class="etapa"><span class="nome">Com o gestor</span><span class="oque">O gestor da equipe aprova ou recusa. <em>A recusa exige motivo escrito.</em></span></div>
+        <div class="etapa"><span class="nome">Com o gestor</span><span class="oque">O gestor da equipe aprova, recusa ou manda para a lista de espera. <em>A partir daqui a decisão é dele, e só dele. A recusa exige motivo escrito.</em></span></div>
         <div class="seta">↓</div>
         <div class="etapa"><span class="nome">Aprovada</span><span class="oque">O pedido é aplicado na escala do dia e a alocação é travada, para não ser desfeita por uma regeração.</span></div>
       </div>
@@ -1380,10 +1470,33 @@
           triagem.
         </figcaption>
       </figure>
+      <p>Três ações:</p>
+      <ul class="marcado">
+        <li><strong>Aprovar</strong> — aplica o pedido na escala e trava a alocação.</li>
+        <li><strong>Enviar para a lista de espera</strong> — guarda o pedido na ordem de chegada, para os tipos que aceitam fila. Serve para o pedido bom que caiu numa data cheia: recusar apagaria o pedido e obrigaria a pessoa a abrir outro quando a data abrisse.</li>
+        <li><strong>Recusar</strong> — pede o motivo, que chega a quem pediu.</li>
+      </ul>
       <p>
-        Duas ações: <strong>Aprovar</strong>, que aplica o pedido na escala e trava a alocação,
-        e <strong>Recusar</strong>, que pede o motivo. O histórico do pedido, com cada etapa e
-        quem a executou, fica no próprio cartão sob <strong>Histórico</strong>.
+        O histórico do pedido, com cada etapa e quem a executou, fica no próprio cartão sob
+        <strong>Histórico</strong>.
+      </p>
+      <div class="porque">
+        <strong>Depois de encaminhado, a decisão é só do gestor.</strong> O Planejamento continua
+        vendo o cartão, mas sem botão — o cartão diz apenas que a decisão passou a ser do gestor
+        da equipe. Antes os dois podiam decidir, e o gestor nunca sabia se o pedido ainda era
+        dele; dois aprovadores sobre a mesma linha é como uma decisão acaba tomada duas vezes,
+        em sentidos opostos. Encaminhar é delegar, e delegar com o botão ainda na mão de quem
+        delegou não delega nada. O Planejamento que quiser resolver sozinho tem
+        <em>Aprovar direto</em>, na triagem, antes de encaminhar.
+      </div>
+
+      <h4>Férias: quem mais está fora</h4>
+      <p>
+        Num pedido de <strong>férias</strong> esperando decisão, o cartão mostra quem mais da
+        equipe já tem férias ou ausência que se sobrepõem àquele período, com as datas de cada
+        um — ou avisa, em verde, que ninguém mais está fora. A informação sempre existiu, mas
+        vivia em <em>Planos do mês</em>, uma pessoa e um mês por vez; na prática ninguém saía da
+        decisão para ir buscá-la, e o buraco aparecia na semana da folha.
       </p>
 
       <h3>Os tipos de pedido</h3>
@@ -1565,7 +1678,7 @@
       <ul class="marcado">
         <li>Os quatro cartões do topo são os próximos dias em que você trabalha, com o local e o horário.</li>
         <li>No calendário, cada dia traz a sigla da unidade e o horário de entrada. Quando você está destacado num posto, o nome dele aparece no lugar do horário.</li>
-        <li>A legenda no rodapé traduz as siglas: as unidades, <strong>HO</strong> para home office, <strong>FÉR</strong> para férias e <strong>AUS</strong> para ausência.</li>
+        <li>A legenda no rodapé traduz as siglas: as unidades, <strong>HOME</strong> para home office, <strong>FÉR</strong> para férias e <strong>AUS</strong> para ausência.</li>
         <li>Se a escala ainda estiver em rascunho, uma faixa amarela avisa que as datas podem mudar.</li>
         <li>Mês sem escala publicada mostra um aviso — você continua podendo abrir solicitações.</li>
       </ul>
@@ -1640,9 +1753,14 @@
       <h3>Quando a sua escala muda</h3>
       <p>
         Depois de publicada, a escala ainda pode ser ajustada pelo Planejamento ou pelo seu
-        gestor. Toda alteração que atinge você gera um aviso no sino, dizendo a data e como
-        ficou. Clicar no aviso abre aquele dia. Se o seu dia mudou sem que você tenha recebido
-        aviso, fale com o gestor: alguma coisa saiu do combinado.
+        gestor. Toda alteração que atinge você gera um aviso no sino, dizendo o dia, de onde
+        para onde mudou, e quem mudou. Clicar no aviso abre aquele dia.
+      </p>
+      <p>
+        O aviso chega quando quem reorganizou termina o trabalho e confirma, não a cada clique
+        dele. Isso é de propósito: uma reorganização de dez linhas mandaria dez avisos, alguns
+        sobre estados que não sobreviveram aos cinco minutos seguintes. Se o seu dia mudou e
+        nenhum aviso chegou, fale com o gestor — alguma coisa saiu do combinado.
       </p>
     </section>
 
@@ -1667,14 +1785,19 @@
 
       <h3>O que você pode fazer</h3>
       <ul class="marcado">
-        <li><strong>Aprovar ou recusar</strong> as solicitações que a triagem encaminhou. Recusar pede motivo, e o motivo chega a quem pediu.</li>
-        <li><strong>Consultar</strong> o calendário e a ocupação da equipe, no mês que quiser.</li>
-        <li><strong>Lançar ocorrências</strong> — atraso, falta justificada, falta não justificada — pelo detalhe do dia.</li>
         <li>
-          <strong>Ajustar a escala publicada</strong> da sua equipe, pelo detalhe do dia. Cada
-          alteração avisa a pessoa movida e entra no log; você escolhe se o aviso vai só para
-          ela ou para toda a escala do mês. Ver
-          <a href="#calendario">Alterar uma escala já publicada</a>.
+          <strong>Decidir</strong> as solicitações que a triagem encaminhou: aprovar, mandar
+          para a lista de espera, ou recusar com motivo. A partir do encaminhamento a decisão
+          é sua — o Planejamento vê o cartão, mas não decide por você. Num pedido de férias, o
+          cartão mostra quem mais da equipe já está fora naquele período.
+        </li>
+        <li><strong>Consultar</strong> o calendário e a ocupação da equipe, no mês que quiser — inclusive as férias já aprovadas de um mês que ainda não foi gerado.</li>
+        <li><strong>Lançar ocorrências</strong> — atraso, falta justificada, falta não justificada — pelo detalhe do dia, em escala publicada.</li>
+        <li>
+          <strong>Ajustar a escala publicada</strong> da sua equipe, pelo detalhe do dia. As
+          alterações se acumulam e só chegam à equipe quando você clicar em <em>Publicar
+          alterações</em>, escolhendo ali se o aviso vai só para quem mudou ou para toda a
+          escala. Ver <a href="#calendario">Alterar uma escala já publicada</a>.
         </li>
         <li>
           <strong>Publicar comunicados</strong> para a sua equipe, com imagem ou PDF anexado.
@@ -1822,6 +1945,8 @@
         <div><dt>Aviso</dt><dd>Item do sino com destinatário nomeado: alteração na escala publicada ou comunicado novo. Diferente do andamento de um pedido, que o sino também mostra.</dd></div>
         <div><dt>Alcance do aviso</dt><dd>Ao mover alguém numa escala publicada: se o aviso vai só para quem mudou ou para toda a escala do mês. O gestor da pessoa recebe nos dois casos.</dd></div>
         <div><dt>Comunicado</dt><dd>Recado publicado no mural, com público (colaboradores ou gestores), equipe opcional e anexos.</dd></div>
+        <div><dt>Alteração pendente</dt><dd>Mudança feita numa escala publicada e ainda não comunicada à equipe. A escala já mudou; o aviso é que espera.</dd></div>
+        <div><dt>Plano herdado</dt><dd>Plano de um mês anterior que continua valendo neste, por não ter sido substituído. Não inclui férias nem ausências.</dd></div>
         <div><dt>Trabalho externo</dt><dd>Modalidade de quem trabalha fora das unidades — inclusive quando não sobrou posição para a pessoa.</dd></div>
       </dl>
     </section>

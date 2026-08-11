@@ -126,6 +126,16 @@ export interface PlanoMensal {
   unidadesFixas: Record<number, number>;
   /** Postos que esta pessoa cobre no mês. */
   postos: PostoDoPlano[];
+  /**
+   * Competência de onde as regras vieram, quando este mês não tem plano próprio
+   * e herdou o do mês anterior. Ausente quando o plano foi salvo neste mês.
+   *
+   * O motor ignora este campo — é informação para a tela dizer de onde a regra
+   * veio. Sem ela, plano herdado e plano conferido ficam indistinguíveis, e a
+   * diferença importa: um foi decidido para este mês, o outro só não foi
+   * revisado ainda.
+   */
+  herdadoDe?: string | null;
 }
 
 export interface CapacidadeOverride {

@@ -26,6 +26,7 @@ export default async function PlanosPage({ searchParams }: { searchParams: Promi
 
   const ativos = ctx.colaboradores.filter(c => c.status === 'ativo');
   const planoPorColab = new Map(ctx.planos.map(p => [p.colaboradorId, p]));
+  const herdados = ctx.planos.filter(p => p.herdadoDe).length;
   const equipePorId = new Map(ctx.equipes.map(e => [e.id, e]));
   const unidadePorId = new Map(ctx.unidades.map(u => [u.id, u]));
   const pendenciasPorColab = new Map<number, string[]>();
@@ -63,7 +64,13 @@ export default async function PlanosPage({ searchParams }: { searchParams: Promi
       <Aviso erro={texto(busca, 'erro') || undefined} ok={texto(busca, 'ok') || undefined} />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Planos configurados" valor={`${ctx.planos.length}/${ativos.length}`} sub="Colaboradores ativos" />
+        <Stat
+          label="Planos em vigor"
+          valor={`${ctx.planos.length}/${ativos.length}`}
+          sub={herdados > 0
+            ? `${herdados} herdado(s) de meses anteriores`
+            : 'Todos definidos neste mês'}
+        />
         <Stat
           label="Pendências"
           valor={pendencias.length}
@@ -89,14 +96,21 @@ export default async function PlanosPage({ searchParams }: { searchParams: Promi
 
       <Bloco
         titulo={`${listados.length} colaborador(es)`}
-        desc="Cada linha resume o que o motor vai usar neste mês. Sem plano, o colaborador cai 100% na unidade base."
+        desc={
+          'Cada linha resume o que o motor vai usar neste mês. Sem plano em lugar nenhum, o colaborador '
+          + 'cai 100% na unidade base; quem tem plano de um mês anterior o carrega para cá, exceto férias '
+          + 'e ausências, que vêm das solicitações aprovadas.'
+        }
         acoes={
-          temAnterior && ctx.planos.length < ativos.length ? (
+          // Herdar já acontece sozinho. Fixar serve para congelar: um plano
+          // herdado acompanha o mês de origem se ele for editado depois, e às
+          // vezes é justamente isso que não se quer.
+          temAnterior && herdados > 0 ? (
             <form action={copiarPlanosDoMes}>
               <input type="hidden" name="competencia" value={competencia} />
               <input type="hidden" name="origem" value={anterior} />
               <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">
-                Copiar de {formatarCompetencia(anterior)}
+                Fixar aqui as regras de {formatarCompetencia(anterior)}
               </button>
             </form>
           ) : undefined
@@ -150,7 +164,14 @@ export default async function PlanosPage({ searchParams }: { searchParams: Promi
                   return (
                     <tr key={c.id}>
                       <td>
-                        <div className="font-medium">{c.nome}</div>
+                        <div className="font-medium flex items-center gap-1.5 flex-wrap">
+                          {c.nome}
+                          {p?.herdadoDe && (
+                            <Badge cor="var(--muted)" bg="var(--bg)">
+                              herda {formatarCompetencia(p.herdadoDe)}
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-[10.5px]" style={{ color: 'var(--muted)' }}>
                           {c.cargo} · entrada {c.entrada}
                         </div>

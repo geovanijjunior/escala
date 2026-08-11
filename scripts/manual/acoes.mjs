@@ -150,19 +150,28 @@ await acao('salvarAusencia (ausência)', `/planos?${COMP}&colab=5`, async p => {
 }, "select count(*) c from ausencias where tipo='AUSENCIA'");
 
 // ── Calendário ────────────────────────────────────────────────
+// Mover, travar e lançar ocorrência vivem na gaveta que "Ajustar" abre — a
+// linha da tabela voltou a mostrar só o estado.
+const ajustar = async (p, i = 0) => {
+  await p.locator('button:text("Ajustar")').nth(i).click();
+  await p.waitForTimeout(120);
+};
+
 await acao('reposicionarAlocacao', `/calendario?${COMP}&vista=dia&dia=2026-11-10`, async p => {
+  await ajustar(p);
   const f = p.locator('form:has(button:text("Mover"))').first();
   await f.locator('select[name="destino"]').selectOption('HOME');
   await f.locator('button:text("Mover")').click();
 }, "select count(*) c from alocacoes where travado and data='2026-11-10'");
 
 await acao('alternarTrava', `/calendario?${COMP}&vista=dia&dia=2026-11-11`, async p => {
-  await p.locator('button:text("Travar")').first().click();
+  await ajustar(p);
+  await p.locator('button:text("Travar neste dia")').first().click();
 }, "select count(*) c from alocacoes where travado and data='2026-11-11'");
 
 // O lançamento virou um botão por linha, com campos que mudam pelo tipo.
 await acao('ocorrência: atraso', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
-  await p.locator('button:text("Lançar ocorrência")').first().click();
+  await ajustar(p);
   const f = p.locator('form:has(button:text("Registrar"))').first();
   await f.locator('select[name="tipo"]').selectOption('ATRASO');
   await f.locator('input[name="minutos"]').fill('20');
@@ -170,7 +179,7 @@ await acao('ocorrência: atraso', `/calendario?${COMP}&vista=dia&dia=2026-11-12`
 }, "select count(*) c from ocorrencias where tipo='ATRASO'");
 
 await acao('ocorrência: falta com dias', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
-  await p.locator('button:text("Lançar ocorrência")').first().click();
+  await ajustar(p);
   const f = p.locator('form:has(button:text("Registrar"))').first();
   await f.locator('select[name="tipo"]').selectOption('FALTA_J');
   await f.locator('input[name="dias"]').fill('3');
@@ -178,7 +187,7 @@ await acao('ocorrência: falta com dias', `/calendario?${COMP}&vista=dia&dia=202
 }, "select count(*) c from ocorrencias where tipo='FALTA_J' and dias = 3");
 
 await acao('ocorrência: saída antecipada', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
-  await p.locator('button:text("Lançar ocorrência")').first().click();
+  await ajustar(p);
   const f = p.locator('form:has(button:text("Registrar"))').first();
   await f.locator('select[name="tipo"]').selectOption('SAIDA_ANTEC');
   await f.locator('input[name="horaSaida"]').fill('15:00');
@@ -186,7 +195,7 @@ await acao('ocorrência: saída antecipada', `/calendario?${COMP}&vista=dia&dia=
 }, "select count(*) c from ocorrencias where tipo='SAIDA_ANTEC' and minutos = 120");
 
 await acao('ocorrência: troca com parceiro', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
-  await p.locator('button:text("Lançar ocorrência")').first().click();
+  await ajustar(p);
   const f = p.locator('form:has(button:text("Registrar"))').first();
   await f.locator('select[name="tipo"]').selectOption('TROCA');
   await f.locator('select[name="parceiroId"]').selectOption({ index: 1 });
@@ -194,9 +203,26 @@ await acao('ocorrência: troca com parceiro', `/calendario?${COMP}&vista=dia&dia
 }, "select count(*) c from ocorrencias where tipo='TROCA' and parceiro_id is not null");
 
 // ── Geração ───────────────────────────────────────────────────
+// A esta altura o `reposicionarAlocacao` lá em cima já deixou uma pendência na
+// escala publicada da massa — o cenário de que a regeração precisa dar conta.
+const PENDENTES_ANTES_DE_REGERAR = await conta('select count(*) c from alteracoes_pendentes');
+
 await acao('regerar mês completo', `/gerar?${COMP}`, async p => {
   await p.click('button:text("Regerar mês completo")');
 }, "select max(versao) c from geracoes where competencia='2026-11-01'", 2);
+
+// Regerar apaga a caixa de saída da versão que sai de cena: ela descreve
+// movimentos sobre uma escala que não existe mais, e a tela só lista as
+// pendências da versão vigente — o que ficasse seria lixo invisível.
+{
+  const depois = await conta('select count(*) c from alteracoes_pendentes');
+  if (PENDENTES_ANTES_DE_REGERAR === 0) {
+    console.log('  ?      regerar limpa a caixa de saída     sem pendência antes; nada a provar');
+  } else if (depois > 0) {
+    falhas++;
+    console.log(`  FALHOU regerar limpa a caixa de saída    sobraram ${depois} pendência(s) órfã(s)`);
+  } else console.log(`  ok     regerar limpa a caixa de saída    ${PENDENTES_ANTES_DE_REGERAR} → 0`);
+}
 
 await acao('regeração parcial', `/gerar?${COMP}`, async p => {
   const f = p.locator('form:has(button:text("Regerar apenas o recorte"))');
@@ -224,7 +250,40 @@ await acao('decidir: recusar', '/solicitacoes', async p => {
   await p.locator('button:text("Confirmar recusa")').click();
 }, "select count(*) c from solicitacoes where status='RECUSADA'");
 
+// Depois de encaminhada, o Planejamento perde o botão: a decisão é do gestor.
+{
+  await p.goto(`${BASE}/solicitacoes`, { waitUntil: 'networkidle' });
+  const texto = await p.evaluate(() => document.body.innerText);
+  const temBotao = await p.locator('button:text-is("Aprovar")').count();
+  const explica = /a decisão agora é do gestor/i.test(texto);
+  if (temBotao > 0 || !explica) {
+    falhas++;
+    console.log(`  FALHOU planejamento não decide depois     botões=${temBotao} explicação=${explica}`);
+  } else console.log('  ok     planejamento não decide depois');
+}
+
+// Uma solicitação de férias esperando o gestor, com um colega já de férias no
+// mesmo período: é o contexto que a tela precisa mostrar antes da decisão.
+await db.query(`insert into solicitacoes (conta_id, colaborador_id, tipo, data, data_fim, detalhe, status, opcao_ferias)
+  select c.id, 3, 'FERIAS', '2026-12-01', '2026-12-30', 'Férias de fim de ano', 'GESTOR', '30'
+  from contas c`);
+
 como(RICARDO);
+{
+  await p.goto(`${BASE}/solicitacoes`, { waitUntil: 'networkidle' });
+  const texto = await p.evaluate(() => document.body.innerText);
+  // A massa tem Carla de férias em dezembro, e o roteiro lançou mais uma acima.
+  const mostrou = /pessoa\(s\) da equipe já estão fora nesse período|Ninguém mais da equipe está fora/.test(texto);
+  if (!mostrou) {
+    falhas++;
+    console.log('  FALHOU férias sobrepostas p/ o gestor     nada sobre quem mais está fora');
+  } else console.log('  ok     férias sobrepostas p/ o gestor');
+}
+
+await acao('gestor manda para a fila', '/solicitacoes', async p => {
+  await p.locator('button:text("Enviar para a lista de espera")').first().click();
+}, "select count(*) c from solicitacoes where status='FILA'", 2);
+
 await acao('gestor aprova', '/solicitacoes', async p => {
   await p.locator('button:text("Aprovar")').first().click();
 }, "select count(*) c from solicitacoes where status='APROVADA'");
@@ -268,13 +327,13 @@ await acao('publicarComunicado (com anexos)', '/mural', async p => {
     { name: 'circular.pdf', mimeType: 'application/pdf', buffer: PDF },
   ]);
   await p.click('button:text("Publicar comunicado")');
-}, "select count(*) c from comunicado_anexos", 2);
+}, "select count(*) c from comunicado_anexos");
 
 // O anexo tem que voltar byte a byte: bytea que passa pelo hex errado vira um
 // PNG que o navegador recusa, e a tela não denuncia nada.
 {
   const { rows } = await db.query(
-    "select id, tamanho, octet_length(conteudo) real, tipo from comunicado_anexos order by id");
+    "select id, tamanho, octet_length(conteudo) real, tipo from comunicado_anexos order by id desc limit 2");
   const ruim = rows.find(r => Number(r.tamanho) !== Number(r.real));
   if (ruim) { falhas++; console.log(`  FALHOU anexo íntegro no banco            #${ruim.id}: ${ruim.tamanho} enviados, ${ruim.real} gravados`); }
   else {
@@ -292,7 +351,7 @@ await acao('publicarComunicado (gestores)', '/mural', async p => {
   await p.fill('textarea[name="corpo"]', 'Enviem os ajustes até sexta.');
   await p.selectOption('select[name="publico"]', 'gestores');
   await p.click('button:text("Publicar comunicado")');
-}, "select count(*) c from comunicados where publico='gestores'", 1);
+}, "select count(*) c from comunicados where publico='gestores'");
 
 // Comunicado para gestores não pode aparecer para colaborador: é aqui que a
 // policy vale ou não vale, e a consulta da tela não repete o filtro.
@@ -314,7 +373,7 @@ await acao('gestor publica p/ a equipe', '/mural', async p => {
   await p.fill('input[name="titulo"]', 'Reunião de time na terça');
   await p.fill('textarea[name="corpo"]', 'Sala 3, às 9h.');
   await p.click('button:text("Publicar comunicado")');
-}, "select count(*) c from comunicados where autor_nome = 'Ricardo Matos'", 1);
+}, "select count(*) c from comunicados where autor_nome = 'Ricardo Matos'");
 
 {
   const { rows } = await db.query(
@@ -332,42 +391,96 @@ await acao('publicar para a equipe', `/calendario?${COMP}`, async p => {
   await p.click('button:text("Publicar para a equipe")');
 }, "select count(*) c from geracoes where atual and status='publicada'", 1);
 
-await acao('mover avisando só os afetados', `/calendario?${COMP}&vista=dia&dia=2026-11-17`, async p => {
-  const f = p.locator('form:has(button:text("Mover"))').first();
-  await f.locator('select[name="destino"]').selectOption('HOME');
-  await f.locator('select[name="alcance"]').selectOption('afetados');
-  await f.locator('button:text("Mover")').click();
-}, "select count(*) c from avisos where rota like '%2026-11-17%'");
+// A massa já traz avisos de alteração; o que interessa aqui é o que sai DAGORA
+// em diante.
+const AVISOS_ANTES = await conta("select count(*) c from avisos where titulo like 'Escala alterada%'");
+let origem18 = '';
 
-const soAfetados = await conta("select count(*) c from avisos where rota like '%2026-11-17%'");
-await acao('mover avisando a escala toda', `/calendario?${COMP}&vista=dia&dia=2026-11-18`, async p => {
+await acao('mover 1 (nada é avisado ainda)', `/calendario?${COMP}&vista=dia&dia=2026-11-17`, async p => {
+  await ajustar(p);
   const f = p.locator('form:has(button:text("Mover"))').first();
   await f.locator('select[name="destino"]').selectOption('HOME');
-  await f.locator('select[name="alcance"]').selectOption('todos');
   await f.locator('button:text("Mover")').click();
-}, "select count(*) c from avisos where rota like '%2026-11-18%'");
+}, "select count(*) c from alteracoes_pendentes", 1);
+
+await acao('mover 2 na mesma leva', `/calendario?${COMP}&vista=dia&dia=2026-11-18`, async p => {
+  await ajustar(p);
+  const f = p.locator('form:has(button:text("Mover"))').first();
+  const sel = f.locator('select[name="destino"]');
+  origem18 = await sel.inputValue();
+  // Um destino diferente do atual: mover alguém para onde ela já está não é
+  // alteração, e o sistema (certo) não cria pendência nenhuma.
+  const opcoes = await sel.locator('option').evaluateAll(os => os.map(o => o.value));
+  await sel.selectOption(opcoes.find(v => v !== origem18));
+  await f.locator('button:text("Mover")').click();
+}, "select count(*) c from alteracoes_pendentes", 2);
+
+// O ponto todo do lote: mexer não avisa. Um aviso escapando aqui é um
+// "sua escala mudou" no meio de um trabalho inacabado.
+{
+  const agora = await conta("select count(*) c from avisos where titulo like 'Escala alterada%'");
+  if (agora > AVISOS_ANTES) {
+    falhas++;
+    console.log(`  FALHOU mexer não avisa                   ${agora - AVISOS_ANTES} aviso(s) saíram antes de publicar`);
+  } else console.log('  ok     mexer não avisa');
+}
+
+// Voltar ao ponto de partida desfaz a pendência: não há o que comunicar sobre
+// um dia que voltou a ser o que era.
+await acao('voltar atrás limpa a pendência', `/calendario?${COMP}&vista=dia&dia=2026-11-18`, async p => {
+  await ajustar(p);
+  const f = p.locator('form:has(button:text("Mover"))').first();
+  await f.locator('select[name="destino"]').selectOption(origem18);
+  await f.locator('button:text("Mover")').click();
+}, "select count(*) c from alteracoes_pendentes", 1);
+
+// A conferência roda sobre o que está no banco, não sobre a lembrança da
+// geração: a tela precisa falar do estado atual.
+{
+  await p.goto(`${BASE}/calendario?${COMP}`, { waitUntil: 'networkidle' });
+  const texto = await p.evaluate(() => document.body.innerText);
+  const temBarra = /alteração\(ões\) que a equipe ainda não recebeu/.test(texto);
+  const temEstado = /no estado atual/i.test(texto);
+  if (!temBarra || !temEstado) {
+    falhas++;
+    console.log(`  FALHOU barra de alterações pendentes     barra=${temBarra} conferência=${temEstado}`);
+  } else console.log('  ok     barra de alterações pendentes');
+}
+
+await acao('publicar alterações avisa a leva', `/calendario?${COMP}`, async p => {
+  await p.locator('select[name="alcance"]').selectOption('todos');
+  await p.locator('button:text("Publicar alterações")').click();
+}, "select count(*) c from alteracoes_pendentes", 0);
 
 {
-  const todos = await conta("select count(*) c from avisos where rota like '%2026-11-18%'");
-  if (todos <= soAfetados) {
+  const agora = await conta("select count(*) c from avisos where titulo like 'Escala alterada%'");
+  if (agora <= AVISOS_ANTES) {
     falhas++;
-    console.log(`  FALHOU "todos" avisa mais que "afetados"  afetados=${soAfetados}, todos=${todos}`);
-  } else console.log(`  ok     "todos" avisa mais que "afetados"  ${soAfetados} → ${todos}`);
+    console.log('  FALHOU publicar alterações avisa         nenhum aviso saiu');
+  } else console.log(`  ok     publicar alterações avisa         ${agora - AVISOS_ANTES} aviso(s)`);
 }
 
 // O gestor também altera depois de publicada, e o log fica para os dois.
 como(RICARDO);
 await acao('gestor move escala publicada', `/calendario?${COMP}&vista=dia&dia=2026-11-19`, async p => {
+  await ajustar(p);
   const f = p.locator('form:has(button:text("Mover"))').first();
   await f.locator('select[name="destino"]').selectOption('HOME');
   await f.locator('button:text("Mover")').click();
 }, "select count(*) c from logs where acao = 'Alocação ajustada'");
 
+await acao('descartar sem avisar', `/calendario?${COMP}`, async p => {
+  await p.locator('button:text("Não avisar")').click();
+}, "select count(*) c from alteracoes_pendentes", 0);
+
 // ── Remoção ───────────────────────────────────────────────────
 como(ANA);
-await acao('removerComunicado', '/mural', async p => {
-  await p.locator('button:text("Remover")').first().click();
-}, "select count(*) c from comunicados", 2);
+{
+  const antes = await conta('select count(*) c from comunicados');
+  await acao('removerComunicado', '/mural', async p => {
+    await p.locator('button:text("Remover")').first().click();
+  }, 'select count(*) c from comunicados', antes - 1);
+}
 
 await b.close();
 await db.end();

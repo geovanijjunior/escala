@@ -55,7 +55,7 @@ export function GradeDoMes({
     alocacoes.filter(a => a.data === data && a.modalidade === 'UNIDADE' && a.unidadeId === unidadeId).length;
 
   const linhasCsv: string[][] = [
-    ['Colaborador', 'Matrícula', 'Equipe', 'Cargo', 'Entrada', ...dias.map(String), ...ativas.map(u => u.sigla), 'HO'],
+    ['Colaborador', 'Matrícula', 'Equipe', 'Cargo', 'Entrada', ...dias.map(String), ...ativas.map(u => u.sigla), 'HOME'],
     ...ordenados.map(c => {
       const t = totalPorColab(c);
       return [
@@ -112,7 +112,7 @@ export function GradeDoMes({
                 );
               })}
               {ativas.map(u => <th key={u.id} className="text-center px-1">{u.sigla}</th>)}
-              <th className="text-center px-1">HO</th>
+              <th className="text-center px-1">HOME</th>
             </tr>
           </thead>
 

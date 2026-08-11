@@ -48,6 +48,21 @@ export function EditorPlano({
         </ul>
       )}
 
+      {/* Sem esta faixa, um plano herdado se parece com um plano conferido, e
+          quem abre a tela não sabe se está olhando uma decisão deste mês ou a
+          repetição de uma decisão de três meses atrás. */}
+      {plano?.herdadoDe && (
+        <p
+          className="px-4 py-2.5 text-[11.5px] border-b"
+          style={{ borderColor: 'var(--line)', background: 'var(--amber-bg)', color: 'var(--amber)' }}
+        >
+          <strong className="font-semibold">Herdado de {formatarCompetencia(plano.herdadoDe)}.</strong>{' '}
+          As regras abaixo continuam valendo porque ninguém as mudou. Salvar fixa uma cópia
+          neste mês; a partir daí, editar {formatarCompetencia(plano.herdadoDe)} não mexe mais aqui.
+          Férias e ausências nunca são herdadas — vêm das solicitações aprovadas.
+        </p>
+      )}
+
       <form action={salvarPlano} className="px-4 py-4 space-y-5">
         <input type="hidden" name="competencia" value={competencia} />
         <input type="hidden" name="colaboradorId" value={c.id} />

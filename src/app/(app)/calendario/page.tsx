@@ -1,14 +1,20 @@
 import Link from 'next/link';
 import { getSessao, ehPlanejamento, podeEditarEscala } from '@/lib/sessao';
 import {
-  carregarContextoMes, getGeracaoAtual, listarAlocacoes, listarOcorrencias,
+  carregarContextoMes, getGeracaoAtual, listarAlocacoes, listarAlteracoesPendentes,
+  listarOcorrencias, type AlteracaoPendente,
 } from '@/lib/data/escalas';
+import { conferirAlocacoes } from '@/lib/domain/escalas/conferencia';
+import { ALCANCES } from '@/lib/avisos';
 import {
-  DIAS_ABREV, diaSemana, diasNoMes, formatarCompetencia, iso,
+  DIAS_ABREV, addDias, diaSemana, diasNoMes, formatarCompetencia, formatarData, iso,
 } from '@/lib/domain/escalas/datas';
+import type { Alocacao, Modalidade } from '@/lib/domain/escalas/tipos';
 import { MODALIDADES, STATUS_GERACAO } from '@/lib/domain/escalas/constantes';
 import { competenciaDaBusca, comFiltros, texto, type Busca } from '@/lib/pagina';
-import { mudarStatusEscala } from '@/app/actions-geracao';
+import {
+  descartarAlteracoesPendentes, mudarStatusEscala, publicarAlteracoes,
+} from '@/app/actions-geracao';
 import { Abas, Aviso, Bloco, Pill, Vazio, aparencia } from '@/components/Ui';
 import { SeletorMes } from '@/components/SeletorMes';
 import { FiltrosAuto } from '@/components/FiltrosAuto';
@@ -23,10 +29,36 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
 
   const ctx = await carregarContextoMes(competencia, sessao.conta.id);
   const geracao = await getGeracaoAtual(competencia);
-  const alocacoes = geracao ? await listarAlocacoes(geracao.id) : [];
 
   const [ano, mes] = [ctx.ano, ctx.mes];
   const nDias = diasNoMes(ano, mes);
+
+  /**
+   * Férias e ausências como alocações, para o mês que ainda não foi gerado.
+   *
+   * Elas não dependem da escala: vêm de solicitação aprovada e já são fato
+   * antes de qualquer geração. Sem isto, o mês sem escala aparecia
+   * completamente vazio, e quem ia montar dezembro em novembro não tinha onde
+   * ver quem já estava de férias em dezembro — a informação existia, mas só
+   * dentro de Planos, uma pessoa por vez.
+   *
+   * Quando a escala existe (rascunho ou publicada), o motor já emite essas
+   * modalidades e não há nada a sintetizar.
+   */
+  const ausenciasComoAlocacoes: Alocacao[] = ctx.ausencias.flatMap(a =>
+    Array.from({ length: a.dias }, (_, i) => addDias(a.inicio, i))
+      .filter(d => d >= competencia && d <= iso(ano, mes, nDias))
+      .map(data => ({
+        colaboradorId: a.colaboradorId,
+        data,
+        modalidade: (a.tipo === 'FERIAS' ? 'FERIAS' : 'FOLGA') as Modalidade,
+        unidadeId: null,
+        travado: false,
+        postoId: null,
+      })),
+  );
+
+  const alocacoes = geracao ? await listarAlocacoes(geracao.id) : ausenciasComoAlocacoes;
   const vista = texto(busca, 'vista') || 'mes';
 
   // Sem dia na URL, abre no de hoje — quando hoje cai no mês exibido. Chegar
@@ -59,8 +91,24 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
   const porDia = new Map<string, typeof alocacoesFiltradas>();
   for (const a of alocacoesFiltradas) porDia.set(a.data, [...(porDia.get(a.data) ?? []), a]);
 
+  // Os conflitos gravados em `geracao` descrevem a escala como ela saiu do
+  // motor. Depois de qualquer movimento manual eles passam a descrever outra
+  // escala: mover três pessoas para o Morumbi lotava a unidade e o cabeçalho
+  // continuava anunciando "0 conflitos". Por isso a conferência roda sobre o
+  // que está no banco agora, e não sobre a lembrança da geração.
+  const { conflitos, alertas } = conferirAlocacoes({
+    alocacoes,
+    colaboradores: ctx.colaboradores,
+    equipes: ctx.equipes,
+    unidades: ctx.unidades,
+    capacidades: ctx.capacidades,
+    cotasEquipe: ctx.cotasEquipe,
+    ausencias: ctx.ausencias,
+    coberturaMinima: ctx.config.coberturaMinima,
+  });
+
   const conflitosPorDia = new Map<string, number>();
-  for (const c of geracao?.conflitos ?? []) {
+  for (const c of conflitos) {
     if (c.data) conflitosPorDia.set(c.data, (conflitosPorDia.get(c.data) ?? 0) + 1);
   }
 
@@ -68,6 +116,10 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
   const base = comFiltros(busca, {});
   const href = (m: Record<string, string | null>) => `/calendario${comFiltros(busca, m)}`;
 
+  // Mês sem escala não é mês sem informação: as férias e as ausências já
+  // aprovadas valem de qualquer forma. Antes esta tela era um beco — só o
+  // aviso de que nada foi gerado —, e quem montava o mês seguinte tinha de ir
+  // a Planos, um colaborador por vez, para descobrir quem estaria fora.
   if (!geracao) {
     return (
       <>
@@ -83,20 +135,47 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
             acao={planeja ? <Link href={`/gerar?competencia=${competencia}`} className="esc-btn">Ir para a geração</Link> : undefined}
           />
         </Bloco>
+
+        {sessao.papel !== 'colaborador' && ausenciasComoAlocacoes.length > 0 && (
+          <Bloco
+            titulo="Férias e ausências já aprovadas"
+            desc="Valem independentemente da escala e a geração vai respeitá-las."
+          >
+            <AusenciasDoMes
+              ano={ano}
+              mes={mes}
+              nDias={nDias}
+              alocacoes={ausenciasComoAlocacoes}
+              colaboradores={ctx.colaboradores}
+              feriados={ctx.feriados}
+            />
+          </Bloco>
+        )}
       </>
     );
   }
 
   const statusCfg = STATUS_GERACAO[geracao.status];
+  const podeEditar = podeEditarEscala(sessao.papel, geracao.status);
+  const pendentes = podeEditar ? await listarAlteracoesPendentes(geracao.id) : [];
 
   return (
     <>
       <Cabecalho competencia={competencia} papel={sessao.papel} />
       <Aviso erro={texto(busca, 'erro') || undefined} ok={texto(busca, 'ok') || undefined} />
 
+      {pendentes.length > 0 && (
+        <AlteracoesPendentes
+          itens={pendentes}
+          competencia={competencia}
+          conflitos={conflitos.length}
+          alertas={alertas.length}
+        />
+      )}
+
       <Bloco
         titulo={`Escala de ${formatarCompetencia(competencia)}`}
-        desc={`Versão ${geracao.versao} · ${geracao.escopo} · gerada por ${geracao.geradaPorNome}. ${geracao.conflitos.length} conflito(s) e ${geracao.alertas.length} alerta(s).`}
+        desc={`Versão ${geracao.versao} · ${geracao.escopo} · gerada por ${geracao.geradaPorNome}. ${conflitos.length} conflito(s) e ${alertas.length} alerta(s) no estado atual.`}
         acoes={
           <>
             <Pill cor={statusCfg.cor} bg={statusCfg.bg}>{statusCfg.label}</Pill>
@@ -284,13 +363,148 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
           ocorrencias={ocorrencias.filter(o => o.data === dia)}
           feriado={ctx.feriados[dia]}
           podeEditar={podeEditarEscala(sessao.papel, geracao.status)}
-          publicada={geracao.status === 'publicada'}
-          podeLancarOcorrencia={sessao.papel !== 'colaborador'}
+
+          // Ocorrência é registro do que aconteceu, e nada acontece contra uma
+          // escala que ninguém viu. Em rascunho o dia ainda é hipótese: o que
+          // se faz ali é mover a alocação, não lançar o atraso de um turno que
+          // pode nem existir na versão publicada.
+          podeLancarOcorrencia={sessao.papel !== 'colaborador' && geracao.status !== 'rascunho'}
           fecharHref={`/calendario${comFiltros(busca, { dia: null })}`}
           volta="/calendario"
         />
       )}
     </>
+  );
+}
+
+/**
+ * Caixa de saída: o que já mudou na escala e a equipe ainda não sabe.
+ *
+ * Fica no topo da tela, acima da escala, porque é um estado do qual se precisa
+ * sair — a escala no banco já mudou, mas quem trabalha nela continua vendo a
+ * versão antiga. Enquanto esta barra estiver aqui, as duas estão diferentes.
+ */
+function AlteracoesPendentes({
+  itens, competencia, conflitos, alertas,
+}: {
+  itens: AlteracaoPendente[]; competencia: string; conflitos: number; alertas: number;
+}) {
+  return (
+    <div id="alteracoes-pendentes" className="rounded-lg border" style={{ borderColor: 'var(--amber)', background: 'var(--amber-bg)' }}>
+      <div className="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold" style={{ color: 'var(--amber)' }}>
+            {itens.length} alteração(ões) que a equipe ainda não recebeu
+          </p>
+          <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--amber)' }}>
+            A escala já está alterada aqui. Continue mexendo à vontade e comunique quando o
+            mês estiver de pé.
+            {(conflitos > 0 || alertas > 0) && (
+              <> No estado atual há <strong>{conflitos} conflito(s)</strong> e {alertas} alerta(s) —
+              informação, não impedimento.</>
+            )}
+          </p>
+        </div>
+
+        <form action={publicarAlteracoes} className="flex flex-wrap items-center gap-2 ml-auto">
+          <input type="hidden" name="competencia" value={competencia} />
+          <input type="hidden" name="volta" value="/calendario" />
+          <select name="alcance" defaultValue="afetados" className="esc-input py-1 w-[188px]" aria-label="Quem avisar">
+            {ALCANCES.map(a => <option key={a.chave} value={a.chave}>Avisar: {a.label}</option>)}
+          </select>
+          <button type="submit" className="esc-btn esc-btn-sm">Publicar alterações</button>
+        </form>
+
+        <form action={descartarAlteracoesPendentes}>
+          <input type="hidden" name="competencia" value={competencia} />
+          <input type="hidden" name="volta" value="/calendario" />
+          <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Não avisar</button>
+        </form>
+      </div>
+
+      <ul
+        className="px-4 pb-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3 text-[11.5px]"
+        style={{ color: 'var(--amber)' }}
+      >
+        {itens.map(i => (
+          <li key={i.id} className="truncate">
+            <span className="esc-num">{formatarData(i.data)}</span>{' · '}
+            <span className="font-medium">{i.colaboradorNome}</span>
+            {i.de ? `: ${i.de} → ${i.para}` : `: ${i.para}`}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Grade compacta de quem está fora, dia a dia, sem escala gerada.
+ *
+ * Não reaproveita a vista de mês porque aqui não há alocação para contar por
+ * unidade — o que interessa é o nome de quem está fora, e são poucos por dia.
+ */
+function AusenciasDoMes({
+  ano, mes, nDias, alocacoes, colaboradores, feriados,
+}: {
+  ano: number; mes: number; nDias: number;
+  alocacoes: Alocacao[];
+  colaboradores: { id: number; nome: string }[];
+  feriados: Record<string, string>;
+}) {
+  const nomePorId = new Map(colaboradores.map(c => [c.id, c.nome]));
+  const porDia = new Map<string, Alocacao[]>();
+  for (const a of alocacoes) porDia.set(a.data, [...(porDia.get(a.data) ?? []), a]);
+
+  return (
+    <div className="p-3 sm:p-4">
+      <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+        {DIAS_ABREV.map(d => (
+          <div key={d} className="text-[10px] font-semibold uppercase tracking-wider text-center py-1" style={{ color: 'var(--faint)' }}>
+            {d}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1.5">
+        {Array.from({ length: diaSemana(ano, mes, 1) }, (_, i) => <div key={`v${i}`} />)}
+        {Array.from({ length: nDias }, (_, i) => {
+          const d = i + 1;
+          const data = iso(ano, mes, d);
+          const fora = porDia.get(data) ?? [];
+          const fimDeSemana = [0, 6].includes(diaSemana(ano, mes, d));
+          return (
+            <div
+              key={data}
+              className="rounded-lg border p-1.5 min-h-[76px] flex flex-col gap-1"
+              style={{
+                background: fimDeSemana || feriados[data] ? 'var(--bg)' : 'var(--surface)',
+                borderColor: 'var(--line)',
+              }}
+            >
+              <span className="text-[12px] font-semibold esc-num">{d}</span>
+              <div className="space-y-0.5 mt-auto">
+                {fora.slice(0, 3).map(a => {
+                  const cfg = MODALIDADES[a.modalidade === 'FERIAS' ? 'FERIAS' : 'FOLGA'];
+                  return (
+                    <div
+                      key={a.colaboradorId}
+                      className="text-[9.5px] font-semibold rounded px-1 py-px truncate"
+                      style={{ background: cfg.bg, color: cfg.cor }}
+                      title={`${nomePorId.get(a.colaboradorId) ?? ''} — ${cfg.label}`}
+                    >
+                      {nomePorId.get(a.colaboradorId)?.split(' ')[0] ?? '—'}
+                    </div>
+                  );
+                })}
+                {fora.length > 3 && (
+                  <div className="text-[9.5px]" style={{ color: 'var(--muted)' }}>+{fora.length - 3}</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

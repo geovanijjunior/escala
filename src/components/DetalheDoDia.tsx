@@ -3,7 +3,6 @@ import { DIAS_ABREV, dowDeIso, formatarData, somaHoras } from '@/lib/domain/esca
 import { MODALIDADES, TIPOS_OCORRENCIA } from '@/lib/domain/escalas/constantes';
 import { alternarTrava, reposicionarAlocacao } from '@/app/actions-geracao';
 import { LinhaDoColaborador } from './LinhaDoColaborador';
-import { ALCANCES } from '@/lib/avisos';
 import { Badge, Bloco, aparencia } from './Ui';
 import type { Alocacao, Colaborador, Equipe, Posto, Unidade } from '@/lib/domain/escalas/tipos';
 import type { Ocorrencia } from '@/lib/data/escalas';
@@ -19,8 +18,6 @@ interface Props {
   ocorrencias: Ocorrencia[];
   feriado?: string;
   podeEditar: boolean;
-  /** Escala já publicada — é quando a alteração precisa avisar quem depende dela. */
-  publicada: boolean;
   podeLancarOcorrencia: boolean;
   fecharHref: string;
   volta: string;
@@ -38,7 +35,7 @@ function faixaHoraria(c: Colaborador, dow: number): string {
  */
 export function DetalheDoDia({
   data, competencia, alocacoes, colaboradores, equipes, unidades, postos, ocorrencias,
-  feriado, podeEditar, publicada, podeLancarOcorrencia, fecharHref, volta,
+  feriado, podeEditar, podeLancarOcorrencia, fecharHref, volta,
 }: Props) {
   const dow = dowDeIso(data);
   const colabPorId = new Map(colaboradores.map(c => [c.id, c]));
@@ -117,8 +114,32 @@ export function DetalheDoDia({
                   volta={volta}
                   colunas={podeEditar || podeLancarOcorrencia ? 5 : 4}
                   colegas={trabalhando.filter(x => x.c.id !== c.id).map(x => ({ id: x.c.id, nome: x.c.nome }))}
-                  acoes={podeEditar ? (
-                    <form action={alternarTrava} className="inline">
+                  podeLancarOcorrencia={podeLancarOcorrencia}
+                  mover={podeEditar ? (
+                    <form action={reposicionarAlocacao} className="flex items-end gap-2">
+                      <input type="hidden" name="colaboradorId" value={c.id} />
+                      <input type="hidden" name="data" value={data} />
+                      <input type="hidden" name="competencia" value={competencia} />
+                      <input type="hidden" name="volta" value={volta} />
+                      <label className="block">
+                        <span className="esc-rotulo">Alocação</span>
+                        <select
+                          name="destino"
+                          defaultValue={a.modalidade === 'UNIDADE' ? `UNIDADE:${a.unidadeId}` : a.modalidade}
+                          className="esc-input w-48 py-1"
+                          aria-label={`Alocação de ${c.nome}`}
+                        >
+                          {ativas.map(u => <option key={u.id} value={`UNIDADE:${u.id}`}>{u.nome}</option>)}
+                          {(['HOME', 'EXTERNO', 'EVENTO', 'TREINA', 'FOLGA', 'AFAST'] as const).map(m => (
+                            <option key={m} value={m}>{MODALIDADES[m].label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Mover</button>
+                    </form>
+                  ) : undefined}
+                  trava={podeEditar ? (
+                    <form action={alternarTrava} className="flex items-end">
                       <input type="hidden" name="colaboradorId" value={c.id} />
                       <input type="hidden" name="data" value={data} />
                       <input type="hidden" name="competencia" value={competencia} />
@@ -126,7 +147,7 @@ export function DetalheDoDia({
                       <input type="hidden" name="modalidade" value={a.modalidade} />
                       <input type="hidden" name="unidadeId" value={a.unidadeId ?? ''} />
                       <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">
-                        {a.travado ? 'Liberar' : 'Travar'}
+                        {a.travado ? 'Liberar a trava' : 'Travar neste dia'}
                       </button>
                     </form>
                   ) : undefined}
@@ -149,37 +170,9 @@ export function DetalheDoDia({
                     <div className="text-[10.5px]">{c.cargo}</div>
                   </td>
                   <td>
-                    {podeEditar ? (
-                      <form action={reposicionarAlocacao} className="flex items-center gap-1.5">
-                        <input type="hidden" name="colaboradorId" value={c.id} />
-                        <input type="hidden" name="data" value={data} />
-                        <input type="hidden" name="competencia" value={competencia} />
-                        <input type="hidden" name="volta" value={volta} />
-                        <select
-                          name="destino"
-                          defaultValue={a.modalidade === 'UNIDADE' ? `UNIDADE:${a.unidadeId}` : a.modalidade}
-                          className="esc-input w-40 py-1"
-                          aria-label={`Alocação de ${c.nome}`}
-                        >
-                          {ativas.map(u => <option key={u.id} value={`UNIDADE:${u.id}`}>{u.nome}</option>)}
-                          {(['HOME', 'EXTERNO', 'EVENTO', 'TREINA', 'FOLGA', 'AFAST'] as const).map(m => (
-                            <option key={m} value={m}>{MODALIDADES[m].label}</option>
-                          ))}
-                        </select>
-                        {/* Depois de publicada, mover alguém mexe no dia de
-                            quem já se organizou. Quem escolhe o alcance do
-                            aviso é quem move — o gestor da pessoa recebe
-                            sempre, independentemente da escolha. */}
-                        {publicada && (
-                          <select name="alcance" defaultValue="afetados" className="esc-input w-[188px] py-1" aria-label="Quem avisar">
-                            {ALCANCES.map(a => <option key={a.chave} value={a.chave}>Avisar: {a.label}</option>)}
-                          </select>
-                        )}
-                        <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Mover</button>
-                      </form>
-                    ) : (
-                      <Badge cor={ap.cor} bg={ap.bg}>{ap.label}</Badge>
-                    )}
+                    {/* Estado, não controle: a coluna diz onde a pessoa está, e
+                        mudar isso é assunto da gaveta de ajuste. */}
+                    <Badge cor={ap.cor} bg={ap.bg}>{ap.label}</Badge>
                     {/* O posto é a informação que diz ONDE dentro da unidade a
                         pessoa está. Sem ela, quem foi destacado para o Corpo
                         Clínico aparece como "Morumbi" igual a todo mundo, e o

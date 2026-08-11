@@ -174,7 +174,7 @@ export async function copiarPlanosDoMes(formData: FormData) {
   const supabase = await createClient();
   const { data: origens } = await supabase
     .from('planos')
-    .select('*, plano_distribuicao(unidade_id, percentual), plano_unidade_fixa(dow, unidade_id)')
+    .select('*, plano_distribuicao(unidade_id, percentual), plano_unidade_fixa(dow, unidade_id), plano_posto(posto_id, dias, semana)')
     .eq('competencia', origem);
 
   if (!origens?.length) erro(destino, `Não há planos em ${formatarCompetencia(origem)} para copiar.`);
@@ -187,6 +187,7 @@ export async function copiarPlanosDoMes(formData: FormData) {
     ho_dias_semana: number[]; ho_quantidade: number; ho_dias_preferencia: number[]; ho_dias_proibidos: number[];
     plano_distribuicao: { unidade_id: number; percentual: number }[] | null;
     plano_unidade_fixa: { dow: number; unidade_id: number }[] | null;
+    plano_posto: { posto_id: number; dias: number; semana: number }[] | null;
   };
 
   const pendentes = (origens as LinhaOrigem[]).filter(p => !configurados.has(p.colaborador_id));
@@ -214,6 +215,14 @@ export async function copiarPlanosDoMes(formData: FormData) {
     if (dist.length) await supabase.from('plano_distribuicao').insert(dist.map(d => ({ ...d, plano_id: novo.id })));
     const fixas = p.plano_unidade_fixa ?? [];
     if (fixas.length) await supabase.from('plano_unidade_fixa').insert(fixas.map(f => ({ ...f, plano_id: novo.id })));
+    // O posto ficava de fora, e quem cobria o Corpo Clínico voltava a ser um
+    // presencial qualquer no mês copiado.
+    const postos = p.plano_posto ?? [];
+    if (postos.length) {
+      await supabase.from('plano_posto').insert(
+        postos.map(x => ({ ...x, plano_id: novo.id, conta_id: sessao.conta.id })),
+      );
+    }
   }
 
   await registrarLog(

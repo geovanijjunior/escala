@@ -58,7 +58,7 @@ Um perfil tem exatamente um papel, e ele é a única dimensão de permissão:
 | Papel | Vê | Pode |
 |---|---|---|
 | **Planejamento** | Toda a conta | Configurar parâmetros, editar planos, gerar/publicar/encerrar a escala, fazer a triagem das solicitações, travar alocações, publicar comunicados para qualquer público |
-| **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, aprovar/recusar o que chega até ele, lançar ocorrências, ajustar a escala já publicada, publicar comunicados para a equipe |
+| **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, decidir sozinho o que a triagem encaminhou (aprovar, enfileirar ou recusar), lançar ocorrências, ajustar a escala já publicada, publicar comunicados para a equipe |
 | **Colaborador** | Só a si mesmo | Consultar a própria escala publicada, abrir solicitações, aceitar/recusar convites de troca, ler o mural |
 
 Quem cria a organização entra como Planejamento. Os demais são criados na tela
@@ -243,12 +243,27 @@ terceiro e escrita na escala por quem não é Planejamento.
   vão para `avisos`, com o destinatário escrito. O sino junta as duas por data.
   Só o estado de leitura é gravado, como um instante em
   `perfis.notificacoes_vistas_em`.
-- **Alteração depois de publicada é permitida, mas nunca silenciosa.** Escala
-  publicada continua editável pelo Planejamento e pelo gestor da equipe; o que
-  muda é que cada alteração gera aviso para quem foi movido e para o gestor
-  dele, com a opção de estender à escala inteira, e entra no log de auditoria.
-  Escala em rascunho não avisa ninguém — ali ninguém viu ainda, e o aviso seria
-  ruído.
+- **Alteração depois de publicada é permitida, nunca silenciosa, e comunicada
+  em lote.** Escala publicada continua editável pelo Planejamento e pelo gestor
+  da equipe. Cada movimento altera a escala na hora e entra no log, mas o aviso
+  vai para uma caixa de saída (`alteracoes_pendentes`) e só sai quando alguém
+  confirma — com a escolha, feita ali, entre avisar quem mudou ou a escala
+  inteira. Avisar a cada clique mandava dez avisos por reorganização, alguns
+  descrevendo estados intermediários que não duraram cinco minutos, e o efeito
+  prático era ninguém reorganizar nada. Escala em rascunho não avisa ninguém.
+- **Conflito durante a reorganização informa, não bloqueia.** Para chegar num
+  estado válido às vezes é preciso passar por um inválido — mover A antes de
+  mover B lota a unidade no meio do caminho —, e travar a primeira metade da
+  operação impediria a segunda. Na geração é o contrário: lá o conflito
+  bloqueia, porque não há segunda metade vindo. A conferência
+  (`domain/escalas/conferencia.ts`) roda sobre as alocações que estão no banco,
+  e não sobre os conflitos gravados na geração, que descrevem uma escala que
+  qualquer movimento manual já tornou obsoleta.
+- **O plano do mês se carrega para os meses seguintes.** Distribuição, home
+  office, unidade fixa e posto são configuração recorrente: quem não tem plano
+  do mês continua com o do mês anterior, marcado como herdado. Férias e
+  ausências ficam de fora — são eventos datados, vindos de solicitação
+  aprovada, e repeti-las marcaria de férias quem já voltou.
 - **Anexo do mural mora no banco, em `bytea`, com teto de 2 MB.** É uma troca
   deliberada contra o Storage: o mural recebe foto de aviso e PDF de uma ou
   duas páginas, e guardar no banco dispensa bucket, políticas de storage e URL
@@ -290,6 +305,7 @@ que é o que o Excel em português abre sem embaralhar acento).
    | 9º | `0009_vinculo_por_conta.sql` | chaves compostas `(id, conta_id)` |
    | 10º | `0010_ocorrencias_e_ferias.sql` | motivo de inativação, opções de férias, campos por tipo de ocorrência |
    | 11º | `0011_mural_e_avisos.sql` | avisos do sino, mural de comunicados e anexos |
+   | 12º | `0012_alteracoes_pendentes.sql` | caixa de saída das alterações em escala publicada |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

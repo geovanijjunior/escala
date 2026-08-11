@@ -1,6 +1,8 @@
 import Link from 'next/link';
-import { getSessao, podeAprovar } from '@/lib/sessao';
-import { listarSolicitacoes, listarUnidades, listarColaboradores } from '@/lib/data/escalas';
+import { getSessao } from '@/lib/sessao';
+import {
+  listarSolicitacoes, listarUnidades, listarColaboradores, listarAusenciasSobrepostas,
+} from '@/lib/data/escalas';
 import { formatarData } from '@/lib/domain/escalas/datas';
 import { OPCOES_FERIAS, STATUS_ABERTOS, STATUS_SOLICITACAO, TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
@@ -9,7 +11,7 @@ import { valorVolta } from '@/lib/volta';
 import { decidirSolicitacao } from '@/app/actions-solicitacoes';
 import { Abas, Aviso, Badge, Bloco, Pill, Vazio } from '@/components/Ui';
 import { FormRecusa } from '@/components/FormRecusa';
-import type { Solicitacao } from '@/lib/data/escalas';
+import type { AusenciaSobreposta, Solicitacao } from '@/lib/data/escalas';
 
 const ROTULO_ABA = { abertas: 'Abertas', fila: 'Lista de espera', historico: 'Histórico' };
 
@@ -31,6 +33,16 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
   const fila = todas.filter(s => s.status === 'FILA').sort((a, b) => (a.posicaoFila ?? 99) - (b.posicaoFila ?? 99));
   const historico = todas.filter(s => s.status === 'APROVADA' || s.status === 'RECUSADA');
   const lista = aba === 'fila' ? fila : aba === 'historico' ? historico : abertas;
+
+  // Férias esperando o gestor: quem mais da equipe já está fora naquelas
+  // semanas. Só para os cartões que ele pode decidir agora — carregar para o
+  // histórico inteiro seria uma consulta por cartão sem ninguém para usar.
+  const paraDecidir = sessao.papel === 'gestor'
+    ? lista.filter(s => s.tipo === 'FERIAS' && s.status === 'GESTOR')
+    : [];
+  const sobreposicoes = new Map(await Promise.all(paraDecidir.map(async s =>
+    [s.id, await listarAusenciasSobrepostas(s.data, s.dataFim || s.data, s.colaboradorId)] as const,
+  )));
 
   const titulo =
     sessao.papel === 'planejamento' ? 'Solicitações'
@@ -129,6 +141,7 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
               souParceiro={s.parceiroId === sessao.colaboradorId}
               unidadeNome={s.unidadeDesejadaId ? unidadePorId.get(s.unidadeDesejadaId)?.nome ?? null : null}
               equipeNome={colabPorId.get(s.colaboradorId)?.cargo ?? ''}
+              sobrepostas={sobreposicoes.get(s.id) ?? []}
               busca={busca}
             />
           ))}
@@ -139,15 +152,15 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
 }
 
 function Cartao({
-  s, papel, souParceiro, unidadeNome, equipeNome, busca,
+  s, papel, souParceiro, unidadeNome, equipeNome, sobrepostas, busca,
 }: {
   s: Solicitacao; papel: string; souParceiro: boolean;
-  unidadeNome: string | null; equipeNome: string; busca: Busca;
+  unidadeNome: string | null; equipeNome: string;
+  sobrepostas: AusenciaSobreposta[]; busca: Busca;
 }) {
   const cfg = STATUS_SOLICITACAO[s.status];
   const tipo = TIPOS_SOLICITACAO[s.tipo];
   const opcao = s.opcaoFerias ? OPCOES_FERIAS.find(o => o.chave === s.opcaoFerias) : null;
-  const aprovador = podeAprovar(papel as 'planejamento' | 'gestor' | 'colaborador');
 
   return (
     <Bloco
@@ -201,6 +214,40 @@ function Cartao({
         {s.motivoRecusa && (
           <div className="rounded-md px-3 py-2 text-[12px]" style={{ background: 'var(--rose-bg)', color: 'var(--rose)' }}>
             <strong className="font-semibold">Motivo da recusa:</strong> {s.motivoRecusa}
+          </div>
+        )}
+
+        {/* Só aparece quando há decisão a tomar. Um pedido de férias sem saber
+            quem mais está fora naquelas semanas é meia informação, e a outra
+            metade estava a três telas de distância. */}
+        {papel === 'gestor' && s.status === 'GESTOR' && s.tipo === 'FERIAS' && (
+          <div
+            className="rounded-md px-3 py-2.5 text-[12px]"
+            style={{
+              background: sobrepostas.length ? 'var(--amber-bg)' : 'var(--green-bg)',
+              color: sobrepostas.length ? 'var(--amber)' : 'var(--green)',
+            }}
+          >
+            {sobrepostas.length === 0 ? (
+              <>
+                <strong className="font-semibold">Ninguém mais da equipe está fora</strong> nesse período.
+              </>
+            ) : (
+              <>
+                <strong className="font-semibold">
+                  {sobrepostas.length} pessoa(s) da equipe já estão fora nesse período:
+                </strong>
+                <ul className="mt-1.5 space-y-1">
+                  {sobrepostas.map(a => (
+                    <li key={`${a.colaboradorId}-${a.inicio}`} className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-medium">{a.nome}</span>
+                      <span className="esc-num">{formatarData(a.inicio)} a {formatarData(a.fim)}</span>
+                      <span>{a.tipo === 'FERIAS' ? 'férias' : 'ausência'}{a.motivo ? ` · ${a.motivo}` : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         )}
 
@@ -272,7 +319,10 @@ function Cartao({
             </>
           )}
 
-          {aprovador && s.status === 'GESTOR' && (
+          {/* Depois de encaminhado, quem decide é o gestor. O Planejamento
+              acompanha o cartão, mas não tem botão: encaminhar é delegar, e
+              delegar com o botão ainda na mão de quem delegou não delega nada. */}
+          {papel === 'gestor' && s.status === 'GESTOR' && (
             <>
               <form action={decidirSolicitacao}>
                 <Volta busca={busca} />
@@ -280,13 +330,28 @@ function Cartao({
                 <input type="hidden" name="acao" value="APROVAR" />
                 <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Aprovar</button>
               </form>
+              {tipo.fila && (
+                <form action={decidirSolicitacao}>
+                  <Volta busca={busca} />
+                  <input type="hidden" name="id" value={s.id} />
+                  <input type="hidden" name="acao" value="FILA_GESTOR" />
+                  <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Enviar para a lista de espera</button>
+                </form>
+              )}
               <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_GESTOR" rotulo="Recusar" />
               <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
                 {['TROCA_UNIDADE', 'TROCA_HORARIO', 'FOLGA', 'FERIAS'].includes(s.tipo)
                   ? 'Aprovar já altera a escala do dia e trava a alocação.'
                   : 'Este tipo não altera a escala — a aprovação vale como registro formal.'}
+                {tipo.fila && ' A lista de espera guarda o pedido na ordem de chegada, em vez de descartá-lo.'}
               </span>
             </>
+          )}
+
+          {papel === 'planejamento' && s.status === 'GESTOR' && (
+            <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
+              Encaminhada — a decisão agora é do gestor da equipe.
+            </span>
           )}
         </div>
       </div>

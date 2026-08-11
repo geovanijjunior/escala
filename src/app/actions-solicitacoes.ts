@@ -149,7 +149,7 @@ export async function abrirSolicitacao(formData: FormData) {
 type Acao =
   | 'ACEITAR_PARCEIRO' | 'RECUSAR_PARCEIRO'
   | 'ENCAMINHAR' | 'FILA' | 'PROMOVER' | 'RECUSAR_TRIAGEM' | 'APROVAR_TRIAGEM'
-  | 'APROVAR' | 'RECUSAR_GESTOR';
+  | 'APROVAR' | 'RECUSAR_GESTOR' | 'FILA_GESTOR';
 
 /** Transições permitidas: de onde parte, para onde vai e quem pode acionar. */
 const TRANSICOES: Record<Acao, { de: string[]; para: string; etapa: string; exigeMotivo: boolean }> = {
@@ -165,6 +165,11 @@ const TRANSICOES: Record<Acao, { de: string[]; para: string; etapa: string; exig
   APROVAR_TRIAGEM: { de: ['TRIAGEM'], para: 'APROVADA', etapa: 'Aprovada na triagem', exigeMotivo: false },
   APROVAR: { de: ['GESTOR'], para: 'APROVADA', etapa: 'Aprovada pelo gestor', exigeMotivo: false },
   RECUSAR_GESTOR: { de: ['GESTOR'], para: 'RECUSADA', etapa: 'Recusada pelo gestor', exigeMotivo: true },
+  // O gestor também enfileira. Antes a lista de espera era só da triagem, então
+  // o gestor que recebia um pedido bom numa data cheia só tinha "recusar" — e
+  // recusar apaga o pedido, obrigando a pessoa a abrir outro quando a data
+  // abrisse. Enfileirar preserva a ordem de chegada.
+  FILA_GESTOR: { de: ['GESTOR'], para: 'FILA', etapa: 'Enviada para a lista de espera pelo gestor', exigeMotivo: false },
 };
 
 export async function decidirSolicitacao(formData: FormData) {
@@ -193,8 +198,18 @@ export async function decidirSolicitacao(formData: FormData) {
   // Autorização por papel, refeita no servidor (a UI só esconde os botões).
   if (acao === 'ACEITAR_PARCEIRO' || acao === 'RECUSAR_PARCEIRO') {
     if (s.parceiro_id !== sessao.colaboradorId) erro(volta, 'Só o colega convidado pode responder a essa troca.');
-  } else if (acao === 'APROVAR' || acao === 'RECUSAR_GESTOR') {
-    exigirAprovador(sessao.papel, volta);
+  } else if (acao === 'APROVAR' || acao === 'RECUSAR_GESTOR' || acao === 'FILA_GESTOR') {
+    // Encaminhar é delegar. Enquanto o Planejamento também podia decidir depois
+    // de encaminhar, o gestor nunca sabia se o pedido ainda era dele — e dois
+    // aprovadores sobre a mesma linha é como uma decisão acaba tomada duas
+    // vezes, em sentidos opostos. Depois do encaminhamento a decisão é do
+    // gestor, e só dele.
+    if (sessao.papel !== 'gestor') {
+      erro(volta, 'Depois de encaminhada, a decisão é do gestor da equipe.');
+    }
+    if (acao === 'FILA_GESTOR' && !TIPOS_SOLICITACAO[s.tipo as TipoSolicitacao].fila) {
+      erro(volta, 'Esse tipo de solicitação não usa lista de espera.');
+    }
   } else {
     exigirPlanejamento(sessao.papel, volta);
     if (acao === 'FILA' && !TIPOS_SOLICITACAO[s.tipo as TipoSolicitacao].fila) {
@@ -207,7 +222,7 @@ export async function decidirSolicitacao(formData: FormData) {
   if (acao === 'RECUSAR_PARCEIRO') patch.aceite_parceiro = 'RECUSADO';
   if (regra.exigeMotivo) patch.motivo_recusa = motivo;
 
-  if (acao === 'FILA') {
+  if (regra.para === 'FILA') {
     const { data: fila } = await supabase
       .from('solicitacoes')
       .select('posicao_fila')
@@ -409,6 +424,16 @@ export async function registrarOcorrencia(formData: FormData) {
   if (!colaboradorId) erro(volta, 'Selecione o colaborador.');
   if (!TIPOS_OCORRENCIA[tipo]) erro(volta, 'Tipo de ocorrência inválido.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) erro(volta, 'Data inválida.');
+
+  // Ocorrência é registro do que aconteceu, e nada acontece contra uma escala
+  // que ninguém viu. Em rascunho o dia ainda é hipótese — o que se faz ali é
+  // mover a alocação. A tela já esconde o botão; isto é a mesma regra do lado
+  // que decide.
+  const [anoOc, mesOc] = partesIso(data);
+  const geracaoDaData = await getGeracaoAtual(iso(anoOc, mesOc, 1));
+  if (geracaoDaData?.status === 'rascunho') {
+    erro(volta, 'A escala desse mês ainda é rascunho. Publique antes de lançar ocorrências.');
+  }
 
   const supabase = await createClient();
 
