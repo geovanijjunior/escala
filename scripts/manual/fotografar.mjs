@@ -105,9 +105,28 @@ roteiro.push(['ana', async p => {
       await pg.waitForTimeout(300);
     },
   });
+  // Novembro está publicada, então a linha traz o seletor de quem avisar — é o
+  // que diferencia mexer na escala antes e depois de publicar.
+  await foto(p, 'alterar-publicada', `/calendario?${COMP}&vista=dia&dia=2026-11-11`, {
+    recorte: 'table',
+    antes: async pg => {
+      await pg.locator('select[name="alcance"]').first().selectOption('todos');
+      await pg.waitForTimeout(200);
+    },
+  });
   await foto(p, 'calendario-filtro', `/calendario?${COMP}&q=felipe`);
   await foto(p, 'ocupacao', `/ocupacao?${COMP}&dia=2026-11-09`);
   await foto(p, 'solicitacoes-planejamento', '/solicitacoes');
+  await foto(p, 'mural-planejamento', '/mural');
+  await foto(p, 'mural-publicar', '/mural', {
+    recorte: 'form:has(button:text("Publicar comunicado"))',
+    antes: async pg => {
+      await pg.fill('input[name="titulo"]', 'Treinamento do novo sistema de chamados');
+      await pg.fill('textarea[name="corpo"]',
+        'A turma de novembro tem duas datas: 24/11 pela manhã e 26/11 à tarde. Escolham uma e avisem o gestor.');
+      await pg.waitForTimeout(200);
+    },
+  });
   await foto(p, 'usuarios', '/usuarios');
 }]);
 
@@ -136,12 +155,14 @@ roteiro.push(['ricardo', async p => {
   await foto(p, 'gestor-inicio', `/?${COMP}`);
   await foto(p, 'gestor-solicitacoes', '/solicitacoes');
   await foto(p, 'gestor-calendario', `/calendario?${COMP}`);
+  await foto(p, 'gestor-mural', '/mural');
 }]);
 
 // ── Colaborador (Felipe) — vê a própria escala e pede coisas ─────────
 roteiro.push(['felipe', async p => {
   await foto(p, 'minha-escala', `/minha-escala?${COMP}`);
   await foto(p, 'colaborador-solicitacoes', '/solicitacoes');
+  await foto(p, 'colaborador-mural', '/mural');
   await foto(p, 'pedido-ferias', `/minha-escala?${COMP}`, {
     recorte: 'form:has(button:text("Enviar solicitação"))',
     antes: async pg => {

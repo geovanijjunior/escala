@@ -4,10 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { rotaComErro } from '@/lib/volta';
 import { createClient } from '@/lib/supabase/server';
-import { getSessao, exigirPlanejamento } from '@/lib/sessao';
+import { getSessao, exigirPlanejamento, exigirEditorDeEscala } from '@/lib/sessao';
+import { avisarAlteracaoDaEscala, type Alcance } from '@/lib/avisos';
 import { registrarLog } from '@/lib/log';
 import { carregarContextoMes, getGeracaoAtual, pendenciasDoMes, simular } from '@/lib/data/escalas';
 import { diasNoMes, formatarCompetencia, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
+import { MODALIDADES } from '@/lib/domain/escalas/constantes';
 import type { Modalidade } from '@/lib/domain/escalas/tipos';
 
 const VOLTA = '/gerar';
@@ -162,11 +164,15 @@ export async function mudarStatusEscala(formData: FormData) {
 export async function alternarTrava(formData: FormData) {
   const sessao = await getSessao();
   const volta = String(formData.get('volta') ?? '/calendario');
-  exigirPlanejamento(sessao.papel, volta);
 
   const colaboradorId = Number(formData.get('colaboradorId'));
   const data = String(formData.get('data') ?? '');
+  const competencia = String(formData.get('competencia') ?? '');
   if (!colaboradorId || !/^\d{4}-\d{2}-\d{2}$/.test(data)) erro(volta, 'Alocação inválida.');
+
+  const geracao = await getGeracaoAtual(competencia);
+  if (!geracao) erro(volta, 'Não há escala gerada para esse mês.');
+  exigirEditorDeEscala(sessao.papel, geracao.status, volta);
 
   const supabase = await createClient();
   const { data: existente } = await supabase
@@ -201,19 +207,19 @@ export async function alternarTrava(formData: FormData) {
   }
 
   revalidatePath('/', 'layout');
-  redirect(`${volta}?${new URLSearchParams({ competencia: String(formData.get('competencia') ?? ''), dia: data })}`);
+  redirect(`${volta}?${new URLSearchParams({ competencia, dia: data })}`);
 }
 
 /** Move manualmente uma pessoa de modalidade/unidade num dia — e já deixa travado. */
 export async function reposicionarAlocacao(formData: FormData) {
   const sessao = await getSessao();
   const volta = String(formData.get('volta') ?? '/calendario');
-  exigirPlanejamento(sessao.papel, volta);
 
   const colaboradorId = Number(formData.get('colaboradorId'));
   const data = String(formData.get('data') ?? '');
   const destino = String(formData.get('destino') ?? '');
   const competencia = String(formData.get('competencia') ?? '');
+  const alcance: Alcance = formData.get('alcance') === 'todos' ? 'todos' : 'afetados';
   if (!colaboradorId || !data || !destino) erro(volta, 'Dados insuficientes para mover a alocação.');
 
   // destino chega como "UNIDADE:12" ou como a própria modalidade ("HOME", "EXTERNO"…).
@@ -224,7 +230,7 @@ export async function reposicionarAlocacao(formData: FormData) {
   const supabase = await createClient();
   const geracao = await getGeracaoAtual(competencia);
   if (!geracao) erro(volta, 'Não há escala gerada para esse mês.');
-  if (geracao.status === 'encerrada') erro(volta, 'O mês está encerrado e não aceita mais alterações.');
+  exigirEditorDeEscala(sessao.papel, geracao.status, volta);
 
   await supabase
     .from('alocacoes')
@@ -247,8 +253,35 @@ export async function reposicionarAlocacao(formData: FormData) {
   );
 
   await registrarLog(sessao, 'Alocação ajustada', `Colaborador ${colaboradorId} em ${formatarData(data)} → ${destino}`);
+
+  // O aviso precisa dizer o destino em português, não "UNIDADE:2".
+  // `MODALIDADES` não tem UNIDADE: unidade não é modalidade remota nem ausência,
+  // é o nome do prédio — que vem da consulta abaixo.
+  let rotulo: string = modalidade === 'UNIDADE'
+    ? 'unidade'
+    : MODALIDADES[modalidade]?.label ?? modalidade;
+  if (modalidade === 'UNIDADE' && unidadeId) {
+    const { data: u } = await supabase.from('unidades').select('nome').eq('id', unidadeId).maybeSingle();
+    rotulo = u?.nome ?? rotulo;
+  }
+
+  // Escala em rascunho ainda não foi vista por ninguém — avisar seria ruído.
+  let avisados = 0;
+  if (geracao.status === 'publicada') {
+    avisados = await avisarAlteracaoDaEscala(sessao, {
+      geracaoId: geracao.id,
+      competencia,
+      data,
+      colaboradorId,
+      resumo: `agora está como ${rotulo}`,
+      alcance,
+    });
+  }
+
   revalidatePath('/', 'layout');
-  redirect(`${volta}?${new URLSearchParams({ competencia, dia: data })}`);
+  redirect(`${volta}?${new URLSearchParams({
+    competencia, dia: data, ...(avisados ? { avisados: String(avisados) } : {}),
+  })}`);
 }
 
 export async function liberarTodasAsTravas(formData: FormData) {

@@ -109,9 +109,16 @@ function campos(tabela, spec, ap, ctx) {
 
   return partir(spec).map(parte => {
     const embed = parte.match(/^(?:(\w+):)?(\w+)(?:!(\w+))?\(([\s\S]*)\)$/);
-    if (!embed) return parte === '*'
-      ? { nome: '*', expr: `${ap}.*` }
-      : { nome: parte, expr: `${ap}.${cita(parte)}` };
+    if (!embed) {
+      if (parte === '*') return { nome: '*', expr: `${ap}.*` };
+      // Coluna simples, com ou sem apelido (`em:criado_em`). Sem isto o sino
+      // ficava vazio contra o shim: a consulta dos avisos morria em
+      // `column "em:criado_em" does not exist` e a lista caía para os eventos
+      // de solicitação, que sozinhos pareciam plausíveis.
+      const [, apelidoCol, coluna] = parte.match(/^(?:(\w+):)?(\w+)$/) ?? [];
+      if (!coluna) throw new Error(`não sei ler "${parte}" no select de "${tabela}"`);
+      return { nome: apelidoCol || coluna, expr: `${ap}.${cita(coluna)}` };
+    }
 
     const [, apelido, alvo, dica, dentro] = embed;
     const f = 'f' + ++ctx.n;

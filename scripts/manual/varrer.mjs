@@ -15,7 +15,9 @@ const ROTAS = [
   `/calendario?${COMP}`, `/calendario?${COMP}&vista=grade`,
   `/calendario?${COMP}&vista=dia&dia=2026-11-09`,
   `/ocupacao?${COMP}&dia=2026-11-09`, '/solicitacoes', `/minha-escala?${COMP}`,
+  '/mural',
 ];
+const BASE = process.env.BASE || 'http://localhost:3000';
 const b = await chromium.launch();
 let problemas = 0;
 for (const [papel, id] of Object.entries(PAPEIS)) {
@@ -25,7 +27,7 @@ for (const [papel, id] of Object.entries(PAPEIS)) {
   p.on('pageerror', e => erros.push('JS: ' + e.message));
   for (const rota of ROTAS) {
     erros.length = 0;
-    const r = await p.goto('http://localhost:3000' + rota, { waitUntil: 'networkidle' }).catch(e => ({ status: () => 'ERRO ' + e.message }));
+    const r = await p.goto(BASE + rota, { waitUntil: 'networkidle' }).catch(e => ({ status: () => 'ERRO ' + e.message }));
     await p.waitForTimeout(150);
     const vazio = await p.evaluate(() => /Nada por aqui|Nenhum|ainda não foi/i.test(document.body.innerText));
     const st = r.status();

@@ -38,10 +38,13 @@ export async function marcarNotificacoesLidas(formData: FormData) {
  * instante, não uma lista. Ler por item exigiria uma tabela de leitura por
  * evento e por pessoa, e o histórico completo já vive na própria solicitação.
  *
- * O destino é fixo de propósito — rota vinda do formulário seria redirecionamento
- * aberto.
+ * A rota vem do aviso, mas é conferida aqui: precisa ser caminho interno
+ * começando com uma barra só. Sem isso, `//exemplo.com` no formulário viraria
+ * redirecionamento para fora do sistema.
  */
-export async function abrirNotificacao() {
+export async function abrirNotificacao(formData: FormData) {
+  const pedida = String(formData.get('rota') ?? '');
+  const destino = /^\/(?!\/)/.test(pedida) ? pedida : '/solicitacoes';
   const sessao = await getSessao();
   const supabase = await createClient();
 
@@ -51,5 +54,5 @@ export async function abrirNotificacao() {
     .eq('id', sessao.usuario.id);
 
   revalidatePath('/', 'layout');
-  redirect('/solicitacoes');
+  redirect(destino);
 }

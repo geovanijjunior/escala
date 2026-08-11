@@ -451,6 +451,7 @@
       <li><a href="#ocupacao">Ocupação</a></li>
       <li><a href="#solicitacoes">Solicitações</a></li>
       <li><a href="#notificacoes">Notificações</a></li>
+      <li><a href="#mural">Mural de comunicados</a></li>
       <li><a href="#indicadores">Indicadores</a></li>
       <li class="grupo">Guias por papel</li>
       <li><a href="#colaborador">Guia do colaborador</a></li>
@@ -480,6 +481,9 @@
         Depois de publicada, a escala vira a referência da equipe: cada pessoa vê a própria,
         pede troca, folga ou férias por ali, e o pedido percorre triagem e aprovação sem
         passar por planilha nem e-mail. O que for aprovado volta para dentro da escala.
+        Publicada não quer dizer congelada — Planejamento e gestor ainda ajustam o que a
+        realidade pedir, e cada ajuste avisa quem depende dele. O que não cabe na escala,
+        mas a equipe precisa saber, vai para o <a href="#mural">mural de comunicados</a>.
       </p>
 
       <figure class="tela">
@@ -567,14 +571,15 @@
       <h3>Menu lateral</h3>
       <p>O menu é agrupado por finalidade:</p>
       <ul class="marcado">
-        <li><strong>Operação</strong> — Planos do mês, Gerar escala, Calendário, Ocupação, Solicitações.</li>
+        <li><strong>Operação</strong> — Planos do mês, Gerar escala, Calendário, Ocupação, Solicitações, Mural.</li>
         <li><strong>Análise</strong> — Indicadores.</li>
         <li><strong>Cadastros</strong> — Colaboradores, Usuários, Parâmetros.</li>
       </ul>
       <p>
         Ao lado de <strong>Solicitações</strong> aparece um contador quando há pedidos
-        esperando por você. O colaborador vê só dois itens: <em>Minha escala</em> e
-        <em>Minhas solicitações</em>.
+        esperando por você. O gestor vê Indicadores, Escala, Ocupação, Aprovações e Mural; o
+        colaborador vê três itens: <em>Minha escala</em>, <em>Minhas solicitações</em> e
+        <em>Mural</em>.
       </p>
 
       <h3>Seletor de mês</h3>
@@ -1123,7 +1128,7 @@
       </p>
       <ul class="marcado">
         <li><strong>Rascunho</strong> — o colaborador já vê a escala, com um aviso de que as datas podem mudar.</li>
-        <li><strong>Publicada</strong> — vira a referência oficial. É o que o gestor cobra e o colaborador organiza a vida em cima.</li>
+        <li><strong>Publicada</strong> — vira a referência oficial. É o que o gestor cobra e o colaborador organiza a vida em cima. Ainda pode ser ajustada, pelo Planejamento e pelo gestor da equipe, mas agora cada alteração avisa quem depende dela — ver <a href="#calendario">Alterar uma escala já publicada</a>.</li>
         <li><strong>Encerrar o mês</strong> — fecha a competência. A escala vira somente leitura e para de aceitar ajuste manual. Use quando o mês acabou e você não quer alteração retroativa.</li>
       </ul>
 
@@ -1235,6 +1240,53 @@
           <strong>Trava é para exceção, não para rotina.</strong> Cada trava é um pedaço da
           escala que o motor não pode mais otimizar. Se você travou a mesma pessoa no mesmo dia
           da semana três vezes, o lugar daquela decisão é <em>unidade fixa</em> no plano do mês.
+        </p>
+      </div>
+
+      <h3>Alterar uma escala já publicada <span class="fita gestor">Gestor</span></h3>
+      <p>
+        Antes de publicar, o Planejamento mexe à vontade: ninguém organizou nada em cima daquilo
+        ainda. Depois de publicar é diferente — mover alguém muda o dia de uma pessoa que já se
+        programou. A escala publicada continua editável, pelo Planejamento <em>e</em> pelo gestor
+        da equipe, mas cada alteração passa a avisar quem depende dela.
+      </p>
+      <figure class="tela">
+        <img src="imagens/alterar-publicada.png" alt="Tabela do detalhe do dia com a escala publicada: além do seletor de alocação e do botão Mover, cada linha tem um seletor Avisar com as opções Só quem mudou e Toda a escala.">
+        <figcaption>
+          <b>Mover com aviso</b> — na escala publicada, cada linha ganha o seletor
+          <em>Avisar</em>. Na linha de Bruno Alencar ele está em <em>Toda a escala</em>; nas
+          demais, no padrão <em>Só quem mudou</em>.
+        </figcaption>
+      </figure>
+      <dl class="campos">
+        <div>
+          <dt>Avisar: Só quem mudou</dt>
+          <dd>
+            É o padrão. A pessoa movida recebe o aviso no sino. Serve para o ajuste que só
+            afeta ela — trocar a unidade de um dia, mandar alguém para home office.
+          </dd>
+        </div>
+        <div>
+          <dt>Avisar: Toda a escala</dt>
+          <dd>
+            Todo mundo com alocação naquele mês recebe. Serve quando mexer em um desloca a
+            rotina dos outros: fechar um andar, cancelar um evento, remanejar um plantão.
+          </dd>
+        </div>
+      </dl>
+      <div class="porque">
+        <strong>Por que o gestor é sempre avisado.</strong> A escolha acima decide quem <em>mais</em>
+        recebe o aviso — o gestor da pessoa movida recebe nos dois casos, e não há como
+        desmarcar. A alteração é da equipe dele e é ele quem responde por ela na segunda-feira;
+        descobrir a mudança pela pessoa, e não pelo sistema, é o arranjo que corrói a confiança
+        na escala. Toda alteração também entra no log de auditoria, com autor, data e o que
+        mudou, visível ao Planejamento e ao gestor em <em>Parâmetros → Auditoria</em>.
+      </div>
+      <div class="aviso atencao">
+        <p>
+          <strong>Mês encerrado não aceita alteração.</strong> Depois de <em>Encerrar o mês</em>,
+          a escala vira somente leitura para os dois papéis. É proposital: alteração retroativa
+          em mês fechado desfaz o fechamento de ponto que já foi feito em cima dele.
         </p>
       </div>
 
@@ -1357,10 +1409,27 @@
     <section id="notificacoes">
       <h2>Notificações</h2>
       <p>
-        O sino no topo mostra o que andou nos pedidos que dizem respeito a você. O conteúdo é
-        recortado pelo mesmo mecanismo de acesso das outras telas: o colaborador recebe a
-        devolutiva dos próprios pedidos e os convites de troca; o gestor, o que chega da
-        equipe; o Planejamento, o que entra em triagem.
+        O sino no topo junta três coisas, em ordem de data:
+      </p>
+      <ul class="marcado">
+        <li>
+          <strong>Andamento dos pedidos</strong> — recortado pelo mesmo mecanismo de acesso das
+          outras telas: o colaborador recebe a devolutiva dos próprios pedidos e os convites de
+          troca; o gestor, o que chega da equipe; o Planejamento, o que entra em triagem.
+        </li>
+        <li>
+          <strong>Alterações na escala publicada</strong> — para quem foi movido, para o gestor
+          da pessoa e, quando quem alterou escolheu <em>Toda a escala</em>, para todo mundo
+          escalado no mês.
+        </li>
+        <li>
+          <strong>Comunicados novos no mural</strong> — um aviso por comunicado, para quem ele
+          se destina.
+        </li>
+      </ul>
+      <p>
+        Cada linha leva ao lugar certo: um aviso de pedido abre a tela de solicitações, um de
+        alteração abre aquele dia no calendário, um de comunicado abre o mural.
       </p>
 
       <figure class="tela estreita">
@@ -1372,11 +1441,92 @@
       </figure>
 
       <p>
-        O número vermelho conta as não lidas. <strong>Clicar num aviso</strong> leva à tela de
-        solicitações e zera o contador no mesmo passo — antes era preciso lembrar de marcar depois,
-        e o número ficava parado mesmo depois de tudo lido. <strong>Marcar como lidas</strong>
+        O número vermelho conta as não lidas. <strong>Clicar num aviso</strong> abre o destino
+        dele e zera o contador no mesmo passo — antes era preciso lembrar de marcar depois, e o
+        número ficava parado mesmo depois de tudo lido. <strong>Marcar como lidas</strong>
         continua ali para zerar sem abrir nada. A lista não é apagada em nenhum dos dois casos, e
         você nunca recebe notificação de uma ação sua.
+      </p>
+    </section>
+
+    <section id="mural">
+      <h2>Mural de comunicados</h2>
+      <p>
+        O mural é o lugar do recado que não é sobre um dia nem sobre uma pessoa: manutenção
+        predial, mudança de processo, data de treinamento, fechamento do mês. Antes esse tipo de
+        aviso circulava por fora do sistema e chegava a metade da equipe.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/mural-planejamento.png" alt="Mural visto pelo Planejamento: bloco de publicação no topo com título, público, equipe, texto, anexos e a opção de fixar; abaixo, três comunicados — um fixado para todos os colaboradores com um anexo de imagem, um da equipe Técnicos de Campo e um para gestores.">
+        <figcaption>
+          <b>Mural pelo Planejamento</b> — publica em cima, lê embaixo. O comunicado fixado
+          aparece primeiro, com a etiqueta <em>Fixado</em>; os demais vêm do mais recente para o
+          mais antigo.
+        </figcaption>
+      </figure>
+
+      <h3>Quem publica para quem</h3>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Papel</th><th>Pode publicar para</th></tr></thead>
+          <tbody>
+            <tr><td>Planejamento</td><td>Todos os colaboradores, uma equipe específica, ou os gestores</td></tr>
+            <tr><td>Gestor</td><td>A equipe que ele gerencia</td></tr>
+            <tr><td>Colaborador</td><td>Não publica — só lê</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Cada pessoa lê o que é dela: o colaborador vê os comunicados para todos e os da equipe
+        dele; o gestor vê o mural dos gestores e também o que foi dito à equipe dele — ser
+        cobrado por um recado que não pôde ler seria o pior arranjo possível; o Planejamento vê
+        tudo. Esse recorte é feito no banco de dados, não na tela, então não depende de a
+        interface esconder a informação certa.
+      </p>
+
+      <h3>Publicar</h3>
+      <figure class="tela">
+        <img src="imagens/mural-publicar.png" alt="Formulário de publicação preenchido com o título Treinamento do novo sistema de chamados, público Colaboradores, equipe Todas as equipes, o texto do comunicado, o campo de anexos e a caixa Fixar no topo do mural.">
+        <figcaption>
+          <b>Publicar comunicado</b> — título e texto são obrigatórios. <em>Para quem</em> só
+          aparece para o Planejamento; o gestor publica sempre para a equipe dele.
+        </figcaption>
+      </figure>
+      <dl class="campos">
+        <div><dt>Título</dt><dd>Obrigatório. É o que aparece no sino de quem recebe.</dd></div>
+        <div><dt>Para quem</dt><dd>Colaboradores ou gestores. Só o Planejamento escolhe.</dd></div>
+        <div><dt>Equipe</dt><dd>Restringe o comunicado a uma equipe. Em branco, vale para todos os colaboradores.</dd></div>
+        <div><dt>Comunicado</dt><dd>Obrigatório. O texto preserva as quebras de linha.</dd></div>
+        <div><dt>Anexos</dt><dd>Imagem (PNG, JPEG, WEBP, GIF) ou PDF, até 2 MB por arquivo. Pode anexar mais de um.</dd></div>
+        <div><dt>Fixar no topo</dt><dd>Mantém o comunicado acima dos demais, independentemente da data.</dd></div>
+      </dl>
+      <p>
+        Ao publicar, todo mundo do público escolhido recebe um aviso no sino. O anexo abre numa
+        aba nova e só é entregue a quem enxerga o comunicado — não existe link público nem
+        endereço que funcione fora da sessão.
+      </p>
+      <div class="aviso atencao">
+        <p>
+          <strong>O limite de 2 MB é por arquivo e é conferido duas vezes</strong>, no navegador
+          e no servidor. Se o arquivo passa do limite, o botão de publicar fica desabilitado
+          antes do envio — em vez de você subir 8 MB para descobrir no fim e perder o texto
+          digitado. Para um documento maior, publique o resumo e aponte onde ele está.
+        </p>
+      </div>
+
+      <h3>Ler e remover</h3>
+      <figure class="tela">
+        <img src="imagens/colaborador-mural.png" alt="Mural visto pelo colaborador Felipe Souza: dois comunicados, o fixado para todos os colaboradores com anexo de imagem e o da equipe Técnicos de Campo. Não há bloco de publicação.">
+        <figcaption>
+          <b>Mural pelo colaborador</b> — sem bloco de publicação e sem o comunicado dirigido
+          aos gestores. A etiqueta ao lado do título diz a quem cada recado se destina.
+        </figcaption>
+      </figure>
+      <p>
+        <strong>Remover</strong> aparece para quem publicou o comunicado e para o Planejamento.
+        Remover apaga também os anexos. Não há edição: um comunicado corrigido pela metade
+        confunde mais do que um comunicado novo — remova e publique de novo.
       </p>
     </section>
 
@@ -1400,7 +1550,7 @@
     <section id="colaborador">
       <h2>Guia do colaborador <span class="fita colaborador">Colaborador</span></h2>
       <p class="entrada">
-        Duas telas, e a segunda é só a lista dos seus pedidos.
+        Três telas: a sua escala, a lista dos seus pedidos e o mural de comunicados.
       </p>
 
       <figure class="tela">
@@ -1479,6 +1629,21 @@
         <img src="imagens/colaborador-solicitacoes.png" alt="Tela Minhas solicitações do colaborador, listando os pedidos dele com tipo, data, status e justificativa.">
         <figcaption><b>Minhas solicitações</b> — o histórico dos seus pedidos e das trocas em que você foi convidado.</figcaption>
       </figure>
+
+      <h3>Mural</h3>
+      <p>
+        O terceiro item do menu reúne os comunicados da sua equipe e os da operação, com os
+        anexos que vierem junto. Você não publica nada ali — quando um comunicado novo sai, ele
+        chega no sino. Ver <a href="#mural">Mural de comunicados</a>.
+      </p>
+
+      <h3>Quando a sua escala muda</h3>
+      <p>
+        Depois de publicada, a escala ainda pode ser ajustada pelo Planejamento ou pelo seu
+        gestor. Toda alteração que atinge você gera um aviso no sino, dizendo a data e como
+        ficou. Clicar no aviso abre aquele dia. Se o seu dia mudou sem que você tenha recebido
+        aviso, fale com o gestor: alguma coisa saiu do combinado.
+      </p>
     </section>
 
     <section id="gestor">
@@ -1505,13 +1670,32 @@
         <li><strong>Aprovar ou recusar</strong> as solicitações que a triagem encaminhou. Recusar pede motivo, e o motivo chega a quem pediu.</li>
         <li><strong>Consultar</strong> o calendário e a ocupação da equipe, no mês que quiser.</li>
         <li><strong>Lançar ocorrências</strong> — atraso, falta justificada, falta não justificada — pelo detalhe do dia.</li>
+        <li>
+          <strong>Ajustar a escala publicada</strong> da sua equipe, pelo detalhe do dia. Cada
+          alteração avisa a pessoa movida e entra no log; você escolhe se o aviso vai só para
+          ela ou para toda a escala do mês. Ver
+          <a href="#calendario">Alterar uma escala já publicada</a>.
+        </li>
+        <li>
+          <strong>Publicar comunicados</strong> para a sua equipe, com imagem ou PDF anexado.
+          Ver <a href="#mural">Mural de comunicados</a>.
+        </li>
       </ul>
+
+      <figure class="tela">
+        <img src="imagens/gestor-mural.png" alt="Mural visto pelo gestor Ricardo Matos, com o bloco de publicação sem o seletor de público e a lista contendo o comunicado da equipe dele e o comunicado dirigido aos gestores.">
+        <figcaption>
+          <b>Mural do gestor</b> — você publica para a sua equipe (sem escolher público) e lê
+          tanto o que foi dito a ela quanto o que o Planejamento manda aos gestores.
+        </figcaption>
+      </figure>
+
       <h3>O que não passa por você</h3>
       <p>
-        Cadastro de pessoas, parâmetros, plano do mês e geração da escala são do Planejamento.
-        Se a escala da sua equipe precisa mudar de forma estrutural — alguém que deveria estar
-        sempre na outra unidade, uma cota apertada demais —, o caminho é falar com o
-        Planejamento, não ajustar dia a dia.
+        Cadastro de pessoas, parâmetros, plano do mês e geração da escala são do Planejamento —
+        e a escala em rascunho, antes de publicada, também. Se a escala da sua equipe precisa
+        mudar de forma estrutural — alguém que deveria estar sempre na outra unidade, uma cota
+        apertada demais —, o caminho é falar com o Planejamento, não ajustar dia a dia.
       </p>
     </section>
 
@@ -1635,6 +1819,9 @@
         <div><dt>Versão</dt><dd>Cada geração cria uma nova versão do mês. A vigente é a que vale.</dd></div>
         <div><dt>Rascunho / Publicada / Encerrada</dt><dd>Os três estados da escala do mês.</dd></div>
         <div><dt>SLA</dt><dd>Prazo previsto de resposta de um tipo de solicitação.</dd></div>
+        <div><dt>Aviso</dt><dd>Item do sino com destinatário nomeado: alteração na escala publicada ou comunicado novo. Diferente do andamento de um pedido, que o sino também mostra.</dd></div>
+        <div><dt>Alcance do aviso</dt><dd>Ao mover alguém numa escala publicada: se o aviso vai só para quem mudou ou para toda a escala do mês. O gestor da pessoa recebe nos dois casos.</dd></div>
+        <div><dt>Comunicado</dt><dd>Recado publicado no mural, com público (colaboradores ou gestores), equipe opcional e anexos.</dd></div>
         <div><dt>Trabalho externo</dt><dd>Modalidade de quem trabalha fora das unidades — inclusive quando não sobrou posição para a pessoa.</dd></div>
       </dl>
     </section>

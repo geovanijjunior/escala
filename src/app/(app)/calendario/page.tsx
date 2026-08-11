@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getSessao, ehPlanejamento } from '@/lib/sessao';
+import { getSessao, ehPlanejamento, podeEditarEscala } from '@/lib/sessao';
 import {
   carregarContextoMes, getGeracaoAtual, listarAlocacoes, listarOcorrencias,
 } from '@/lib/data/escalas';
@@ -283,7 +283,8 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
           postos={ctx.postos}
           ocorrencias={ocorrencias.filter(o => o.data === dia)}
           feriado={ctx.feriados[dia]}
-          podeEditar={planeja && geracao.status !== 'encerrada'}
+          podeEditar={podeEditarEscala(sessao.papel, geracao.status)}
+          publicada={geracao.status === 'publicada'}
           podeLancarOcorrencia={sessao.papel !== 'colaborador'}
           fecharHref={`/calendario${comFiltros(busca, { dia: null })}`}
           volta="/calendario"

@@ -19,10 +19,12 @@ execFileSync('npx', ['tsx', 'scripts/manual/semear.ts'], {
 });
 
 const db = new pg.Pool({ host: '/tmp', port: 5433, user: 'postgres', database: process.env.PGDATABASE || 'manual' });
+const BASE = process.env.BASE || 'http://localhost:3000';
 const COMP = 'competencia=2026-11-01';
 const como = id => writeFileSync('/tmp/foto-usuario.json', JSON.stringify({ id, email: 'x@x' }));
 const ANA = '00000000-0000-0000-0000-000000000001';
 const RICARDO = '00000000-0000-0000-0000-000000000002';
+const FELIPE = '00000000-0000-0000-0000-000000000003';
 
 const b = await chromium.launch({ args: ['--lang=pt-BR'], env: { ...process.env, LANG: 'pt_BR.UTF-8' } });
 const ctx = await b.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'pt-BR' });
@@ -31,24 +33,40 @@ let falhas = 0;
 
 const conta = async sql => Number((await db.query(sql)).rows[0].c);
 
-/** Roda uma ação e confere tela + banco. */
+/**
+ * Roda uma ação e confere tela + banco.
+ *
+ * A conferência insiste por alguns segundos em vez de olhar uma vez depois de
+ * uma espera fixa. A espera fixa dava dois danos: acusava falha em ação que só
+ * demorou mais que o combinado, e — pior — devolvia o controle com a
+ * requisição ainda em voo, de modo que o `como()` seguinte trocava o usuário
+ * embaixo dela e a gravação saía com o nome errado. Passei um tempo atrás de
+ * um bug de permissão que era só isto.
+ */
 async function acao(nome, url, passos, sql, esperado) {
   const antes = sql ? await conta(sql) : null;
-  await p.goto('http://localhost:3000' + url, { waitUntil: 'networkidle' });
+  await p.goto(BASE + url, { waitUntil: 'networkidle' });
   await p.waitForTimeout(200);
   try { await passos(p); } catch (e) {
     falhas++; console.log(`  ERRO  ${nome.padEnd(34)} não consegui operar: ${String(e).split('\n')[0].slice(0, 90)}`);
     return;
   }
   await p.waitForLoadState('networkidle');
-  await p.waitForTimeout(400);
+
+  const bateu = d => esperado === undefined ? d > antes : d === esperado;
+  let depois = null;
+  for (let i = 0; i < 40; i++) {
+    await p.waitForTimeout(150);
+    if (sql === null) break;
+    depois = await conta(sql);
+    if (bateu(depois)) break;
+  }
 
   const faixa = await p.evaluate(() => {
     const el = [...document.querySelectorAll('[role="status"]')].find(e => /rose|--rose/.test(e.getAttribute('style') || ''));
     return el ? el.textContent.trim() : null;
   });
-  const depois = sql ? await conta(sql) : null;
-  const gravou = sql === null || (esperado === undefined ? depois > antes : depois === esperado);
+  const gravou = sql === null || bateu(depois);
 
   if (faixa || !gravou) {
     falhas++;
@@ -230,6 +248,126 @@ await acao('convidarUsuario', '/usuarios', async p => {
   await f.locator('input[name="email"]').fill('paula.rezende@saolucas.com');
   await f.locator('button:text("Criar acesso")').click();
 }, null);
+
+// ── Mural ─────────────────────────────────────────────────────
+// Anexos de mentira, mas com o cabeçalho de verdade: o CHECK da tabela e o
+// filtro do formulário olham o MIME, e um arquivo vazio não exercita o bytea.
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+
+como(ANA);
+await acao('publicarComunicado (com anexos)', '/mural', async p => {
+  await p.fill('input[name="titulo"]', 'Manutenção do ar-condicionado');
+  await p.fill('textarea[name="corpo"]', 'O Morumbi fica sem climatização na quinta pela manhã.');
+  await p.selectOption('select[name="publico"]', 'colaboradores');
+  await p.setInputFiles('input[name="anexos"]', [
+    { name: 'aviso.png', mimeType: 'image/png', buffer: PNG },
+    { name: 'circular.pdf', mimeType: 'application/pdf', buffer: PDF },
+  ]);
+  await p.click('button:text("Publicar comunicado")');
+}, "select count(*) c from comunicado_anexos", 2);
+
+// O anexo tem que voltar byte a byte: bytea que passa pelo hex errado vira um
+// PNG que o navegador recusa, e a tela não denuncia nada.
+{
+  const { rows } = await db.query(
+    "select id, tamanho, octet_length(conteudo) real, tipo from comunicado_anexos order by id");
+  const ruim = rows.find(r => Number(r.tamanho) !== Number(r.real));
+  if (ruim) { falhas++; console.log(`  FALHOU anexo íntegro no banco            #${ruim.id}: ${ruim.tamanho} enviados, ${ruim.real} gravados`); }
+  else {
+    const r = await p.request.get(`${BASE}/mural/anexo/${rows[0].id}`);
+    const corpo = Buffer.from(await r.body());
+    const ok = r.status() === 200 && corpo.length === Number(rows[0].tamanho)
+      && r.headers()['content-type'] === rows[0].tipo;
+    if (!ok) { falhas++; console.log(`  FALHOU rota do anexo                     ${r.status()} ${corpo.length}B, esperado ${rows[0].tamanho}B ${rows[0].tipo}`); }
+    else console.log(`  ok     rota do anexo                     ${corpo.length}B ${rows[0].tipo}`);
+  }
+}
+
+await acao('publicarComunicado (gestores)', '/mural', async p => {
+  await p.fill('input[name="titulo"]', 'Fechamento do mês');
+  await p.fill('textarea[name="corpo"]', 'Enviem os ajustes até sexta.');
+  await p.selectOption('select[name="publico"]', 'gestores');
+  await p.click('button:text("Publicar comunicado")');
+}, "select count(*) c from comunicados where publico='gestores'", 1);
+
+// Comunicado para gestores não pode aparecer para colaborador: é aqui que a
+// policy vale ou não vale, e a consulta da tela não repete o filtro.
+como(FELIPE);
+{
+  await p.goto(`${BASE}/mural`, { waitUntil: 'networkidle' });
+  const texto = await p.evaluate(() => document.body.innerText);
+  const vazou = /Fechamento do mês/.test(texto);
+  const viuOSeu = /Manutenção do ar-condicionado/.test(texto);
+  if (vazou || !viuOSeu) {
+    falhas++;
+    console.log(`  FALHOU recorte do mural p/ colaborador    ${vazou ? 'viu o comunicado dos gestores' : 'não viu o comunicado da equipe dele'}`);
+  } else console.log('  ok     recorte do mural p/ colaborador');
+}
+
+// O gestor publica para a equipe; o seletor de público nem aparece para ele.
+como(RICARDO);
+await acao('gestor publica p/ a equipe', '/mural', async p => {
+  await p.fill('input[name="titulo"]', 'Reunião de time na terça');
+  await p.fill('textarea[name="corpo"]', 'Sala 3, às 9h.');
+  await p.click('button:text("Publicar comunicado")');
+}, "select count(*) c from comunicados where autor_nome = 'Ricardo Matos'", 1);
+
+{
+  const { rows } = await db.query(
+    "select publico, equipe_id from comunicados where autor_nome = 'Ricardo Matos'");
+  const errado = rows.find(r => r.publico !== 'colaboradores' || r.equipe_id === null);
+  if (errado) { falhas++; console.log(`  FALHOU gestor preso à própria equipe     publico=${errado.publico} equipe=${errado.equipe_id}`); }
+  else console.log('  ok     gestor preso à própria equipe');
+}
+
+// ── Alteração de escala publicada avisa quem depende dela ─────
+// A regeração lá em cima deixou a versão nova em rascunho, e rascunho não
+// avisa ninguém de propósito. Publicar aqui é o que põe o cenário em pé.
+como(ANA);
+await acao('publicar para a equipe', `/calendario?${COMP}`, async p => {
+  await p.click('button:text("Publicar para a equipe")');
+}, "select count(*) c from geracoes where atual and status='publicada'", 1);
+
+await acao('mover avisando só os afetados', `/calendario?${COMP}&vista=dia&dia=2026-11-17`, async p => {
+  const f = p.locator('form:has(button:text("Mover"))').first();
+  await f.locator('select[name="destino"]').selectOption('HOME');
+  await f.locator('select[name="alcance"]').selectOption('afetados');
+  await f.locator('button:text("Mover")').click();
+}, "select count(*) c from avisos where rota like '%2026-11-17%'");
+
+const soAfetados = await conta("select count(*) c from avisos where rota like '%2026-11-17%'");
+await acao('mover avisando a escala toda', `/calendario?${COMP}&vista=dia&dia=2026-11-18`, async p => {
+  const f = p.locator('form:has(button:text("Mover"))').first();
+  await f.locator('select[name="destino"]').selectOption('HOME');
+  await f.locator('select[name="alcance"]').selectOption('todos');
+  await f.locator('button:text("Mover")').click();
+}, "select count(*) c from avisos where rota like '%2026-11-18%'");
+
+{
+  const todos = await conta("select count(*) c from avisos where rota like '%2026-11-18%'");
+  if (todos <= soAfetados) {
+    falhas++;
+    console.log(`  FALHOU "todos" avisa mais que "afetados"  afetados=${soAfetados}, todos=${todos}`);
+  } else console.log(`  ok     "todos" avisa mais que "afetados"  ${soAfetados} → ${todos}`);
+}
+
+// O gestor também altera depois de publicada, e o log fica para os dois.
+como(RICARDO);
+await acao('gestor move escala publicada', `/calendario?${COMP}&vista=dia&dia=2026-11-19`, async p => {
+  const f = p.locator('form:has(button:text("Mover"))').first();
+  await f.locator('select[name="destino"]').selectOption('HOME');
+  await f.locator('button:text("Mover")').click();
+}, "select count(*) c from logs where acao = 'Alocação ajustada'");
+
+// ── Remoção ───────────────────────────────────────────────────
+como(ANA);
+await acao('removerComunicado', '/mural', async p => {
+  await p.locator('button:text("Remover")').first().click();
+}, "select count(*) c from comunicados", 2);
 
 await b.close();
 await db.end();

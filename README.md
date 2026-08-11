@@ -57,9 +57,9 @@ Um perfil tem exatamente um papel, e ele é a única dimensão de permissão:
 
 | Papel | Vê | Pode |
 |---|---|---|
-| **Planejamento** | Toda a conta | Configurar parâmetros, editar planos, gerar/publicar/encerrar a escala, fazer a triagem das solicitações, travar alocações |
-| **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, aprovar/recusar o que chega até ele, lançar ocorrências |
-| **Colaborador** | Só a si mesmo | Consultar a própria escala publicada, abrir solicitações, aceitar/recusar convites de troca |
+| **Planejamento** | Toda a conta | Configurar parâmetros, editar planos, gerar/publicar/encerrar a escala, fazer a triagem das solicitações, travar alocações, publicar comunicados para qualquer público |
+| **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, aprovar/recusar o que chega até ele, lançar ocorrências, ajustar a escala já publicada, publicar comunicados para a equipe |
+| **Colaborador** | Só a si mesmo | Consultar a própria escala publicada, abrir solicitações, aceitar/recusar convites de troca, ler o mural |
 
 Quem cria a organização entra como Planejamento. Os demais são criados na tela
 de **Usuários**, com o papel definido ali.
@@ -233,13 +233,27 @@ terceiro e escrita na escala por quem não é Planejamento.
 - **Aprovar uma solicitação altera a escala**: troca de unidade, troca de
   plantão, folga e férias gravam a trava e ajustam a alocação do dia — e a trava
   sobrevive à próxima regeração.
-- **Notificações sem tabela de notificações.** O sino do cabeçalho é derivado de
-  `solicitacao_eventos`, que já registra cada passo com autor e horário. Quem
-  deve receber o quê já está resolvido pela RLS daquela tabela: o colaborador vê
-  os eventos dos próprios pedidos e das trocas em que é parceiro, o gestor os da
-  equipe, o planejamento os da conta. Uma tabela de notificações seria uma
-  segunda fonte de verdade a manter em sincronia. Só o estado de leitura é
-  gravado, como um instante em `perfis.notificacoes_vistas_em`.
+- **O sino tem duas fontes, e só uma delas é uma tabela de avisos.** O
+  andamento das solicitações é derivado de `solicitacao_eventos`, que já
+  registra cada passo com autor e horário: quem deve receber o quê está
+  resolvido pela RLS daquela tabela, e duplicar isso numa tabela de
+  notificações seria uma segunda fonte de verdade a manter em sincronia. Já
+  alteração de escala e comunicado não têm um destinatário dedutível — quem
+  altera *escolhe* se avisa só quem mudou ou a escala inteira —, então esses
+  vão para `avisos`, com o destinatário escrito. O sino junta as duas por data.
+  Só o estado de leitura é gravado, como um instante em
+  `perfis.notificacoes_vistas_em`.
+- **Alteração depois de publicada é permitida, mas nunca silenciosa.** Escala
+  publicada continua editável pelo Planejamento e pelo gestor da equipe; o que
+  muda é que cada alteração gera aviso para quem foi movido e para o gestor
+  dele, com a opção de estender à escala inteira, e entra no log de auditoria.
+  Escala em rascunho não avisa ninguém — ali ninguém viu ainda, e o aviso seria
+  ruído.
+- **Anexo do mural mora no banco, em `bytea`, com teto de 2 MB.** É uma troca
+  deliberada contra o Storage: o mural recebe foto de aviso e PDF de uma ou
+  duas páginas, e guardar no banco dispensa bucket, políticas de storage e URL
+  assinada — o anexo herda exatamente o recorte do comunicado, sem um segundo
+  caminho por onde vazar.
 - **Estado de navegação na URL**: mês, filtros, dia aberto e aba vivem na query
   string, então o botão voltar funciona e dá para compartilhar o link de um dia.
 
@@ -256,21 +270,31 @@ que é o que o Excel em português abre sem embaralhar acento).
 
 1. Crie um projeto em [supabase.com](https://supabase.com). Escolha a região
    mais próxima dos usuários — `South America (São Paulo)`, se for o caso.
-2. Rode as duas migrações em **SQL Editor**. Para cada uma: abra o arquivo no
-   GitHub, clique em **Raw**, selecione tudo (`Ctrl+A`), copie, cole no editor e
-   clique em **Run**. É o texto do arquivo que vai no editor, não o caminho dele
-   — colar `0001_init.sql` devolve `ERROR: 42601: trailing junk after numeric
-   literal`, que é o Postgres tentando ler `0001` como número.
+2. Rode os arquivos de `supabase/migrations/` em **SQL Editor**, na ordem
+   numérica. Para cada um: abra o arquivo no GitHub, clique em **Raw**,
+   selecione tudo (`Ctrl+A`), copie, cole no editor e clique em **Run**. É o
+   texto do arquivo que vai no editor, não o caminho dele — colar
+   `0001_init.sql` devolve `ERROR: 42601: trailing junk after numeric literal`,
+   que é o Postgres tentando ler `0001` como número.
 
-   | Ordem | Arquivo | Começa com | Cria |
-   |---|---|---|---|
-   | 1º | `supabase/migrations/0001_init.sql` | `-- Escala — base multi-tenant` | `contas`, `perfis`, helpers e o trigger de cadastro |
-   | 2º | `supabase/migrations/0002_escalas.sql` | `-- Escala — domínio:` | as 17 tabelas do domínio e as policies |
+   | Ordem | Arquivo | Cria |
+   |---|---|---|
+   | 1º | `0001_init.sql` | `contas`, `perfis`, helpers e o trigger de cadastro |
+   | 2º | `0002_escalas.sql` | as 17 tabelas do domínio e as policies |
+   | 3º | `0003_cota_equipe.sql` | teto de posições por equipe em cada unidade |
+   | 4º | `0004_subunidades.sql` | hierarquia de unidades |
+   | 5º | `0005_postos.sql` | postos internos das unidades |
+   | 6º | `0006_correcoes.sql` | correções de índices e de policies |
+   | 7º | `0007_notificacoes.sql` | eventos de solicitação e o carimbo de leitura do sino |
+   | 8º | `0008_solicitacao_periodo.sql` | data final nas solicitações de período |
+   | 9º | `0009_vinculo_por_conta.sql` | chaves compostas `(id, conta_id)` |
+   | 10º | `0010_ocorrencias_e_ferias.sql` | motivo de inativação, opções de férias, campos por tipo de ocorrência |
+   | 11º | `0011_mural_e_avisos.sql` | avisos do sino, mural de comunicados e anexos |
 
-   A ordem importa: o segundo depende das tabelas e dos helpers do primeiro. Se
-   rodar fora de ordem, o erro será `relation "perfis" does not exist` ou
-   `function conta_id() does not exist` — nesse caso rode o `0001` e repita o
-   `0002`.
+   A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
+   erro será `relation "perfis" does not exist` ou `function conta_id() does not
+   exist` — nesse caso volte ao primeiro que faltou e siga daí. As migrations
+   são idempotentes, então repetir uma já aplicada não faz mal.
 3. Em **Authentication → Sign In / Providers**, mantenha **Email** habilitado e
    desative **Confirm email**. O sistema cria os acessos pela tela de Usuários,
    com senha temporária entregue em mãos — não há fluxo de confirmação por

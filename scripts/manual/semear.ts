@@ -8,6 +8,7 @@
  * vazia. Catorze pessoas cabem numa captura e ainda enchem o mês.
  */
 import pg from 'pg';
+import { deflateSync } from 'node:zlib';
 import { gerarEscala } from '../../src/lib/domain/escalas/motor';
 
 import type { Colaborador, PlanoMensal, Unidade } from '../../src/lib/domain/escalas/tipos';
@@ -30,6 +31,54 @@ const CARLA   = '00000000-0000-0000-0000-000000000004'; // colaborador (parceira
 
 const COMP = '2026-11-01';
 const ANO = 2026, MES = 10; // novembro
+
+/**
+ * PNG em tons de cinza com um degradê, montado à mão.
+ *
+ * Escrever o formato aqui evita uma dependência só para semear um anexo, e o
+ * arquivo sai com alguns KB — tamanho de anexo real, que é o que a foto do
+ * manual precisa mostrar.
+ */
+function pngCinza(largura: number, altura: number): Buffer {
+  const tabela = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (b: Buffer) => {
+    let c = 0xffffffff;
+    for (const byte of b) c = tabela[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const pedaco = (tipo: string, dados: Buffer) => {
+    const corpo = Buffer.concat([Buffer.from(tipo, 'ascii'), dados]);
+    const tam = Buffer.alloc(4); tam.writeUInt32BE(dados.length);
+    const soma = Buffer.alloc(4); soma.writeUInt32BE(crc(corpo));
+    return Buffer.concat([tam, corpo, soma]);
+  };
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(largura, 0);
+  ihdr.writeUInt32BE(altura, 4);
+  ihdr[8] = 8;   // bits por amostra
+  ihdr[9] = 0;   // tons de cinza
+
+  // Uma linha de filtro 0 seguida dos pixels, por linha.
+  const cru = Buffer.alloc(altura * (largura + 1));
+  for (let y = 0; y < altura; y++) {
+    const base = y * (largura + 1);
+    for (let x = 0; x < largura; x++) {
+      cru[base + 1 + x] = 200 - Math.round(((x / largura) + (y / altura)) * 60);
+    }
+  }
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pedaco('IHDR', ihdr),
+    pedaco('IDAT', deflateSync(cru)),
+    pedaco('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 async function main() {
   await db.query('truncate contas cascade');
@@ -268,6 +317,48 @@ async function main() {
     ($1,$2,'Ana Ribeiro','Cota por equipe ajustada','Técnicos de Campo em Morumbi · todos os dias · até 6','2026-10-28 11:03-03'),
     ($1,$3,'Ricardo Matos','Ocorrência registrada','Bruno Alencar · atraso de 25 min em 05/11/2026','2026-11-05 09:26-03')`,
     [CONTA, ANA, RICARDO]);
+
+  // ── Mural ───────────────────────────────────────────────────
+  // Um comunicado do Planejamento para todo mundo, um do gestor para a equipe
+  // dele e um só para gestores — as três formas que o mural tem. Sem os três,
+  // a foto do manual não mostraria a diferença entre elas.
+  const { rows: [aviso] } = await db.query(
+    `insert into comunicados (conta_id, titulo, corpo, publico, equipe_id, fixado, autor_id, autor_nome, criado_em)
+     values
+     ($1,'Manutenção do ar-condicionado no Morumbi',
+        'A climatização do 3º andar fica desligada na quinta, 12/11, das 7h às 12h. Quem estiver escalado para o Corpo Clínico nesse período pode usar as salas do 2º andar.',
+        'colaboradores', null, true, $2, 'Ana Ribeiro', '2026-11-09 08:15-03')
+     returning id`, [CONTA, ANA]);
+
+  await db.query(
+    `insert into comunicados (conta_id, titulo, corpo, publico, equipe_id, fixado, autor_id, autor_nome, criado_em)
+     values
+     ($1,'Reunião mensal da equipe','Terça, 17/11, às 9h, na sala 3 do Morumbi. Quem estiver em home office participa pelo link de sempre.',
+        'colaboradores', 1, false, $3, 'Ricardo Matos', '2026-11-10 17:40-03'),
+     ($1,'Fechamento de novembro','Enviem os ajustes de escala até sexta, 27/11. Depois disso o mês é encerrado e as alterações passam a exigir justificativa.',
+        'gestores', null, false, $2, 'Ana Ribeiro', '2026-11-10 09:00-03')`,
+    [CONTA, ANA, RICARDO]);
+
+  // Anexo de verdade, gerado aqui: um PNG de tamanho plausível. Um arquivo de
+  // 70 bytes apareceria no mural como "planta.png (70 B)", que se lê como
+  // anexo quebrado e ensinaria a coisa errada a quem olha a foto do manual.
+  const png = pngCinza(900, 600);
+  await db.query(
+    `insert into comunicado_anexos (conta_id, comunicado_id, nome, tipo, tamanho, conteudo)
+     values ($1,$2,'planta-3o-andar.png','image/png',$3,$4)`,
+    [CONTA, aviso.id, png.length, png]);
+
+  // ── Avisos do sino ──────────────────────────────────────────
+  // O sino junta o andamento das solicitações com estes. Sem uma linha aqui, a
+  // foto do sino mostraria só metade do que ele passou a fazer.
+  await db.query(
+    `insert into avisos (conta_id, perfil_id, titulo, detalhe, rota, por_id, por_nome, criado_em) values
+     ($1,$2,'Escala alterada — 11/11/2026','Felipe Souza: agora está como Home Office',
+        '/calendario?competencia=2026-11-01&dia=2026-11-11',$4,'Ana Ribeiro','2026-11-10 10:22-03'),
+     ($1,$3,'Escala alterada — 11/11/2026','Felipe Souza: agora está como Home Office',
+        '/calendario?competencia=2026-11-01&dia=2026-11-11',$4,'Ana Ribeiro','2026-11-10 10:22-03'),
+     ($1,$3,'Novo comunicado no mural','Manutenção do ar-condicionado no Morumbi','/mural',$4,'Ana Ribeiro','2026-11-09 08:15-03')`,
+    [CONTA, RICARDO, FELIPE, ANA]);
 
   console.log(`massa pronta: ${colaboradores.length} pessoas, ${resultado.alocacoes.length} alocações, ` +
               `${resultado.conflitos.length} conflitos, ${resultado.alertas.length} alertas`);

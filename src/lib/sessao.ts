@@ -77,3 +77,27 @@ export function exigirAprovador(papel: PapelEscalas, voltarPara: string): void {
     redirect(`${voltarPara}?erro=${encodeURIComponent('Você não tem permissão para essa ação.')}`);
   }
 }
+
+/**
+ * Quem pode mexer na escala à mão.
+ *
+ * O Planejamento monta o mês e ajusta antes e depois de publicar. O gestor
+ * ajusta a equipe dele DEPOIS da publicação: antes disso a escala ainda está
+ * sendo montada, e mexer num rascunho que vai ser regerado só cria a impressão
+ * de que a mudança foi feita. Mês encerrado não aceita ninguém.
+ */
+export function podeEditarEscala(papel: PapelEscalas, status: string): boolean {
+  if (status === 'encerrada') return false;
+  if (papel === 'planejamento') return true;
+  return papel === 'gestor' && status === 'publicada';
+}
+
+export function exigirEditorDeEscala(papel: PapelEscalas, status: string, voltarPara: string): void {
+  if (podeEditarEscala(papel, status)) return;
+  const motivo = status === 'encerrada'
+    ? 'O mês está encerrado e não aceita mais alterações.'
+    : papel === 'gestor'
+      ? 'O gestor só ajusta a escala depois de publicada.'
+      : 'Você não tem permissão para alterar a escala.';
+  redirect(`${voltarPara}?erro=${encodeURIComponent(motivo)}`);
+}

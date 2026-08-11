@@ -50,6 +50,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
           itens: [
             { href: '/minha-escala', label: 'Minha escala' },
             { href: '/solicitacoes', label: 'Minhas solicitações', badge: pendentes },
+            { href: '/mural', label: 'Mural' },
           ],
         }]
       : sessao.papel === 'gestor'
@@ -60,6 +61,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
             { href: '/calendario', label: 'Escala' },
             { href: '/ocupacao', label: 'Ocupação' },
             { href: '/solicitacoes', label: 'Aprovações', badge: pendentes },
+            { href: '/mural', label: 'Mural' },
           ],
         }]
       : [
@@ -71,6 +73,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
               { href: '/calendario', label: 'Calendário' },
               { href: '/ocupacao', label: 'Ocupação' },
               { href: '/solicitacoes', label: 'Solicitações', badge: pendentes },
+              { href: '/mural', label: 'Mural' },
             ],
           },
           { secao: 'Análise', itens: [{ href: '/', label: 'Indicadores' }] },

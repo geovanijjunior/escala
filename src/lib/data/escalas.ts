@@ -6,6 +6,8 @@ import type {
   Alocacao, Ausencia, Aviso, Colaborador, Equipe, GerarEscalaOutput,
   Modalidade, PlanoMensal, Posto, StatusGeracao, Unidade,
 } from '@/lib/domain/escalas/tipos';
+import { TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
+import { formatarData } from '@/lib/domain/escalas/datas';
 import type { StatusSolicitacao, TipoOcorrencia, TipoSolicitacao } from '@/lib/domain/escalas/constantes';
 
 /* ============================================================
@@ -449,15 +451,13 @@ export async function listarCompetencias(): Promise<string[]> {
    ============================================================ */
 
 export interface Notificacao {
-  id: number;
-  solicitacaoId: number;
+  id: string;
   etapa: string;
   detalhe: string;
   porNome: string;
   em: string;
-  tipo: string;
-  data: string;
-  colaboradorNome: string;
+  /** Para onde o aviso leva ao ser aberto. */
+  rota: string;
   naoLida: boolean;
 }
 
@@ -478,43 +478,73 @@ export async function listarNotificacoes(
   limite = 20,
 ): Promise<{ itens: Notificacao[]; naoLidas: number }> {
   const supabase = await createClient();
-  // O embed de `solicitacoes` fica — há uma FK só entre as duas tabelas. O de
-  // `colaboradores` saiu: dali para frente seria preciso desambiguar pelo nome
-  // da constraint, e este cabeçalho aparece em TODAS as páginas. Uma consulta
-  // recusada por nome de constraint apagava o sino do sistema inteiro.
-  const data = conferir('listarNotificacoes', await supabase
-    .from('solicitacao_eventos')
-    .select('id, solicitacao_id, etapa, detalhe, por_id, por_nome, em, solicitacoes(tipo, data, colaborador_id)')
-    .neq('por_id', usuarioId)
-    .order('em', { ascending: false })
-    .limit(limite));
 
-  type Linha = {
+  // Duas fontes. `solicitacao_eventos` é o andamento dos pedidos, recortado por
+  // RLS conforme o papel. `avisos` é o que tem destinatário explícito — mudança
+  // na escala publicada, comunicado novo. O sino junta as duas e ordena por
+  // data, porque para quem lê é tudo "o que aconteceu comigo".
+  const [eventosRes, avisosRes] = await Promise.all([
+    supabase
+      .from('solicitacao_eventos')
+      .select('id, solicitacao_id, etapa, detalhe, por_id, por_nome, em, solicitacoes(tipo, data, colaborador_id)')
+      .neq('por_id', usuarioId)
+      .order('em', { ascending: false })
+      .limit(limite),
+    supabase
+      .from('avisos')
+      .select('id, titulo, detalhe, rota, por_nome, em:criado_em')
+      .order('criado_em', { ascending: false })
+      .limit(limite),
+  ]);
+
+  type LinhaEvento = {
     id: number; solicitacao_id: number; etapa: string; detalhe: string;
     por_nome: string; em: string;
     solicitacoes: { tipo: string; data: string; colaborador_id: number } | null;
   };
+  type LinhaAviso = {
+    id: number; titulo: string; detalhe: string; rota: string; por_nome: string; em: string;
+  };
 
-  const linhas = ((data ?? []) as unknown as Linha[]);
-  const ids = [...new Set(linhas.map(e => e.solicitacoes?.colaborador_id).filter((n): n is number => !!n))];
+  const eventos = (conferir('listarNotificacoes/eventos', eventosRes) ?? []) as unknown as LinhaEvento[];
+  const avisos = (conferir('listarNotificacoes/avisos', avisosRes) ?? []) as unknown as LinhaAviso[];
+
+  const ids = [...new Set(eventos.map(e => e.solicitacoes?.colaborador_id).filter((n): n is number => !!n))];
   const pessoas = ids.length
     ? conferir('listarNotificacoes/colaboradores', await supabase
         .from('colaboradores').select('id, nome').in('id', ids)) ?? []
     : [];
   const nomePorId = new Map((pessoas as { id: number; nome: string }[]).map(c => [c.id, c.nome]));
 
-  const itens = linhas.map(e => ({
-    naoLida: e.em > vistasEm,
-    id: e.id,
-    solicitacaoId: e.solicitacao_id,
-    etapa: e.etapa,
-    detalhe: e.detalhe,
-    porNome: e.por_nome,
-    em: e.em,
-    tipo: e.solicitacoes?.tipo ?? '',
-    data: e.solicitacoes?.data ?? '',
-    colaboradorNome: nomePorId.get(e.solicitacoes?.colaborador_id ?? -1) ?? '',
+  const deEventos: Notificacao[] = eventos.map(e => {
+    const tipo = e.solicitacoes?.tipo ?? '';
+    const quando = e.solicitacoes?.data ?? '';
+    const quem = nomePorId.get(e.solicitacoes?.colaborador_id ?? -1) ?? '';
+    return {
+      id: `evento-${e.id}`,
+      etapa: e.etapa,
+      detalhe: [TIPOS_SOLICITACAO[tipo as TipoSolicitacao]?.label ?? 'Solicitação',
+                quando && `de ${formatarData(quando)}`, quem].filter(Boolean).join(' · '),
+      porNome: e.por_nome,
+      em: e.em,
+      rota: '/solicitacoes',
+      naoLida: e.em > vistasEm,
+    };
+  });
+
+  const deAvisos: Notificacao[] = avisos.map(a => ({
+    id: `aviso-${a.id}`,
+    etapa: a.titulo,
+    detalhe: a.detalhe,
+    porNome: a.por_nome,
+    em: a.em,
+    rota: a.rota,
+    naoLida: a.em > vistasEm,
   }));
+
+  const itens = [...deEventos, ...deAvisos]
+    .sort((x, y) => y.em.localeCompare(x.em))
+    .slice(0, limite);
 
   return { itens, naoLidas: itens.filter(i => i.naoLida).length };
 }

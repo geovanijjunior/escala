@@ -61,7 +61,7 @@ porque a tela de solicitações ficou vazia em produção sem ninguém perceber.
 
 ```bash
 node scripts/manual/varrer.mjs   # 18 telas × 3 papéis
-node scripts/manual/acoes.mjs    # 21 ações de escrita, cada uma conferida no banco
+node scripts/manual/acoes.mjs    # 36 ações de escrita, cada uma conferida no banco
 ```
 
 Rode os dois em DOIS bancos, um em cada nível de migration — é isso que pega o
@@ -108,6 +108,16 @@ aberto uma única tela do sistema.
 - **`semear.ts` avança as sequências.** Os ids explícitos do `overriding system
   value` não adiantam a sequência, e o primeiro cadastro feito pela tela
   colidia com a chave primária.
+- **Apelido de coluna no `select`** (`em:criado_em`) é sintaxe do PostgREST, e o
+  shim precisou aprendê-la. Sem isso a consulta dos avisos morria e o sino caía
+  para os eventos de solicitação — uma lista plausível, e por isso a pior
+  espécie de falha: nada na tela dizia que faltava metade.
+- **`acoes.mjs` espera o banco mudar, não um tempo fixo.** Devolver o controle
+  com a requisição ainda em voo fazia o `como()` seguinte trocar o usuário
+  embaixo dela: a gravação saía com o nome errado e parecia bug de permissão.
+- **`bytea` volta como `Buffer` pelo node-pg e como texto `\x…` pelo
+  PostgREST.** A rota do anexo aceita as duas formas; assumir só uma entrega
+  arquivo corrompido em metade dos ambientes, e a tela não denuncia.
 
 ## Só para fotos
 

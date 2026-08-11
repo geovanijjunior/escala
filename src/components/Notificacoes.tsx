@@ -1,8 +1,6 @@
 import { formatarData } from '@/lib/domain/escalas/datas';
-import { TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { abrirNotificacao, marcarNotificacoesLidas } from '@/app/actions-notificacoes';
 import type { Notificacao } from '@/lib/data/escalas';
-import type { TipoSolicitacao } from '@/lib/domain/escalas/constantes';
 
 /**
  * Sino de notificações no cabeçalho.
@@ -61,13 +59,12 @@ export function Notificacoes({
           </p>
         ) : (
           <ul className="max-h-[60vh] overflow-y-auto divide-y" style={{ borderColor: 'var(--line)' }}>
-            {itens.map(n => {
-              const tipo = TIPOS_SOLICITACAO[n.tipo as TipoSolicitacao];
-              return (
-                <li key={n.id}>
-                  {/* Form, e não link: abrir o aviso precisa marcar o sino como
-                      lido no mesmo passo, senão o contador nunca baixa. */}
-                  <form action={abrirNotificacao}>
+            {itens.map(n => (
+              <li key={n.id}>
+                {/* Form, e não link: abrir o aviso precisa marcar o sino como
+                    lido no mesmo passo, senão o contador nunca baixa. */}
+                <form action={abrirNotificacao}>
+                  <input type="hidden" name="rota" value={n.rota} />
                   <button
                     type="submit"
                     className="block w-full text-left px-3 py-2.5 hover:bg-[var(--surface-2)]"
@@ -79,20 +76,16 @@ export function Notificacoes({
                         {formatarData(n.em.slice(0, 10))}
                       </span>
                     </div>
-                    <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>
-                      {tipo?.label ?? 'Solicitação'}
-                      {n.data && ` de ${formatarData(n.data)}`}
-                      {n.colaboradorNome && ` · ${n.colaboradorNome}`}
-                      {n.porNome && ` · por ${n.porNome}`}
-                    </p>
                     {n.detalhe && (
-                      <p className="text-[11px] mt-1 line-clamp-2" style={{ color: 'var(--muted)' }}>{n.detalhe}</p>
+                      <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>{n.detalhe}</p>
+                    )}
+                    {n.porNome && (
+                      <p className="text-[11px] mt-0.5" style={{ color: 'var(--faint)' }}>por {n.porNome}</p>
                     )}
                   </button>
-                  </form>
-                </li>
-              );
-            })}
+                </form>
+              </li>
+            ))}
           </ul>
         )}
       </div>

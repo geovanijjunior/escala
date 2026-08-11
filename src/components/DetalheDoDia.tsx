@@ -3,6 +3,7 @@ import { DIAS_ABREV, dowDeIso, formatarData, somaHoras } from '@/lib/domain/esca
 import { MODALIDADES, TIPOS_OCORRENCIA } from '@/lib/domain/escalas/constantes';
 import { alternarTrava, reposicionarAlocacao } from '@/app/actions-geracao';
 import { LinhaDoColaborador } from './LinhaDoColaborador';
+import { ALCANCES } from '@/lib/avisos';
 import { Badge, Bloco, aparencia } from './Ui';
 import type { Alocacao, Colaborador, Equipe, Posto, Unidade } from '@/lib/domain/escalas/tipos';
 import type { Ocorrencia } from '@/lib/data/escalas';
@@ -18,6 +19,8 @@ interface Props {
   ocorrencias: Ocorrencia[];
   feriado?: string;
   podeEditar: boolean;
+  /** Escala já publicada — é quando a alteração precisa avisar quem depende dela. */
+  publicada: boolean;
   podeLancarOcorrencia: boolean;
   fecharHref: string;
   volta: string;
@@ -35,7 +38,7 @@ function faixaHoraria(c: Colaborador, dow: number): string {
  */
 export function DetalheDoDia({
   data, competencia, alocacoes, colaboradores, equipes, unidades, postos, ocorrencias,
-  feriado, podeEditar, podeLancarOcorrencia, fecharHref, volta,
+  feriado, podeEditar, publicada, podeLancarOcorrencia, fecharHref, volta,
 }: Props) {
   const dow = dowDeIso(data);
   const colabPorId = new Map(colaboradores.map(c => [c.id, c]));
@@ -163,6 +166,15 @@ export function DetalheDoDia({
                             <option key={m} value={m}>{MODALIDADES[m].label}</option>
                           ))}
                         </select>
+                        {/* Depois de publicada, mover alguém mexe no dia de
+                            quem já se organizou. Quem escolhe o alcance do
+                            aviso é quem move — o gestor da pessoa recebe
+                            sempre, independentemente da escolha. */}
+                        {publicada && (
+                          <select name="alcance" defaultValue="afetados" className="esc-input w-[188px] py-1" aria-label="Quem avisar">
+                            {ALCANCES.map(a => <option key={a.chave} value={a.chave}>Avisar: {a.label}</option>)}
+                          </select>
+                        )}
                         <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Mover</button>
                       </form>
                     ) : (
