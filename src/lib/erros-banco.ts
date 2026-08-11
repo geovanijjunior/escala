@@ -21,6 +21,29 @@ const ORIGEM: Record<string, string> = {
   contas: '0001_init.sql',
 };
 
+/**
+ * Cada regra de unicidade do esquema, dita como a pessoa que preenche entende.
+ *
+ * Mantenha em dia ao criar constraint `unique`: sem entrada aqui, a mensagem cai
+ * no nome cru da regra, que não diz qual campo mudar.
+ */
+const DUPLICADO: Record<string, string> = {
+  unidades_conta_id_codigo_key: 'Já existe outra unidade com esse código.',
+  equipes_conta_id_codigo_key: 'Já existe outra equipe com esse código.',
+  colaboradores_conta_id_matricula_key: 'Já existe outro colaborador com essa matrícula.',
+  colaboradores_perfil_uniq: 'Esse usuário do sistema já está vinculado a outro colaborador.',
+  feriados_conta_id_data_key: 'Já existe um feriado cadastrado nessa data.',
+  postos_unidade_id_nome_key: 'Essa unidade já tem um posto com esse nome.',
+  plano_posto_plano_id_posto_id_key: 'Esse posto já está no plano do mês dessa pessoa.',
+  planos_colaborador_id_competencia_key: 'Esse colaborador já tem plano nesse mês.',
+  pins_colaborador_id_data_key: 'Essa pessoa já tem uma alocação travada nesse dia.',
+  alocacoes_geracao_id_colaborador_id_data_key:
+    'Essa pessoa já tem alocação nesse dia dentro desta geração.',
+  geracoes_conta_id_competencia_versao_key:
+    'Já existe uma geração com esse número de versão para o mês.',
+  geracoes_atual_uniq: 'Esse mês já tem uma escala marcada como vigente.',
+};
+
 function ondeMora(nome: string): string {
   const arquivo = ORIGEM[nome];
   return arquivo
@@ -55,25 +78,33 @@ export function mensagemErroBanco(
   }
 
   if (/duplicate key value|already exists/i.test(texto)) {
-    // O Postgres diz exatamente qual campo colidiu, em `details`:
-    // "Key (codigo)=(MOR) already exists." Mandar sempre "use um código ou
-    // sigla diferente" jogava a pessoa no campo errado quando a colisão era de
-    // matrícula, de data de feriado ou da chave primária.
+    const constraint = texto.match(/unique constraint "([^"]+)"/i)?.[1] ?? '';
+
+    // O nome da regra que barrou é conhecido e finito — vale traduzir cada um.
+    // Nem o nome cru (`equipes_conta_id_codigo_key`) nem a lista de colunas do
+    // Postgres (`conta_id + codigo`) dizem a quem preenche o formulário qual
+    // campo mudar; e `conta_id` sequer aparece na tela.
+    if (DUPLICADO[constraint]) return DUPLICADO[constraint];
+
+    // Chave primária: não é erro de preenchimento, é a sequência de ids do
+    // banco atrás dos dados — acontece depois de uma carga com ids explícitos.
+    if (constraint.endsWith('_pkey') || /_id_conta_id_key$/.test(constraint)) {
+      const tabela = constraint.replace(/_pkey$|_id_conta_id_key$/, '');
+      return `A sequência de ids de \`${tabela}\` está atrás dos dados já gravados, então o novo `
+        + 'registro tentou um id que já existe. Isso não se resolve pelo formulário: rode '
+        + `\`select setval(pg_get_serial_sequence('${tabela}','id'), (select max(id) from ${tabela}));\` `
+        + 'no SQL Editor.';
+    }
+
+    // Último recurso: o Postgres diz o campo em `details`, quando vem.
     const chave = detalhe.match(/Key \(([^)]+)\)=\(([^)]*)\)/i);
     if (chave) {
-      const campos = chave[1].split(',').map(c => c.trim()).join(' + ');
-      return `Já existe um registro com ${campos} = ${chave[2]}. Use outro valor.`;
+      const campos = chave[1].split(',').map(c => c.trim()).filter(c => c !== 'conta_id');
+      if (campos.length) return `Já existe um registro com ${campos.join(' + ')} = ${chave[2]}. Use outro valor.`;
     }
-    // Sem `details`, o nome da constraint ainda diz a tabela e, quase sempre,
-    // a coluna: `unidades_codigo_key`, `colaboradores_matricula_key`.
-    const constraint = texto.match(/unique constraint "([^"]+)"/i);
-    if (constraint?.[1].endsWith('_pkey')) {
-      return `A chave primária de \`${constraint[1].replace(/_pkey$/, '')}\` colidiu. `
-        + 'Isso acontece quando a sequência de ids do banco está atrás dos dados já gravados — '
-        + 'normalmente depois de uma carga com ids explícitos.';
-    }
-    if (constraint) return `Já existe um registro com esse valor (\`${constraint[1]}\`). Use outro.`;
-    return 'Já existe um registro com esse identificador. Use um valor diferente.';
+    return constraint
+      ? `Já existe um registro que conflita com este (regra \`${constraint}\`). Revise os campos únicos.`
+      : 'Já existe um registro com esse identificador. Use um valor diferente.';
   }
   if (/violates foreign key constraint/i.test(texto)) {
     return 'O registro está em uso por outros dados e não pode ser removido ou alterado assim.';

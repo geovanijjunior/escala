@@ -7,7 +7,16 @@
  */
 import { chromium } from 'playwright';
 import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import pg from 'pg';
+
+// Semeia antes de começar. Sem isto o roteiro só passa na primeira execução: a
+// segunda encontra os códigos que ela mesma cadastrou e acusa 13 falhas que são
+// dela. Suíte que só roda uma vez não serve para regressão.
+execFileSync('npx', ['tsx', 'scripts/manual/semear.ts'], {
+  stdio: 'ignore',
+  env: { ...process.env, PGDATABASE: process.env.PGDATABASE || 'manual' },
+});
 
 const db = new pg.Pool({ host: '/tmp', port: 5433, user: 'postgres', database: process.env.PGDATABASE || 'manual' });
 const COMP = 'competencia=2026-11-01';

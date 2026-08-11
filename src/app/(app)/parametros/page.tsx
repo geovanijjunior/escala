@@ -545,6 +545,11 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               <input name="nome" required className="esc-input" placeholder="Ex.: Consciência Negra" />
             </label>
             <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Adicionar feriado</button>
+            <p className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
+              Cada data comporta um feriado. Salvar uma data que já existe <strong>substitui</strong> o
+              nome dela — é assim que se corrige um cadastro errado. Para remover, use <strong>Remover</strong>
+              na linha. Feriado novo não reescreve a escala já gerada: é preciso gerar de novo.
+            </p>
           </form>
         </Bloco>
       )}
