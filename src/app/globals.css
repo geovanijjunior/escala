@@ -117,6 +117,24 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
   }
   .esc-ajuda { font-size: 11px; color: var(--muted); line-height: 1.5; }
 
+  /*
+   * Marca de campo obrigatório.
+   *
+   * A regra lê o atributo `required` do próprio controle, em vez de pedir uma
+   * classe no rótulo. Marcação manual sai de sincronia no primeiro campo que
+   * deixa de ser obrigatório, e o formulário passa a mentir para quem o
+   * preenche — que é pior do que não marcar nada.
+   *
+   * O asterisco é decorativo: o leitor de tela já anuncia "obrigatório" pelo
+   * atributo, e repetir viraria ruído.
+   */
+  label:has(> input:required, > select:required, > textarea:required) > .esc-rotulo::after {
+    content: '*';
+    margin-left: 3px;
+    color: var(--rose);
+    font-weight: 700;
+  }
+
   .esc-btn {
     display: inline-flex;
     align-items: center;

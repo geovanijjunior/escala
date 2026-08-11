@@ -52,6 +52,7 @@ export async function abrirSolicitacao(formData: FormData) {
   const dataFimBruta = String(formData.get('dataFim') ?? '').trim();
   const aceitaPeriodo = tipo === 'FERIAS' || tipo === 'FOLGA';
   if (dataFimBruta && !aceitaPeriodo) erro(volta, 'Esse tipo de solicitação vale para um dia só.');
+  if (tipo === 'FERIAS' && !dataFimBruta) erro(volta, 'Informe a data final das férias.');
   if (dataFimBruta && !/^\d{4}-\d{2}-\d{2}$/.test(dataFimBruta)) erro(volta, 'Data final inválida.');
   if (dataFimBruta && dataFimBruta < data) erro(volta, 'O fim do período não pode ser anterior ao início.');
   const dataFim = aceitaPeriodo && dataFimBruta ? dataFimBruta : null;

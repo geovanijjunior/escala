@@ -396,7 +396,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 </label>
                 <label className="block">
                   <span className="esc-rotulo">Vagas simultâneas</span>
-                  <input type="number" name="vagas" min={1} defaultValue={1} className="esc-input w-32 esc-num" />
+                  <input type="number" name="vagas" min={1} defaultValue={1} required className="esc-input w-32 esc-num" />
                 </label>
                 <label className="flex items-center gap-2 text-[12.5px] pb-2">
                   <input type="checkbox" name="ativo" defaultChecked /> Ativo
@@ -416,11 +416,11 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               </label>
               <label className="block">
                 <span className="esc-rotulo">Tolerância de aderência (dias)</span>
-                <input type="number" name="tolerancia" min={0} max={10} defaultValue={config.toleranciaAderencia} className="esc-input w-32 esc-num" />
+                <input type="number" name="tolerancia" min={0} max={10} defaultValue={config.toleranciaAderencia} required className="esc-input w-32 esc-num" />
               </label>
               <label className="block">
                 <span className="esc-rotulo">Cobertura mínima por unidade</span>
-                <input type="number" name="cobertura" min={0} max={50} defaultValue={config.coberturaMinima} className="esc-input w-32 esc-num" />
+                <input type="number" name="cobertura" min={0} max={50} defaultValue={config.coberturaMinima} required className="esc-input w-32 esc-num" />
               </label>
               <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar parâmetros</button>
               <p className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>

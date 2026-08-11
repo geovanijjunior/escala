@@ -38,7 +38,10 @@ export function NovaSolicitacao({
         {temPeriodo && (
           <label className="block">
             <span className="esc-rotulo">Fim</span>
-            <input type="date" name="dataFim" className="esc-input" />
+            {/* Férias sem fim não têm como virar período na escala — e o
+                Planejamento já exige as duas datas ao lançar. Folga aceita
+                vazio, que significa um dia só. */}
+            <input type="date" name="dataFim" required={tipo === 'FERIAS'} className="esc-input" />
             <span className="esc-ajuda mt-1 block">
               {tipo === 'FERIAS'
                 ? 'O período inteiro entra na escala quando as férias forem aprovadas.'

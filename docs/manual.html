@@ -591,6 +591,23 @@
           "sumiu tudo".
         </p>
       </div>
+
+      <h3>Campos obrigatórios</h3>
+      <p>
+        Todo campo que o sistema exige traz um <strong style="color: var(--erro)">*</strong>
+        vermelho no rótulo, e o formulário não envia enquanto ele estiver vazio: o navegador
+        para no primeiro campo faltando e diz o que preencher. Campos sem asterisco são
+        opcionais de verdade — deixá-los em branco tem um significado definido, descrito na
+        seção de cada tela.
+      </p>
+      <div class="porque">
+        <strong>A conferência acontece duas vezes, de propósito.</strong> O asterisco e o
+        bloqueio do navegador existem para a pessoa não perder o preenchimento numa ida ao
+        servidor. Mas quem grava é o servidor, e ele refaz a checagem inteira por conta
+        própria — inclusive as regras que o navegador não sabe expressar, como "a data final
+        não pode ser anterior à inicial" ou "essa matrícula já é de outra pessoa". Desligar a
+        validação do navegador não abre caminho para gravar nada inválido.
+      </div>
     </section>
 
     <section id="ciclo">

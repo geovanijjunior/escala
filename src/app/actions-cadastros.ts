@@ -15,6 +15,21 @@ const PARAMS = '/parametros';
 const texto = (fd: FormData, campo: string) => String(fd.get(campo) ?? '').trim();
 const marcado = (fd: FormData, campo: string) => fd.get(campo) === 'on' || fd.get(campo) === 'true';
 
+/**
+ * Inteiro de um campo que precisa estar preenchido.
+ *
+ * `Number('')` é 0, e 0 passa por `Number.isInteger`. Um campo numérico apagado
+ * chegava como zero válido e era gravado calado — limpar a tolerância de
+ * aderência e salvar zerava a tolerância sem nenhum aviso. Devolve `null` no
+ * vazio, para quem chama distinguir "não preencheu" de "preencheu zero".
+ */
+function inteiro(fd: FormData, campo: string): number | null {
+  const bruto = texto(fd, campo);
+  if (bruto === '') return null;
+  const n = Number(bruto);
+  return Number.isInteger(n) ? n : null;
+}
+
 /* ============================================================
    COLABORADORES
    ============================================================ */
@@ -117,12 +132,12 @@ export async function salvarUnidade(formData: FormData) {
   const nome = texto(formData, 'nome');
   const codigo = texto(formData, 'codigo').toUpperCase();
   const sigla = texto(formData, 'sigla').toUpperCase();
-  const total = Number(formData.get('capacidadeTotal'));
-  const reservadas = Number(formData.get('capacidadeReservadas'));
+  const total = inteiro(formData, 'capacidadeTotal');
+  const reservadas = inteiro(formData, 'capacidadeReservadas');
 
   if (!nome || !codigo || !sigla) voltarComErro(PARAMS, formData, 'Nome, código e sigla são obrigatórios.');
-  if (!Number.isInteger(total) || total < 0) voltarComErro(PARAMS, formData, 'Capacidade total inválida.');
-  if (!Number.isInteger(reservadas) || reservadas < 0) voltarComErro(PARAMS, formData, 'Posições reservadas inválidas.');
+  if (total === null || total < 0) voltarComErro(PARAMS, formData, 'Informe a capacidade total como um número inteiro de posições.');
+  if (reservadas === null || reservadas < 0) voltarComErro(PARAMS, formData, 'Informe as posições reservadas como um número inteiro.');
   if (reservadas > total) voltarComErro(PARAMS, formData, 'As posições reservadas não podem passar da capacidade total.');
 
   const supabase = await createClient();
@@ -300,12 +315,12 @@ export async function salvarParametros(formData: FormData) {
   exigirPlanejamento(sessao.papel, PARAMS);
 
   const cicloAncora = texto(formData, 'cicloAncora');
-  const tolerancia = Number(formData.get('tolerancia'));
-  const cobertura = Number(formData.get('cobertura'));
+  const tolerancia = inteiro(formData, 'tolerancia');
+  const cobertura = inteiro(formData, 'cobertura');
 
   if (!/^\d{4}-\d{2}-01$/.test(cicloAncora)) voltarComErro(PARAMS, formData, 'A âncora do ciclo precisa ser o dia 1º de um mês.');
-  if (!Number.isInteger(tolerancia) || tolerancia < 0) voltarComErro(PARAMS, formData, 'Tolerância de aderência inválida.');
-  if (!Number.isInteger(cobertura) || cobertura < 0) voltarComErro(PARAMS, formData, 'Cobertura mínima inválida.');
+  if (tolerancia === null || tolerancia < 0) voltarComErro(PARAMS, formData, 'Informe a tolerância de aderência como um número inteiro de dias.');
+  if (cobertura === null || cobertura < 0) voltarComErro(PARAMS, formData, 'Informe a cobertura mínima como um número inteiro de pessoas.');
 
   const supabase = await createClient();
   const { error } = await supabase.from('config').upsert(
@@ -416,11 +431,11 @@ export async function salvarPosto(formData: FormData) {
   const id = Number(formData.get('id') ?? 0);
   const unidadeId = Number(formData.get('unidadeId'));
   const nome = texto(formData, 'nome');
-  const vagas = Number(formData.get('vagas') ?? 1);
+  const vagas = inteiro(formData, 'vagas');
 
   if (!unidadeId) voltarComErro(PARAMS, formData, 'Escolha a unidade do posto.');
   if (!nome) voltarComErro(PARAMS, formData, 'Informe o nome do posto.');
-  if (!Number.isInteger(vagas) || vagas < 1) voltarComErro(PARAMS, formData, 'O posto precisa de ao menos 1 vaga.');
+  if (vagas === null || vagas < 1) voltarComErro(PARAMS, formData, 'Informe quantas vagas simultâneas o posto tem — ao menos 1.');
 
   const supabase = await createClient();
   const registro = {

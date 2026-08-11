@@ -194,6 +194,7 @@ export function UnidadesFixasEHomeOffice({ unidades, unidadesFixas, homeOffice, 
                     name="ho_quantidade"
                     min={1}
                     max={5}
+                    required
                     defaultValue={homeOffice.quantidade || 2}
                     className="esc-input w-24 esc-num"
                   />

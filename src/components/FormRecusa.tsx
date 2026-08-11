@@ -36,6 +36,8 @@ export function FormRecusa({
           onChange={e => setMotivo(e.target.value)}
           placeholder="Explique o motivo para quem abriu o pedido"
           className="esc-input"
+          required
+          minLength={5}
           autoFocus
         />
       </label>
