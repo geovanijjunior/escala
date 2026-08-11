@@ -387,5 +387,52 @@ const base = {
   ok(analista?.unidadeId !== 1, 'analista cede a posição ao técnico', String(analista?.unidadeId));
 }
 
+// ── Regressão: posto exige que a pessoa trabalhe TODOS os dias do bloco
+// Achado pelo fuzzing (semente 3): um 12x36 recebia bloco de segunda a quinta e
+// só aparecia terça e quinta. Nos outros dois o posto constava ocupado sem
+// ninguém lá, e bloqueava quem poderia cobrir.
+{
+  const postos = [{ id: 7, unidadeId: 1, nome: 'Corpo Clínico', vagas: 1, ativo: true }];
+
+  // 12x36 não cobre dias seguidos: vira conflito, não meia-cobertura.
+  {
+    const r = gerarEscala({
+      ...base,
+      postos,
+      colaboradores: [mkColab(1, { regime: '12x36', ciclo: 'IMPAR' })],
+      planos: [mkPlano(1, { ciclo: 'IMPAR', postos: [{ postoId: 7, dias: 4, semana: null }] })],
+    });
+    const noPosto = r.alocacoes.filter(a => a.postoId === 7);
+    ok(noPosto.length === 0, '12x36 não recebe bloco de posto pela metade', String(noPosto.length));
+    const conflito = r.conflitos.filter(c => c.msg.includes('12x36') && c.msg.includes('Corpo Clínico'));
+    ok(conflito.length === 1, 'e o motivo é reportado como conflito', conflito[0]?.msg ?? 'nenhum');
+  }
+
+  // 5x2 na mesma configuração cobre normalmente.
+  {
+    const r = gerarEscala({
+      ...base,
+      postos,
+      colaboradores: [mkColab(1)],
+      planos: [mkPlano(1, { postos: [{ postoId: 7, dias: 4, semana: null }] })],
+    });
+    ok(r.alocacoes.filter(a => a.postoId === 7).length === 4, '5x2 cobre os 4 dias', String(r.alocacoes.filter(a => a.postoId === 7).length));
+  }
+
+  // Férias no meio da semana empurram o bloco para outra semana.
+  {
+    const r = gerarEscala({
+      ...base,
+      postos,
+      colaboradores: [mkColab(1)],
+      planos: [mkPlano(1, { postos: [{ postoId: 7, dias: 5, semana: null }] })],
+      ausencias: [{ id: 1, colaboradorId: 1, tipo: 'FERIAS' as const, inicio: '2026-08-05', dias: 2, grupo: '', motivo: '' }],
+    });
+    const dias = r.alocacoes.filter(a => a.postoId === 7).map(a => a.data).sort();
+    ok(dias.length === 5, 'bloco de 5 dias ainda é entregue', String(dias.length));
+    ok(!dias.includes('2026-08-05') && !dias.includes('2026-08-06'), 'e evita os dias de férias', dias.join(','));
+  }
+}
+
 console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`);
 if (falhas > 0) process.exit(1);

@@ -139,78 +139,17 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
   const dowDoPrimeiro = diaSemana(ano, mes, 1);
   const semanaDoMes = (dia: number) => Math.floor((dia + dowDoPrimeiro - 1) / 7);
 
-  // ─────────────────────────────────────────────────────────────
-  // Postos: N dias úteis CONTÍGUOS numa semana, na unidade do posto.
-  //
-  // Contíguo e semanal porque é assim que o rodízio funciona na prática — quem
-  // cobre o Corpo Clínico fica a semana (ou parte dela) inteira, não dias
-  // soltos. A semana pode ser fixada no plano; em branco, o motor escolhe a
-  // primeira com vaga, o que rodizia entre as pessoas sem trabalho manual.
-  // ─────────────────────────────────────────────────────────────
+  // Estruturas dos postos. A ESCOLHA do bloco acontece depois do laço abaixo —
+  // ver o bloco "Postos" mais adiante e o porquê registrado lá.
   const postoPorId = new Map(input.postos.filter(p => p.ativo).map(p => [p.id, p]));
   const semanasDoMes = [...new Set(Array.from({ length: nDias }, (_, i) => semanaDoMes(i + 1)))].sort((a, b) => a - b);
-
-  /** Dias úteis de uma semana do mês, em ordem. */
-  const uteisDaSemana = (semana: number): string[] => {
-    const out: string[] = [];
-    for (let d = 1; d <= nDias; d++) {
-      if (semanaDoMes(d) !== semana) continue;
-      const dow = diaSemana(ano, mes, d);
-      if (dow >= 1 && dow <= 5) out.push(datas[d - 1]);
-    }
-    return out;
-  };
 
   /** postoId|data -> quantas pessoas já estão cobrindo. Respeita `vagas`. */
   const ocupacaoPosto = new Map<string, number>();
   const usoDePosto = (postoId: number, data: string) => ocupacaoPosto.get(`${postoId}|${data}`) ?? 0;
 
-  /** colabId -> data -> postoId, decidido antes do laço principal. */
+  /** colabId -> data -> postoId. */
   const diasDePosto = new Map<number, Map<string, number>>();
-
-  for (const c of colaboradores) {
-    const plano = planoPorColab.get(c.id);
-    if (!plano?.postos?.length) continue;
-
-    const ausencias = ausenciasPorColab.get(c.id) ?? [];
-    const indisponivel = (data: string) => ausencias.some(a => data >= a.inicio && data <= a.fim);
-
-    for (const atrib of plano.postos) {
-      const posto = postoPorId.get(atrib.postoId);
-      if (!posto) continue;
-
-      // Semana fixada no plano é 1-based para quem preenche; internamente 0-based.
-      const candidatas = atrib.semana !== null && atrib.semana !== undefined
-        ? [atrib.semana - 1]
-        : semanasDoMes;
-
-      let escolhida: string[] | null = null;
-      for (const semana of candidatas) {
-        const uteis = uteisDaSemana(semana);
-        if (uteis.length < atrib.dias) continue;
-        const bloco = uteis.slice(0, atrib.dias);
-        const livre = bloco.every(d => usoDePosto(posto.id, d) < posto.vagas && !indisponivel(d));
-        if (livre) { escolhida = bloco; break; }
-      }
-
-      if (!escolhida) {
-        conflitos.push({
-          nivel: 'erro', colaboradorId: c.id, colaborador: c.nome,
-          msg: atrib.semana
-            ? `Não foi possível reservar ${atrib.dias} dia(s) seguidos de ${posto.nome} na semana ${atrib.semana}: o posto já está ocupado ou a pessoa tem ausência nesses dias.`
-            : `Não há nenhuma semana com ${atrib.dias} dia(s) seguidos livres em ${posto.nome} para ${c.nome}.`,
-        });
-        continue;
-      }
-
-      const mapa = diasDePosto.get(c.id) ?? new Map<string, number>();
-      for (const d of escolhida) {
-        mapa.set(d, posto.id);
-        ocupacaoPosto.set(`${posto.id}|${d}`, usoDePosto(posto.id, d) + 1);
-      }
-      diasDePosto.set(c.id, mapa);
-    }
-  }
 
   for (const c of colaboradores) {
     const plano = planoPorColab.get(c.id);
@@ -269,17 +208,6 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
         if (feriados[data]) { definir(c.id, data, 'FERIADO', null); continue; }
       }
 
-      // Posto vence home office e unidade fixa: é escala combinada de cobertura
-      // presencial, decidida antes por semana inteira.
-      const postoDoDia = diasDePosto.get(c.id)?.get(data);
-      if (postoDoDia !== undefined) {
-        const posto = postoPorId.get(postoDoDia)!;
-        definir(c.id, data, 'UNIDADE', posto.unidadeId, false, posto.id);
-        livres.push(data);
-        fixos.add(data);
-        continue;
-      }
-
       const unidadeFixa = unidadesFixas[dow];
       const temFixa = unidadeFixa !== undefined && idsUnidades.includes(unidadeFixa);
 
@@ -314,6 +242,82 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       }
 
       livres.push(data);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Postos: N dias úteis CONTÍGUOS numa semana, na unidade do posto.
+  //
+  // Roda DEPOIS do laço acima, e é por um motivo achado no fuzzing: escolher o
+  // bloco antes significa escolher sem saber quem trabalha em cada dia. Um
+  // colaborador 12x36 recebia um bloco de segunda a quinta e só aparecia terça
+  // e quinta — nos outros dois o posto constava ocupado e não havia ninguém
+  // lá, além de bloquear outra pessoa que poderia cobrir. Agora o bloco só é
+  // aceito se a pessoa estiver presencial em TODOS os dias dele.
+  //
+  // `presenciais` já exclui descanso de regime, feriado, férias, ausência e
+  // home office fixo — reusá-la evita reimplementar essas regras aqui e sair
+  // de sincronia com elas depois.
+  // ─────────────────────────────────────────────────────────────
+  const uteisDaSemana = (semana: number): string[] => {
+    const out: string[] = [];
+    for (let d = 1; d <= nDias; d++) {
+      if (semanaDoMes(d) !== semana) continue;
+      const dow = diaSemana(ano, mes, d);
+      if (dow >= 1 && dow <= 5) out.push(datas[d - 1]);
+    }
+    return out;
+  };
+
+  for (const c of colaboradores) {
+    const plano = planoPorColab.get(c.id);
+    if (!plano?.postos?.length) continue;
+
+    const disponiveis = new Set(presenciais.get(c.id) ?? []);
+    const jaNoPosto = new Set<string>();
+
+    for (const atrib of plano.postos) {
+      const posto = postoPorId.get(atrib.postoId);
+      if (!posto) continue;
+
+      const candidatas = atrib.semana !== null && atrib.semana !== undefined
+        ? [atrib.semana - 1]
+        : semanasDoMes;
+
+      let escolhida: string[] | null = null;
+      for (const semana of candidatas) {
+        const uteis = uteisDaSemana(semana);
+        if (uteis.length < atrib.dias) continue;
+        const bloco = uteis.slice(0, atrib.dias);
+        const serve = bloco.every(d =>
+          disponiveis.has(d)                          // a pessoa trabalha presencialmente nesse dia
+          && !jaNoPosto.has(d)                        // não está cobrindo outro posto no mesmo dia
+          && usoDePosto(posto.id, d) < posto.vagas);  // o posto ainda tem vaga
+        if (serve) { escolhida = bloco; break; }
+      }
+
+      if (!escolhida) {
+        const motivo = c.regime === '12x36'
+          ? `${c.nome} é 12x36 e trabalha em dias alternados, então não cobre ${atrib.dias} dia(s) seguidos`
+          : `o posto já está ocupado ou ${c.nome} tem ausência nesses dias`;
+        conflitos.push({
+          nivel: 'erro', colaboradorId: c.id, colaborador: c.nome,
+          msg: atrib.semana
+            ? `Não foi possível reservar ${atrib.dias} dia(s) seguidos de ${posto.nome} na semana ${atrib.semana}: ${motivo}.`
+            : `Não há semana com ${atrib.dias} dia(s) seguidos livres em ${posto.nome} para ${c.nome}: ${motivo}.`,
+        });
+        continue;
+      }
+
+      const mapa = diasDePosto.get(c.id) ?? new Map<string, number>();
+      for (const d of escolhida) {
+        mapa.set(d, posto.id);
+        jaNoPosto.add(d);
+        ocupacaoPosto.set(`${posto.id}|${d}`, usoDePosto(posto.id, d) + 1);
+        definir(c.id, d, 'UNIDADE', posto.unidadeId, false, posto.id);
+        fixados.get(c.id)?.add(d);
+      }
+      diasDePosto.set(c.id, mapa);
     }
   }
 

@@ -70,9 +70,31 @@ A precedência, documentada em `REGRAS_MOTOR` e exibida na própria interface:
 As nove primeiras são rígidas e nunca são violadas; as demais são otimizadas no
 que sobra.
 
-Rode `npm test` para as 52 asserções do motor: regimes, ciclo 12x36, cotas de
-home office e de equipe, capacidade, postos, prioridade por cargo, travas,
-ausências entre meses e determinismo.
+## Testes
+
+```bash
+./scripts/testar.sh              # tudo: tipos, lint, motor, propriedades, build, banco
+./scripts/testar.sh propriedades # só o fuzzing
+RODADAS=50000 ./scripts/testar.sh propriedades
+```
+
+| Bateria | O que cobre |
+|---|---|
+| `npm test` | 57 asserções de casos concretos do motor |
+| `npm run test:propriedades` | 14 invariantes × milhares de meses aleatórios |
+| `supabase/tests/rls.sql` | quem enxerga o quê, com testes negativos |
+| `supabase/tests/integridade.sql` | restrições, cascatas e vínculo entre contas |
+
+As **propriedades** são o que pega o que ninguém imaginou. Em vez de conferir um
+caso escolhido a dedo, geram-se meses inteiros ao acaso — equipes, capacidades,
+cotas, postos, férias que atravessam o mês, travas, feriados — e verifica-se que
+o que precisa ser sempre verdade continua sendo: ninguém trabalha nas próprias
+férias, capacidade só é estourada com conflito registrado, trava manual é
+sempre respeitada, a mesma entrada dá sempre a mesma escala. O gerador é
+semeado; a falha imprime a semente e `SEMENTE=<n>` reproduz aquele mês exato.
+
+As partes de banco usam `PGDATABASE`/`PGHOST` como qualquer ferramenta libpq, e
+são puladas com aviso se não houver Postgres conectável.
 
 ## Rodando localmente
 
@@ -169,6 +191,15 @@ terceiro e escrita na escala por quem não é Planejamento.
   as cotas fecharem o total.
 - **Alocação normalizada**: uma linha por (pessoa, dia), com modalidade e unidade
   em colunas separadas. "Quem está no Morumbi dia 12" é uma consulta SQL.
+- **Vínculo entre contas é impossível no banco, não só na tela.** Cada pai tem
+  unicidade `(id, conta_id)` e cada filho referencia o par. Sem isso, um id
+  sequencial adivinhado bastaria para um colaborador de uma conta apontar para a
+  equipe de outra — e `pode_ver_colaborador()` navega justamente por esse
+  caminho.
+- **Unidade com escala gerada não se apaga, se desativa.** A alocação é
+  histórico: "no dia 10/11 o Felipe estava no Morumbi". Por isso a exclusão é
+  recusada por chave estrangeira, com mensagem clara, em vez de anular o
+  registro.
 - **Aprovar férias marca o mês inteiro.** O pedido carrega início e fim, e a
   aprovação vira uma ausência do período completo — então o plano do mês já abre
   com as férias marcadas, sem ninguém relançar à mão. Um período que atravessa o
