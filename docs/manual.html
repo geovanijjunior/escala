@@ -342,6 +342,82 @@
     .papel, table, .etapa, .regras { border: 1pt solid var(--linha); }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
+
+  /* ── Telas ─────────────────────────────────────────────────────
+     A imagem é o assunto do parágrafo, não um enfeite ao lado dele: ocupa a
+     largura toda da coluna e vem logo depois do texto que a explica. A moldura
+     existe porque a captura tem fundo claro igual ao do manual — sem ela, a
+     tela "vaza" para dentro da página e não se lê onde começa o sistema. */
+  figure.tela {
+    margin: 18px 0 26px;
+    border: 1px solid var(--linha-forte);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--papel);
+    max-width: none;
+  }
+  figure.tela img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-bottom: 1px solid var(--linha);
+  }
+  figure.tela figcaption {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--apagado);
+    padding: 9px 14px;
+    background: var(--fundo);
+  }
+  figure.tela figcaption b { color: var(--tinta); font-weight: 620; }
+
+  /* Recortes de um bloco só ficam grandes demais esticados na coluna inteira. */
+  figure.tela.recorte { max-width: 760px; }
+  figure.tela.estreita { max-width: 460px; }
+
+  /* Referência rápida de campo: rótulo da tela à esquerda, o que ele faz à
+     direita. Mais legível que uma tabela quando a explicação tem duas linhas. */
+  dl.campos {
+    margin: 16px 0; display: grid; gap: 0;
+    border: 1px solid var(--linha); border-radius: 8px;
+    background: var(--papel); overflow: hidden;
+  }
+  dl.campos > div {
+    display: grid; grid-template-columns: 210px minmax(0, 1fr);
+    gap: 16px; padding: 11px 15px; border-bottom: 1px solid var(--linha);
+  }
+  dl.campos > div:last-child { border-bottom: 0; }
+  dl.campos dt { font-weight: 620; font-size: 14px; }
+  dl.campos dd { margin: 0; font-size: 14px; color: var(--apagado); max-width: 62ch; }
+  dl.campos dd b { color: var(--tinta); font-weight: 600; }
+  @media (max-width: 620px) {
+    dl.campos > div { grid-template-columns: 1fr; gap: 2px; }
+  }
+
+  .atalho {
+    display: inline-block; font-family: var(--mono); font-size: 12.5px;
+    background: var(--azul-suave); color: var(--navio);
+    padding: 1px 7px; border-radius: 5px; white-space: nowrap;
+  }
+
+  @media print {
+    /* A captura tem de caber na página sem partir ao meio, e sem empurrar o
+       texto que a explica para a folha seguinte. */
+    /* A moldura encolhe até o tamanho da imagem. Com largura fixa e a imagem
+       encaixada dentro, toda captura mais alta que larga deixava uma faixa
+       branca do lado direito, do tamanho de meia página. */
+    figure.tela {
+      break-inside: avoid; page-break-inside: avoid;
+      margin: 10pt 0 14pt; border: 0.75pt solid var(--linha-forte);
+      width: fit-content; max-width: 100%;
+    }
+    figure.tela img { max-height: 170mm; width: auto; max-width: 100%; }
+    figure.tela.recorte, figure.tela.estreita { max-width: 100%; }
+    figure.tela figcaption { font-size: 8.5pt; padding: 5pt 8pt; }
+    dl.campos { border: 0.75pt solid var(--linha); }
+    dl.campos > div { break-inside: avoid; page-break-inside: avoid; padding: 5pt 8pt; }
+    dl.campos dt, dl.campos dd { font-size: 9.5pt; max-width: none; }
+  }
 </style>
 
 <header class="capa">
@@ -349,8 +425,9 @@
     <div class="marca">Manual de operação</div>
     <h1>Escala</h1>
     <p>
-      Como montar, publicar e manter a escala mensal de equipes em regime 12x36 e 5x2 —
-      presença distribuída entre unidades, home office, férias e o fluxo de solicitações.
+      Guia completo, tela por tela, de como montar, publicar e manter a escala mensal —
+      presença distribuída entre unidades, home office, postos internos, férias e o fluxo
+      de solicitações.
     </p>
   </div>
 </header>
@@ -361,19 +438,25 @@
     <ol>
       <li><a href="#visao">O que o sistema faz</a></li>
       <li><a href="#papeis">Os três papéis</a></li>
-      <li><a href="#implantacao">Implantação</a></li>
-      <li class="grupo">Rotina</li>
-      <li><a href="#parametros">Parâmetros</a></li>
+      <li><a href="#tela">A tela por dentro</a></li>
+      <li><a href="#ciclo">O ciclo do mês</a></li>
+      <li class="grupo">Cadastros</li>
       <li><a href="#colaboradores">Colaboradores</a></li>
+      <li><a href="#usuarios">Usuários e acesso</a></li>
+      <li><a href="#parametros">Parâmetros</a></li>
+      <li class="grupo">Rotina do mês</li>
       <li><a href="#planos">Plano do mês</a></li>
       <li><a href="#gerar">Gerar e publicar</a></li>
-      <li><a href="#solicitacoes">Solicitações</a></li>
       <li><a href="#calendario">Calendário e ajustes</a></li>
-      <li class="grupo">Referência</li>
-      <li><a href="#motor">Como o motor decide</a></li>
+      <li><a href="#ocupacao">Ocupação</a></li>
+      <li><a href="#solicitacoes">Solicitações</a></li>
       <li><a href="#notificacoes">Notificações</a></li>
+      <li><a href="#indicadores">Indicadores</a></li>
+      <li class="grupo">Guias por papel</li>
       <li><a href="#colaborador">Guia do colaborador</a></li>
       <li><a href="#gestor">Guia do gestor</a></li>
+      <li class="grupo">Referência</li>
+      <li><a href="#motor">Como o motor decide</a></li>
       <li><a href="#problemas">Quando algo dá errado</a></li>
       <li><a href="#glossario">Glossário</a></li>
     </ol>
@@ -384,33 +467,44 @@
     <section id="visao">
       <h2>O que o sistema faz</h2>
       <p class="entrada">
-        O Escala responde a uma pergunta por dia útil: <strong>quem está onde</strong>.
+        O Escala responde a uma pergunta por pessoa e por dia: <strong>quem está onde</strong>.
       </p>
       <p>
-        Você descreve as regras uma vez — quantos lugares cada unidade tem, quem é de qual equipe,
-        que percentual da presença de cada pessoa vai para cada unidade, quem tem home office e
-        quem está de férias. O sistema monta o mês inteiro a partir disso, mostra o que vai
-        acontecer <em>antes</em> de gravar, e só publica quando você mandar.
+        Você descreve as regras uma vez — quantos lugares cada unidade tem, quem é de qual
+        equipe, que percentual da presença de cada pessoa vai para cada unidade, quem tem
+        home office, quem cobre qual posto interno, quem está de férias. O sistema monta o
+        mês inteiro a partir disso, mostra o que vai acontecer <em>antes</em> de gravar, e só
+        publica quando você mandar.
       </p>
       <p>
-        Depois de publicada, a escala vira a referência da equipe: cada pessoa vê a própria, pede
-        troca ou folga por ali, e o pedido percorre triagem e aprovação sem passar por planilha
-        nem e-mail.
+        Depois de publicada, a escala vira a referência da equipe: cada pessoa vê a própria,
+        pede troca, folga ou férias por ali, e o pedido percorre triagem e aprovação sem
+        passar por planilha nem e-mail. O que for aprovado volta para dentro da escala.
       </p>
+
+      <figure class="tela">
+        <img src="imagens/inicio.png" alt="Tela de Indicadores operacionais com quatro cartões no topo, ocupação média por unidade, ranking de atrasos, solicitações por tipo, home office realizado e a lista de ocorrências do mês.">
+        <figcaption>
+          <b>Indicadores operacionais</b> — a tela de abertura de quem tem acesso à conta
+          inteira. Todos os números desta página, e de todas as outras deste manual, vêm de
+          uma base de demonstração com 15 pessoas em duas unidades.
+        </figcaption>
+      </figure>
+
       <div class="porque">
-        <strong>A geração não é uma caixa-preta.</strong> Existe uma ordem de precedência fixa e
-        publicada — doze regras, das quais as nove primeiras nunca são violadas. Quando o
-        resultado surpreende, a explicação está nessa ordem, e a tela de geração lista os
-        conflitos que ela não conseguiu resolver sozinha.
+        <strong>A geração não é uma caixa-preta.</strong> Existe uma ordem de precedência
+        fixa e publicada — doze regras, das quais as nove primeiras nunca são violadas.
+        Quando o resultado surpreende, a explicação está nessa ordem, e a tela de geração
+        lista os conflitos que ela não conseguiu resolver sozinha.
       </div>
     </section>
 
     <section id="papeis">
       <h2>Os três papéis</h2>
       <p>
-        Cada pessoa tem exatamente um papel, e é ele que decide o que ela vê e o que pode fazer.
-        Não é filtro de tela: o próprio banco de dados recusa a leitura fora do papel, então nem
-        pela API alguém alcança o que não lhe cabe.
+        Cada pessoa tem exatamente um papel, e é ele que decide o que ela vê e o que pode
+        fazer. Não é filtro de tela: o próprio banco de dados recusa a leitura fora do papel,
+        então nem por fora da interface alguém alcança o que não lhe cabe.
       </p>
 
       <div class="papeis">
@@ -418,84 +512,212 @@
           <h3>Planejamento</h3>
           <p>Enxerga a conta inteira</p>
           <ul>
-            <li>Configura unidades, equipes e feriados</li>
-            <li>Monta o plano mensal de cada pessoa</li>
+            <li>Cadastra colaboradores, unidades, equipes e feriados</li>
+            <li>Monta o plano do mês de cada pessoa</li>
             <li>Gera, ajusta e publica a escala</li>
             <li>Faz a triagem das solicitações</li>
+            <li>Lança ocorrências e ausências</li>
           </ul>
         </div>
         <div class="papel" style="--cor: var(--gestor)">
           <h3>Gestor</h3>
-          <p>Só as equipes que gerencia</p>
+          <p>Enxerga a própria equipe</p>
           <ul>
-            <li>Acompanha escala e indicadores da equipe</li>
-            <li>Aprova ou recusa o que chega a ele</li>
-            <li>Lança ocorrências (atraso, falta)</li>
+            <li>Aprova ou recusa o que chega da triagem</li>
+            <li>Vê a escala e o calendário da equipe</li>
+            <li>Lança ocorrências da equipe</li>
+            <li>Não altera cadastros nem gera escala</li>
           </ul>
         </div>
         <div class="papel" style="--cor: var(--colaborador)">
           <h3>Colaborador</h3>
-          <p>Só a si mesmo</p>
+          <p>Enxerga a si mesmo</p>
           <ul>
-            <li>Consulta a própria escala publicada</li>
+            <li>Vê a própria escala do mês</li>
             <li>Abre solicitações</li>
             <li>Aceita ou recusa convites de troca</li>
+            <li>Acompanha a devolutiva dos pedidos</li>
           </ul>
         </div>
       </div>
 
       <div class="porque">
-        Quem cria a organização entra como <strong>Planejamento</strong>. Todos os outros acessos
-        nascem na tela de Usuários, com o papel definido ali. Um colaborador não consegue se
-        promover, nem pela tela nem por fora dela.
+        <strong>O recorte é do banco, não da tela.</strong> As políticas de acesso ficam nas
+        tabelas: uma consulta feita por um colaborador simplesmente não devolve as linhas dos
+        colegas. Isso importa na prática — significa que esconder um botão nunca é a única
+        proteção de nada, e que um erro de interface não vira vazamento de dado.
       </div>
     </section>
 
-    <section id="implantacao">
-      <h2>Implantação</h2>
-      <p class="entrada">
-        A ordem abaixo importa: cada passo usa o que o anterior criou.
+    <section id="tela">
+      <h2>A tela por dentro</h2>
+      <p>
+        Todas as páginas têm a mesma moldura. Vale conhecê-la uma vez para não reaprender em
+        cada seção.
+      </p>
+
+      <h3>Barra do topo</h3>
+      <p>
+        À esquerda, o nome da conta. À direita, o <strong>sino de notificações</strong> com a
+        contagem de itens não lidos, o seu nome com o papel embaixo e o botão <strong>Sair</strong>.
+        O sino aparece em todas as páginas e é o mesmo para os três papéis — o que muda é o
+        que cada um recebe.
+      </p>
+
+      <h3>Menu lateral</h3>
+      <p>O menu é agrupado por finalidade:</p>
+      <ul class="marcado">
+        <li><strong>Operação</strong> — Planos do mês, Gerar escala, Calendário, Ocupação, Solicitações.</li>
+        <li><strong>Análise</strong> — Indicadores.</li>
+        <li><strong>Cadastros</strong> — Colaboradores, Usuários, Parâmetros.</li>
+      </ul>
+      <p>
+        Ao lado de <strong>Solicitações</strong> aparece um contador quando há pedidos
+        esperando por você. O colaborador vê só dois itens: <em>Minha escala</em> e
+        <em>Minhas solicitações</em>.
+      </p>
+
+      <h3>Seletor de mês</h3>
+      <p>
+        No canto superior direito de quase toda tela há o seletor de competência: seta para o
+        mês anterior, uma lista de meses, uma lista de anos, seta para o próximo e o botão
+        <strong>Hoje</strong>. Ele muda apenas a página em que você está — trocar o mês no
+        Calendário não muda o mês em Planos.
+      </p>
+      <div class="aviso atencao">
+        <p>
+          <strong>O mês começa vazio.</strong> Ao abrir o sistema você cai no mês corrente. Se
+          a escala que você quer ver é de outro mês, use o seletor antes de concluir que
+          "sumiu tudo".
+        </p>
+      </div>
+    </section>
+
+    <section id="ciclo">
+      <h2>O ciclo do mês</h2>
+      <p>
+        Do começo ao fim, montar um mês são seis passos. As duas primeiras seções de cadastro
+        você mexe raramente; o resto é a rotina mensal.
       </p>
 
       <ol class="passos">
         <li>
-          <strong>Crie a organização.</strong> Na tela de entrada, clique em “Criar agora”.
-          Você vira o Planejamento.
+          <strong>Confira os cadastros.</strong> Quem entrou, quem saiu, quem mudou de equipe.
+          Colaborador desligado ou afastado fica fora da geração.
         </li>
         <li>
-          <strong>Cadastre as unidades</strong> em Parâmetros → Unidades e capacidade. Cada uma
-          precisa de nome, sigla, capacidade total e quantas posições ficam reservadas.
+          <strong>Revise os parâmetros do mês.</strong> Feriados do mês precisam estar
+          lançados; capacidade e cotas só mudam quando a operação muda.
         </li>
         <li>
-          <strong>Cadastre as equipes.</strong> A equipe define o regime (12x36 ou 5x2) e quem é
-          o gestor. Sem gestor, os pedidos daquela equipe param na triagem.
+          <strong>Monte o plano de cada pessoa.</strong> Distribuição entre unidades, home
+          office, unidade fixa, posto interno, férias e ausências. A tela mostra o contador
+          <em>Planos configurados</em> e o de <em>Pendências</em>.
         </li>
         <li>
-          <strong>Cadastre os feriados do ano.</strong> Feriado muda quem trabalha; sem ele a
-          escala sai errada para todo o time 5x2.
+          <strong>Simule.</strong> A tela de geração mostra o resultado antes de gravar
+          qualquer coisa: quantas alocações, quantos conflitos, quantos alertas.
         </li>
         <li>
-          <strong>Crie os acessos</strong> em Usuários. Cada pessoa recebe uma senha temporária
-          mostrada <em>uma única vez</em> — copie antes de sair da tela.
+          <strong>Gere e ajuste.</strong> Depois de gerada, use o Calendário para mover
+          pessoas caso a caso e travar as decisões que não podem ser desfeitas por uma nova
+          geração.
         </li>
         <li>
-          <strong>Cadastre os colaboradores</strong> e ligue cada um ao respectivo usuário pelo
-          campo <code>Usuário do sistema</code>.
-        </li>
-        <li>
-          <strong>Monte o plano do primeiro mês</strong> e gere a escala.
+          <strong>Publique.</strong> Enquanto está em rascunho, a escala aparece para o
+          colaborador com aviso de que pode mudar. Publicada, vira a referência oficial.
         </li>
       </ol>
 
+      <div class="porque">
+        <strong>Por que planejar antes de gerar, e não corrigir depois.</strong> Ajuste
+        manual no calendário é decisão isolada de um dia; plano é regra que vale para o mês
+        inteiro e sobrevive a uma regeração. Toda vez que você se pegar movendo a mesma pessoa
+        no calendário várias vezes, o lugar certo daquela decisão é o plano dela.
+      </div>
+    </section>
+
+    <section id="colaboradores">
+      <h2>Colaboradores <span class="fita planejamento">Planejamento</span></h2>
+      <p class="entrada">
+        É o cadastro que alimenta todo o resto: sem colaborador ativo, não há escala.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/colaboradores.png" alt="Lista de colaboradores com filtros por nome, equipe e situação, e uma linha por pessoa mostrando equipe, regime, unidade base e situação.">
+        <figcaption>
+          <b>Colaboradores</b> — a lista abre filtrada em <em>Ativos</em>. Os filtros de nome,
+          equipe e situação ficam guardados na URL, então o endereço da tela pode ser
+          compartilhado já filtrado.
+        </figcaption>
+      </figure>
+
+      <h3>Cadastrar e editar</h3>
+      <p>
+        <strong>Novo colaborador</strong> abre o formulário em branco no topo da página;
+        <strong>Editar</strong> abre o mesmo formulário preenchido. Os dois fecham pelo link
+        <strong>Fechar</strong>, que devolve você à lista com os filtros intactos.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/colaborador-editar.png" alt="Formulário de edição de colaborador com nome, matrícula, e-mail, cargo, equipe, turno, ciclo base, entrada, jornada, unidade base, usuário do sistema, gestor, três caixas de elegibilidade, admissão, situação e desligamento.">
+        <figcaption>
+          <b>Editar colaborador</b> — regime e turno vêm da equipe escolhida; o turno pode ser
+          sobreposto caso a caso.
+        </figcaption>
+      </figure>
+
+      <dl class="campos">
+        <div><dt>Nome, Matrícula, E-mail</dt><dd>Identificação. A matrícula aparece no detalhe do dia e nas exportações.</dd></div>
+        <div><dt>Cargo</dt><dd>Além de informativo, define prioridade: na disputa por uma posição presencial, <b>técnico entra antes de analista</b>; na escolha de dias de home office, <b>analista entra antes de técnico</b>.</dd></div>
+        <div><dt>Equipe</dt><dd>Traz junto o regime (5x2 ou 12x36) e o turno padrão. É também a chave das cotas por equipe.</dd></div>
+        <div><dt>Turno</dt><dd>Diurno ou noturno. Sobrepõe o turno da equipe só para esta pessoa.</dd></div>
+        <div><dt>Ciclo base (12x36)</dt><dd>Ímpares ou pares. Só se aplica a quem é 12x36 — define em quais dias do mês a pessoa faz plantão. Fica <b>Não se aplica</b> para quem é 5x2.</dd></div>
+        <div><dt>Entrada e Jornada diária</dt><dd>Montam a faixa horária mostrada na escala. Jornada acima de 6 h soma 1 h de intervalo no horário de saída.</dd></div>
+        <div><dt>Unidade base</dt><dd>Onde a pessoa cai quando <b>não há plano do mês</b> configurado para ela: 100% na unidade base.</dd></div>
+        <div><dt>Usuário do sistema</dt><dd>Liga o cadastro ao login. Sem esse vínculo a pessoa entra no sistema mas a tela <em>Minha escala</em> não tem o que mostrar.</dd></div>
+        <div><dt>Gestor</dt><dd>Quem recebe as solicitações desta pessoa depois da triagem.</dd></div>
+        <div><dt>Elegível a home office</dt><dd>Porteiro da regra: sem esta caixa marcada, a seção de home office do plano do mês fica desligada e o motor nunca escala home para a pessoa.</dd></div>
+        <div><dt>Elegível a trabalho externo</dt><dd>Permite que a pessoa seja alocada como Trabalho Externo quando não sobra posição em nenhuma unidade.</dd></div>
+        <div><dt>Sexta reduzida (−1 h, só 5x2)</dt><dd>Encurta a jornada de sexta em uma hora no horário mostrado.</dd></div>
+        <div><dt>Admissão, Situação, Desligamento</dt><dd>Situação <b>Ativo</b> é o que entra na geração. Afastado e desligado ficam de fora sem precisar apagar o cadastro — o histórico dos meses anteriores continua íntegro.</dd></div>
+      </dl>
+
       <div class="aviso atencao">
         <p>
-          <strong>Colaborador e usuário são coisas diferentes.</strong> O usuário faz login; o
-          colaborador aparece na escala. Nem todo colaborador precisa de login (quem não usa o
-          sistema), e nem todo usuário precisa estar na escala (você mesmo, provavelmente).
+          <strong>Não apague quem saiu.</strong> Mude a situação para <em>Desligado</em> e
+          preencha a data. Apagar o cadastro leva junto o histórico de escalas, ocorrências e
+          solicitações daquela pessoa.
         </p>
+      </div>
+    </section>
+
+    <section id="usuarios">
+      <h2>Usuários e acesso <span class="fita planejamento">Planejamento</span></h2>
+      <p>
+        <em>Colaborador</em> e <em>usuário</em> são coisas diferentes. O colaborador é quem
+        entra na escala; o usuário é quem faz login. A maioria das pessoas é as duas coisas,
+        ligadas pelo campo <strong>Usuário do sistema</strong> do cadastro — mas nem todo
+        colaborador precisa de login, e nem todo usuário aparece na escala.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/usuarios.png" alt="Tela de usuários listando as pessoas com acesso, o papel de cada uma e o formulário de convite.">
+        <figcaption>
+          <b>Usuários</b> — quem tem acesso, com que papel, e o convite para novos.
+        </figcaption>
+      </figure>
+
+      <p>
+        Convidar cria o acesso já dentro da sua conta, com o papel escolhido. A pessoa recebe
+        uma senha provisória e é obrigada a trocá-la no primeiro acesso.
+      </p>
+
+      <div class="aviso parada">
         <p>
-          É o vínculo entre os dois que faz “Minha escala” mostrar os dias certos. Sem ele, a
-          pessoa entra e não vê nada.
+          <strong>Papel se muda com cuidado.</strong> Promover alguém a Planejamento dá acesso
+          a toda a conta — cadastros, escala de todo mundo e dados pessoais. Gestor é o papel
+          certo para quem só precisa aprovar a própria equipe.
         </p>
       </div>
     </section>
@@ -503,482 +725,806 @@
     <section id="parametros">
       <h2>Parâmetros <span class="fita planejamento">Planejamento</span></h2>
       <p class="entrada">
-        É aqui que vivem as regras que valem para todo mundo. Mexer nelas muda a próxima geração,
-        não a escala já publicada.
+        São as regras da casa. Você mexe pouco aqui — mas quase toda surpresa na geração se
+        explica por algo desta tela.
+      </p>
+      <p>
+        A página tem cinco abas: <strong>Unidades e capacidade</strong>, <strong>Equipes</strong>,
+        <strong>Feriados</strong>, <strong>Regras do motor</strong> e
+        <strong>Auditoria e LGPD</strong>. A primeira reúne quatro blocos, do mais geral ao
+        mais específico.
       </p>
 
       <h3>Unidades</h3>
-      <p>
-        <strong>Capacidade total</strong> é quantas pessoas cabem no local.
-        <strong>Posições reservadas</strong> são lugares que existem mas não entram no rateio —
-        visitante, sala de reunião, um posto de manutenção. O motor nunca aloca acima de
-        <em>total menos reservadas</em>.
-      </p>
+      <figure class="tela recorte">
+        <img src="imagens/parametros-unidades.png" alt="Bloco de unidades listando Morumbi e Paulista com sigla, total, reservadas, operacionais e situação, e abaixo o formulário de nova unidade.">
+        <figcaption><b>Unidades</b> — cada linha traz o cálculo já feito: total − reservadas = operacionais.</figcaption>
+      </figure>
+      <dl class="campos">
+        <div><dt>Nome, Código, Sigla</dt><dd>A sigla é o que aparece nas células do calendário — <b>MOR</b>, <b>PAU</b>. Curta funciona melhor.</dd></div>
+        <div><dt>Ordem</dt><dd>Posição da unidade nas listas e no calendário.</dd></div>
+        <div><dt>Capacidade total</dt><dd>Quantos lugares o prédio tem.</dd></div>
+        <div><dt>Posições reservadas</dt><dd>Quantos desses lugares <b>não</b> entram na escala: visitantes, sala de reunião, treinamento. O motor nunca aloca acima de total menos reservadas.</dd></div>
+        <div><dt>Cor e Cor de fundo</dt><dd>Identidade visual da unidade no calendário e nos gráficos.</dd></div>
+        <div><dt>Unidade ativa</dt><dd>Desmarcar tira a unidade da geração sem apagar o histórico.</dd></div>
+      </dl>
 
       <h3>Capacidade e posições reservadas por dia</h3>
       <p>
-        A capacidade padrão vale todos os dias. Quando um dia é diferente — “segunda e sexta eu
-        guardo 2 lugares” — cadastre a exceção aqui, marcando quantos dias da semana quiser de
-        uma vez. Também aceita uma data específica, que vence o dia da semana.
+        A capacidade da unidade é a regra geral. Este bloco cria exceções: <em>toda segunda</em>,
+        <em>toda sexta</em>, ou uma data exata. É aqui que se diz "na segunda eu guardo mais
+        duas posições porque tem reunião".
       </p>
-      <p>
-        Deixar o <strong>Total</strong> em branco mantém a capacidade padrão da unidade. Use assim
-        quando só as reservadas mudam.
-      </p>
+      <figure class="tela recorte">
+        <img src="imagens/parametros-capacidade.png" alt="Bloco de capacidade por dia mostrando duas exceções para Morumbi na segunda e na sexta, com total 16, reservadas 4 e livres 12, e o formulário com caixas para os cinco dias da semana.">
+        <figcaption>
+          <b>Capacidade por dia</b> — no exemplo, o Morumbi guarda 4 posições às segundas e às
+          sextas, então sobram 12 em vez de 14 nesses dias.
+        </figcaption>
+      </figure>
+      <ul class="marcado">
+        <li>Marque <strong>quantos dias da semana quiser</strong> de uma vez — todos recebem os mesmos valores.</li>
+        <li><strong>Data exata tem precedência</strong> sobre dia da semana. Um feriado municipal específico vence a regra de "toda sexta".</li>
+        <li><strong>Total em branco</strong> mantém a capacidade padrão da unidade — use quando só as reservadas mudam.</li>
+        <li>Salvar de novo um dia já cadastrado substitui o valor anterior. Para voltar ao padrão, use <strong>Remover</strong> na linha.</li>
+      </ul>
 
       <h3>Cota de posições por equipe</h3>
       <p>
-        Reparte as posições de uma unidade entre as equipes: no Morumbi, 5 para técnicos 12x36 e
-        3 para analistas. Equipe sem cota cadastrada não tem teto próprio — só a capacidade da
-        unidade a limita.
+        Reparte as posições de uma unidade entre as equipes. Sem cota, uma equipe grande pode
+        ocupar o prédio inteiro num dia cheio e deixar a outra sem lugar.
       </p>
-      <div class="porque">
-        A cota é um <strong>teto</strong>, mas vira <strong>garantia</strong> quando as cotas de
-        uma unidade somam a capacidade livre dela. Com técnicos em 5 e analistas em 3 num prédio
-        de 8, o quarto analista não ocupa o lugar que sobrou de técnico. Quem quer apenas limitar
-        deixa folga; quem quer garantir faz as cotas fecharem o total.
-      </div>
+      <figure class="tela recorte">
+        <img src="imagens/parametros-cotas.png" alt="Bloco de cota por equipe com três linhas: Morumbi/Técnicos de Campo até 6, Morumbi/Analistas até 5, Paulista/Técnicos até 4.">
+        <figcaption><b>Cota por equipe</b> — teto de pessoas de cada equipe por unidade, opcionalmente por dia da semana.</figcaption>
+      </figure>
+      <ul class="marcado">
+        <li><strong>Nenhum dia marcado</strong> significa todos os dias. Marcar um dia cria uma exceção que vence a cota geral naquele dia.</li>
+        <li><strong>Equipe sem cota</strong> não tem teto próprio — só a capacidade da unidade a limita.</li>
+        <li>Quando as cotas de uma unidade somam a capacidade livre dela, <strong>o teto vira garantia</strong>: a vaga reservada a uma equipe não é ocupada por outra.</li>
+      </ul>
 
       <h3>Postos dentro das unidades</h3>
       <p>
-        Um posto é uma <em>função exercida dentro</em> da unidade — o Corpo Clínico dentro do
-        Morumbi. Não é outra unidade: quem cobre o posto ocupa uma posição normal do Morumbi, e
-        por isso capacidade e rateio não mudam.
+        Um posto é uma função exercida <em>dentro</em> da unidade — o Corpo Clínico dentro do
+        Morumbi. Não é outra unidade: quem cobre o posto ocupa uma posição normal do Morumbi,
+        então capacidade e rateio percentual não mudam.
       </p>
+      <figure class="tela recorte">
+        <img src="imagens/parametros-postos.png" alt="Bloco de postos mostrando o Corpo Clínico dentro do Morumbi com 1 vaga simultânea e situação ativa, e o formulário de novo posto.">
+        <figcaption><b>Postos</b> — aqui se cria o posto; <em>quem</em> cobre e por quantos dias é decidido no plano do mês de cada pessoa.</figcaption>
+      </figure>
       <p>
-        Cadastre o posto aqui (nome, unidade, quantas pessoas cabem nele ao mesmo tempo). Quem
-        cobre e por quantos dias é definido no plano do mês de cada pessoa.
+        <strong>Vagas simultâneas</strong> é quantas pessoas o posto comporta no mesmo dia.
+        Com 1 vaga, duas pessoas nunca são escaladas para o Corpo Clínico no mesmo dia — a
+        segunda vira conflito na geração.
       </p>
 
-      <h3>Motor</h3>
-      <div class="tabela-rolo">
-        <table>
-          <thead>
-            <tr><th>Ajuste</th><th>O que faz</th><th>Sugestão</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Âncora do ciclo 12x36</strong></td>
-              <td>Mês de referência a partir do qual a alternância par/ímpar é contada. Mudá-la desloca o ciclo de todo mundo de uma vez.</td>
-              <td>Não mexa</td>
-            </tr>
-            <tr>
-              <td><strong>Tolerância de aderência</strong></td>
-              <td>Quantos dias de diferença entre o planejado e o realizado você aceita antes de a pessoa entrar na lista de avisos. Não bloqueia nada.</td>
-              <td class="num">2 ou 3</td>
-            </tr>
-            <tr>
-              <td><strong>Cobertura mínima</strong></td>
-              <td>Mínimo de pessoas presenciais por unidade nos dias em que alguém trabalha. Gera aviso, não impede a geração.</td>
-              <td class="num">0 ou 1</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <h3>Regras do motor</h3>
+      <figure class="tela recorte">
+        <img src="imagens/parametros-motor.png" alt="Bloco Motor com âncora do ciclo 12x36 travada em janeiro de 2026, tolerância de aderência 3 e cobertura mínima por unidade 1.">
+        <figcaption><b>Motor</b> — três números que mudam o comportamento da geração em toda a conta.</figcaption>
+      </figure>
+      <dl class="campos">
+        <div>
+          <dt>Âncora do ciclo 12x36</dt>
+          <dd>O mês a partir do qual a paridade par/ímpar do 12x36 é contada. Mudá-la desloca o ciclo de <b>todo mundo</b>, então o campo fica travado na tela.</dd>
+        </div>
+        <div>
+          <dt>Tolerância de aderência (dias)</dt>
+          <dd>De quanto o resultado pode fugir do percentual planejado, em dias, antes de a pessoa deixar de contar como aderente. Com tolerância 3, quem planejou 10 dias no Morumbi e recebeu 12 continua aderente. Não muda a alocação — muda só o indicador <em>Aderência ao plano</em>.</dd>
+        </div>
+        <div>
+          <dt>Cobertura mínima por unidade</dt>
+          <dd>Piso de pessoas por unidade em cada dia em que alguém trabalha. O motor destaca para a unidade descoberta quem estiver mais atrasado na meta dela; se ninguém no mês estiver planejado para essa unidade, ele avisa em vez de inventar uma alocação.</dd>
+        </div>
+      </dl>
+
+      <h3>Equipes</h3>
+      <figure class="tela recorte">
+        <img src="imagens/parametros-equipes.png" alt="Bloco de equipes listando Técnicos de Campo 5x2, Analistas de Sistemas 5x2 e Plantão 12x36, cada uma com gestor e número de pessoas.">
+        <figcaption><b>Equipes</b> — a equipe carrega o regime de trabalho e o gestor responsável pelas aprovações.</figcaption>
+      </figure>
+      <p>
+        Trocar o regime de uma equipe muda o regime de todo mundo que está nela no próximo
+        mês gerado. Trocar o gestor muda para onde vão as próximas solicitações — as que já
+        estão em andamento continuam com quem as recebeu.
+      </p>
+
+      <h3>Feriados</h3>
+      <figure class="tela recorte">
+        <img src="imagens/parametros-feriados.png" alt="Bloco de feriados com Finados, Proclamação da República e Consciência Negra em novembro de 2026.">
+        <figcaption><b>Feriados</b> — em dia de feriado o 5x2 folga; o 12x36 segue o ciclo normalmente.</figcaption>
+      </figure>
       <div class="aviso atencao">
         <p>
-          <strong>Cobertura mínima em 1 pode gerar ruído no fim de semana.</strong> Sábado e
-          domingo o time 5x2 descansa e o 12x36 trabalha, então uma unidade sem gente de 12x36
-          aparece com zero pessoas e o aviso se repete sem que haja problema. Se incomodar,
-          use <span class="num">0</span>.
+          <strong>Lance os feriados antes de gerar.</strong> Um feriado cadastrado depois não
+          reescreve sozinho a escala já gerada — é preciso gerar de novo. Feriado esquecido
+          aparece como um dia útil comum, com gente escalada presencialmente.
         </p>
       </div>
-    </section>
 
-    <section id="colaboradores">
-      <h2>Colaboradores <span class="fita planejamento">Planejamento</span></h2>
+      <h3>Auditoria e LGPD</h3>
+      <figure class="tela">
+        <img src="imagens/parametros-auditoria.png" alt="Aba de auditoria com o log de alterações e o texto sobre proteção de dados.">
+        <figcaption><b>Auditoria</b> — toda alteração relevante é gravada com autor, horário e detalhe.</figcaption>
+      </figure>
       <p>
-        O cadastro de quem entra na escala. Regime e turno vêm da equipe escolhida; o turno pode
-        ser sobreposto caso a caso.
+        O log é somente leitura e serve para responder "quem mudou isso e quando". A seção de
+        proteção de dados descreve que informação pessoal o módulo guarda e por quê.
       </p>
-      <div class="tabela-rolo">
-        <table>
-          <thead><tr><th>Campo</th><th>Para que serve</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Equipe</strong></td><td>Define regime (12x36 ou 5x2) e o gestor que aprova</td></tr>
-            <tr><td><strong>Unidade base</strong></td><td>Para onde a presença vai quando não há distribuição configurada</td></tr>
-            <tr><td><strong>Ciclo</strong></td><td>Só para 12x36: se trabalha nos dias pares ou ímpares</td></tr>
-            <tr><td><strong>Elegível a home office</strong></td><td>Desmarcado, a pessoa nunca recebe home, mesmo com plano configurado</td></tr>
-            <tr><td><strong>Usuário do sistema</strong></td><td>Liga o cadastro ao login. Sem isso, a pessoa não vê a própria escala</td></tr>
-            <tr><td><strong>Situação</strong></td><td>Só quem está <em>ativo</em> entra na geração</td></tr>
-          </tbody>
-        </table>
-      </div>
     </section>
 
     <section id="planos">
       <h2>Plano do mês <span class="fita planejamento">Planejamento</span></h2>
       <p class="entrada">
-        O plano é o retrato do que você quer para cada pessoa naquele mês. É a tela onde você
-        passa mais tempo.
+        É aqui que o mês é realmente decidido. Tudo o que o motor faz depois sai daqui.
       </p>
 
-      <h3>Distribuição entre unidades</h3>
+      <figure class="tela">
+        <img src="imagens/planos-lista.png" alt="Tela Planos do mês com três cartões no topo — planos configurados 15 de 15, pendências 0, ausências no mês 2 — e a tabela com uma linha por colaborador mostrando equipe, regime, ciclo, distribuição, unidades fixas, home office e férias.">
+        <figcaption>
+          <b>Planos do mês</b> — a tabela resume, numa linha por pessoa, exatamente o que o
+          motor vai usar. Quem não tem plano cai 100% na unidade base.
+        </figcaption>
+      </figure>
+
+      <p>Os três cartões do topo respondem, em ordem, às três perguntas do começo do mês:</p>
+      <dl class="campos">
+        <div><dt>Planos configurados</dt><dd>Quantas pessoas ativas já têm plano deste mês. Falta alguém? A linha dela está na tabela, sem distribuição.</dd></div>
+        <div><dt>Pendências</dt><dd>Erros de configuração que <b>bloqueiam a geração</b>. Enquanto for maior que zero, a tela de geração não simula.</dd></div>
+        <div><dt>Ausências no mês</dt><dd>Férias e ausências que tocam este mês, inclusive as que começaram no mês anterior.</dd></div>
+      </dl>
+
       <p>
-        Escolha o percentual dos dias presenciais em cada unidade. Só existem os degraus
-        0 / 25 / 50 / 75 / 100 — em dias inteiros, valores como 33% não significam nada e só
-        geram desvio que ninguém consegue explicar depois. A soma precisa fechar em 100%.
+        O botão <strong>Copiar de <em>mês anterior</em></strong> aparece quando o mês anterior
+        tem planos e este ainda não está completo. Ele traz a configuração de quem ainda não
+        tem plano, sem sobrescrever quem já tem.
       </p>
 
-      <h3>Unidade fixa por dia da semana</h3>
+      <h3>O editor de plano</h3>
       <p>
-        Para quando o dia é combinado: “Felipe fica terça e quarta no Morumbi”. Esses dias saem
-        do rateio livre e nunca são movidos pelo balanceamento.
+        <strong>Editar</strong> na linha da pessoa abre o editor no topo da página. Ele tem
+        cinco seções, na ordem em que o motor as considera.
       </p>
 
-      <h3>Postos</h3>
+      <figure class="tela">
+        <img src="imagens/plano-helena.png" alt="Editor do plano de Helena Vasques com distribuição 25% Morumbi e 75% Paulista, seção de postos, unidade fixa por dia da semana toda em Livre, home office em cota semanal de 3 dias com preferência segunda, quarta e sexta, e as seções de férias e ausências.">
+        <figcaption>
+          <b>Editor de plano</b> — o exemplo de Helena Vasques usa quase todos os recursos:
+          rateio entre duas unidades e cota semanal de home office com dias de preferência.
+        </figcaption>
+      </figure>
+
+      <h4>1. Distribuição dos dias presenciais</h4>
       <p>
-        Se a distribuição mandar a pessoa a uma unidade que tenha posto, o sistema pergunta se ela
-        vai cobri-lo e por quantos dias. A cobertura é <strong>semanal e contígua, a partir da
-        segunda</strong>: 5 dias é a semana inteira, 3 é de segunda a quarta.
+        Os botões de percentual dizem que fatia dos dias presenciais da pessoa vai para cada
+        unidade. O indicador <strong>Total</strong> à direita precisa fechar em 100% — se não
+        fechar, vira pendência e trava a geração.
       </p>
       <p>
-        Deixe a semana no automático para o motor rodiziar o posto entre as pessoas; fixe uma
-        quando precisar de alguém numa semana específica.
+        A conta é feita sobre os dias que <em>sobraram</em>: fim de semana, feriado, férias,
+        home office fixo e unidade fixa saem da conta antes do rateio. Por isso 50/50 não
+        significa 15 dias em cada lugar, e sim metade do que restou.
       </p>
+
+      <h4>2. Postos</h4>
+      <p>
+        Marque <strong>Fica no <em>posto</em></strong> para destacar a pessoa. Dois campos
+        controlam o bloco:
+      </p>
+      <dl class="campos">
+        <div><dt>Dias seguidos</dt><dd>Quantos dias úteis consecutivos, sempre a partir da segunda-feira. <b>5</b> é a semana inteira.</dd></div>
+        <div><dt>Em qual semana</dt><dd><b>Motor escolhe (rodízio)</b> deixa o sistema distribuir o posto entre as pessoas ao longo do mês. Fixar uma semana serve para quando alguém precisa estar lá numa semana específica.</dd></div>
+      </dl>
+      <p>
+        O bloco só é aceito se a pessoa estiver presencial em <strong>todos</strong> os dias
+        dele. Um bloco que cairia em cima de férias, feriado ou dia de folga do 12x36 não é
+        montado pela metade — vira conflito, com o motivo escrito.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/plano-felipe.png" alt="Editor do plano de Felipe Souza com 100% Morumbi, o posto Corpo Clínico marcado com 5 dias seguidos na 2ª semana, nenhuma unidade fixa e a seção de home office desligada por não elegibilidade.">
+        <figcaption>
+          <b>Posto fixado</b> — Felipe cobre o Corpo Clínico a semana inteira, na 2ª semana de
+          novembro. A seção de home office aparece desligada porque ele não está marcado como
+          elegível no cadastro.
+        </figcaption>
+      </figure>
+
+      <h4>3. Unidade fixa por dia da semana</h4>
+      <p>
+        Trava um dia da semana numa unidade — toda segunda e toda sexta na Paulista, por
+        exemplo. Esses dias <strong>saem do rateio percentual</strong>: já estão decididos, e
+        ocupam posição na unidade normalmente.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/plano-carla.png" alt="Editor do plano de Carla Nunes com distribuição 50/50, segunda e sexta travadas na Paulista e cota de 2 dias de home office com preferência quinta e sexta.">
+        <figcaption>
+          <b>Unidade fixa</b> — Carla tem segunda e sexta travadas na Paulista. Sobram três
+          dias por semana para o rateio 50/50.
+        </figcaption>
+      </figure>
+
+      <h4>4. Home office</h4>
+      <p>Três modos, e a seção só aparece para quem é elegível no cadastro:</p>
+      <dl class="campos">
+        <div><dt>Sem home office</dt><dd>A pessoa é presencial todos os dias úteis.</dd></div>
+        <div><dt>Dias fixos</dt><dd>Sempre os mesmos dias da semana. Simples e previsível — mas cuidado para não marcar o mesmo dia como unidade fixa, o que é a pendência mais comum do sistema.</dd></div>
+        <div><dt>Cota semanal</dt><dd>Uma quantidade por semana, com o dia escolhido pelo motor. <b>Dias de preferência</b> é onde a pessoa quer ficar; <b>dias proibidos</b> nunca são usados.</dd></div>
+      </dl>
+      <div class="porque">
+        <strong>Na cota, a quantidade é rígida e o dia é flexível.</strong> A preferência é a
+        regra primária: quem marcou sexta vai na sexta, mesmo que isso junte várias pessoas no
+        mesmo dia. O espalhamento pelo mês age <em>dentro</em> do que foi marcado — entre dois
+        dias preferidos, ganha o menos cheio — e só decide sozinho para quem não marcou
+        preferência nenhuma. Em semanas encurtadas, pela virada do mês ou por feriado, a cota
+        é rateada pelo tamanho da semana: pedir 2 dias de casa numa semana de 1 dia útil
+        mandaria o time inteiro para casa nesse único dia.
+      </div>
+
+      <h4>5. Férias e ausências</h4>
+      <figure class="tela recorte">
+        <img src="imagens/plano-ausencias.png" alt="Seções de férias e ausências com campos de início e fim, grupo e motivo.">
+        <figcaption><b>Férias e ausências</b> — período com início e fim; a ausência ainda pede grupo e motivo.</figcaption>
+      </figure>
+      <ul class="marcado">
+        <li><strong>Férias</strong> pede início e fim. É bloqueio absoluto: nenhuma outra regra reabre o dia.</li>
+        <li><strong>Ausência</strong> — folga, licença, atestado — pede início, fim, grupo e motivo. Fim em branco significa só o dia de início.</li>
+        <li>A ausência fica ligada à <strong>pessoa, não ao mês</strong>: um período que começa em outubro e termina em novembro bloqueia os dois.</li>
+        <li>Períodos sobrepostos são recusados na gravação, com a mensagem dizendo qual período conflita.</li>
+      </ul>
+
+      <h3>Pendências</h3>
+      <p>
+        A caixa <strong>Só com pendência</strong> filtra a tabela para o que está travando o
+        mês. A mensagem em vermelho fica embaixo do nome da pessoa.
+      </p>
+      <figure class="tela">
+        <img src="imagens/planos-pendencia.png" alt="Planos do mês filtrado por pendência, mostrando uma linha de Gustavo Reis com a mensagem de que quarta está marcada ao mesmo tempo como home office fixo e como unidade fixa.">
+        <figcaption>
+          <b>Pendência</b> — quarta marcada ao mesmo tempo como home office fixo e como
+          unidade fixa. A tela nomeia o dia e a pessoa; a correção é abrir o plano e desfazer
+          um dos dois.
+        </figcaption>
+      </figure>
+      <p>As pendências mais comuns e o que fazer:</p>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Mensagem</th><th>Correção</th></tr></thead>
+          <tbody>
+            <tr><td>A distribuição entre unidades soma <em>x</em>%</td><td>Ajuste os percentuais até o Total fechar 100%.</td></tr>
+            <tr><td>Sem plano configurado para o mês</td><td>Abra o plano da pessoa, ou use <em>Copiar de mês anterior</em>.</td></tr>
+            <tr><td><em>Dia</em> está marcado ao mesmo tempo como home office fixo e como unidade fixa</td><td>Escolha um dos dois para aquele dia da semana.</td></tr>
+            <tr><td>Regime 12x36 sem ciclo definido para o mês</td><td>Escolha ímpares ou pares no plano.</td></tr>
+            <tr><td>Home office configurado, mas o colaborador não está marcado como elegível</td><td>Marque a elegibilidade no cadastro, ou tire o home office do plano.</td></tr>
+            <tr><td>Ausência sem grupo ou motivo preenchido</td><td>Reabra a ausência e complete os campos.</td></tr>
+          </tbody>
+        </table>
+      </div>
       <div class="aviso atencao">
         <p>
-          <strong>Quem é 12x36 não cobre posto em dias seguidos</strong> — trabalha em dias
-          alternados, por definição. Se você atribuir, o sistema recusa e explica, em vez de
-          reservar o posto em dias nos quais a pessoa não estará lá.
+          <strong>Salvar o plano não altera a escala já gerada.</strong> É preciso gerar de
+          novo. O aviso está escrito ao lado do botão, e é o engano mais frequente de quem
+          está começando.
         </p>
-      </div>
-
-      <h3>Home office</h3>
-      <p>
-        Dois modos. <strong>Fixo</strong>: dias da semana definidos, sempre os mesmos.
-        <strong>Cota</strong>: uma quantidade por semana, com dias de preferência e dias
-        proibidos, e o sistema escolhe.
-      </p>
-      <div class="porque">
-        Na cota, <strong>a preferência manda</strong>: quem marcou sexta vai na sexta, ainda que
-        isso concentre gente. O espalhamento pelo mês age <em>dentro</em> do que foi marcado —
-        entre dois dias preferidos, ganha o menos cheio — e só decide sozinho para quem não marcou
-        preferência nenhuma. Dia proibido é barreira absoluta, acima das duas coisas.
-      </div>
-
-      <h3>Férias e ausências</h3>
-      <p>
-        Os dois são lançados como intervalo de datas. Nas ausências, deixar o fim em branco
-        significa um único dia. Períodos sobrepostos são recusados na gravação.
-      </p>
-      <div class="porque">
-        <strong>A ausência pertence à pessoa, não ao mês.</strong> Um período de 25/11 a 05/12
-        bloqueia os dois meses automaticamente — não é preciso lançar duas vezes.
       </div>
     </section>
 
     <section id="gerar">
       <h2>Gerar e publicar <span class="fita planejamento">Planejamento</span></h2>
-
-      <ol class="passos">
-        <li>
-          <strong>Resolva as pendências.</strong> A tela lista o que impede a geração — plano sem
-          distribuição, 12x36 sem ciclo definido. Enquanto houver pendência, o botão fica travado.
-        </li>
-        <li>
-          <strong>Simule.</strong> A simulação roda o motor de verdade e mostra exatamente o que
-          vai acontecer: alocações, conflitos e aderência. <em>Nada é gravado.</em>
-        </li>
-        <li>
-          <strong>Gere.</strong> A escala é gravada como <strong>rascunho</strong>. Os
-          colaboradores ainda não a enxergam.
-        </li>
-        <li>
-          <strong>Ajuste à mão, se precisar.</strong> Em Calendário, abra qualquer dia e mova uma
-          pessoa. O ajuste fica travado e sobrevive a uma nova geração.
-        </li>
-        <li>
-          <strong>Publique.</strong> A partir daí a equipe vê a escala e pode abrir solicitações
-          sobre ela.
-        </li>
-      </ol>
-
-      <div class="porque">
-        Simular e gerar chamam <strong>a mesma função</strong> do motor. A única diferença é
-        gravar ou não o resultado — é isso que garante que a prévia não minta.
-      </div>
-
-      <p>
-        <strong>Encerrar o mês</strong> fecha o período: não entram mais solicitações nem
-        alterações naquela competência. Faça isso quando o mês acabar e os ajustes estiverem
-        conferidos.
-      </p>
-    </section>
-
-    <section id="solicitacoes">
-      <h2>Solicitações</h2>
       <p class="entrada">
-        Todo pedido segue o mesmo caminho, e cada passo fica registrado com autor e horário.
+        Simular não grava nada. É a tela onde você vê o mês inteiro antes de assumi-lo.
       </p>
 
-      <div class="fluxo">
-        <div class="etapa">
-          <span class="nome">AGUARDA PARCEIRO</span>
-          <span class="oque">Só em troca de plantão. <em>O colega precisa aceitar antes de o pedido seguir.</em></span>
-        </div>
-        <div class="seta" aria-hidden="true">↓</div>
-        <div class="etapa">
-          <span class="nome">TRIAGEM</span>
-          <span class="oque">Com o Planejamento, que tem três saídas: <strong>encaminhar ao gestor</strong>, <strong>aprovar direto</strong> ou <strong>recusar</strong> — e pode ainda mandar para a lista de espera.</span>
-        </div>
-        <div class="seta" aria-hidden="true">↓</div>
-        <div class="etapa">
-          <span class="nome">GESTOR</span>
-          <span class="oque">Com o gestor da equipe, que aprova ou recusa. <em>Recusar exige justificativa.</em></span>
-        </div>
-        <div class="seta" aria-hidden="true">↓</div>
-        <div class="etapa">
-          <span class="nome">APROVADA / RECUSADA</span>
-          <span class="oque">Fim do caminho. Aprovar já altera a escala nos tipos que mexem no dia.</span>
-        </div>
-      </div>
+      <figure class="tela">
+        <img src="imagens/gerar.png" alt="Tela Gerar a escala do mês com quatro cartões no topo, o bloco de simulação mostrando conflitos bloqueantes zero, alertas zero e planos aderentes 15 de 15, os blocos de regeração total e parcial, a versão vigente publicada e a lista de precedência do motor.">
+        <figcaption>
+          <b>Gerar a escala do mês</b> — a simulação roda sozinha ao abrir a tela e diz
+          quantas alocações o motor produziria agora. Nada é gravado até você confirmar.
+        </figcaption>
+      </figure>
 
+      <h3>Os quatro cartões</h3>
+      <dl class="campos">
+        <div><dt>Colaboradores ativos</dt><dd>Quem entra na geração, e em quantas equipes.</dd></div>
+        <div><dt>Pendências nos planos</dt><dd>Enquanto for maior que zero, não há simulação: corrija em <em>Planos do mês</em>.</dd></div>
+        <div><dt>Conflitos na simulação</dt><dd>Situações que o motor não conseguiu resolver e que precisam de decisão manual.</dd></div>
+        <div><dt>Alocações travadas</dt><dd>Ajustes manuais que você travou no calendário. <b>Sobrevivem à regeração</b> — o motor os respeita e conta na ocupação.</dd></div>
+      </dl>
+
+      <h3>Conflitos e alertas</h3>
+      <p>A simulação separa dois níveis, e a diferença importa:</p>
+      <ul class="marcado">
+        <li>
+          <strong>Conflitos bloqueantes</strong> — o motor chegou num ponto sem saída:
+          ninguém coube na unidade, o posto não tinha semana livre, duas travas manuais
+          estouraram a capacidade do dia. Cada linha nomeia a pessoa, a data e o motivo.
+        </li>
+        <li>
+          <strong>Alertas</strong> — a escala é válida, mas alguma coisa não saiu como o
+          plano pedia: uma cota de home office que não coube na semana, uma unidade abaixo da
+          cobertura mínima. Vale ler antes de publicar; não impede nada.
+        </li>
+      </ul>
       <p>
-        A <strong>lista de espera</strong> existe para trocas: quando não há posição no dia
-        pedido, o pedido entra na fila em ordem, e o primeiro é promovido assim que uma posição
-        se abre.
+        <strong>Planos aderentes</strong> conta quantas pessoas terminariam o mês dentro da
+        tolerância configurada em relação ao percentual planejado.
       </p>
 
-      <h3>O que cada tipo faz ao ser aprovado</h3>
-      <div class="tabela-rolo">
-        <table>
-          <thead><tr><th>Tipo</th><th class="num">Prazo</th><th>Efeito da aprovação</th></tr></thead>
-          <tbody>
-            <tr><td>Férias</td><td class="num">120 h</td><td>Lança o período inteiro como férias e trava os dias</td></tr>
-            <tr><td>Folgas</td><td class="num">48 h</td><td>Lança o período como ausência e trava os dias</td></tr>
-            <tr><td>Troca de Unidade</td><td class="num">72 h</td><td>Move a alocação do dia e trava</td></tr>
-            <tr><td>Troca de Horário</td><td class="num">48 h</td><td>Troca os plantões entre as duas pessoas e registra ocorrência nos dois</td></tr>
-            <tr><td>Ajuste de Ponto</td><td class="num">48 h</td><td>Registro formal — não altera a escala</td></tr>
-            <tr><td>Banco de Horas</td><td class="num">72 h</td><td>Registro formal</td></tr>
-            <tr><td>Justificativa de Atraso</td><td class="num">24 h</td><td>Registro formal</td></tr>
-            <tr><td>Pausas</td><td class="num">24 h</td><td>Registro formal</td></tr>
-            <tr><td>Saída Antecipada</td><td class="num">24 h</td><td>Registro formal</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <h3>Gerar</h3>
+      <p>Há duas formas de gerar, e a segunda é a que salva o dia perto do fim do mês:</p>
+      <dl class="campos">
+        <div>
+          <dt>Regerar mês completo</dt>
+          <dd>Cria uma nova versão do mês inteiro. As alocações travadas são preservadas; todo o resto é recalculado do zero.</dd>
+        </div>
+        <div>
+          <dt>Regeração parcial</dt>
+          <dd>Recalcula só o recorte escolhido — uma ou mais equipes, um intervalo de datas, ou os dois. <b>Tudo que ficar de fora é congelado exatamente como está</b> na versão vigente. É o jeito de refazer a última semana de uma equipe sem mexer no mês que já foi combinado com todo mundo.</dd>
+        </div>
+      </dl>
 
+      <h3>Publicar e encerrar</h3>
+      <p>
+        O bloco <strong>Versão vigente</strong> mostra o estado atual: número da versão,
+        escopo, quem gerou e quando, e o selo <em>Rascunho</em> ou <em>Publicada</em>.
+      </p>
+      <ul class="marcado">
+        <li><strong>Rascunho</strong> — o colaborador já vê a escala, com um aviso de que as datas podem mudar.</li>
+        <li><strong>Publicada</strong> — vira a referência oficial. É o que o gestor cobra e o colaborador organiza a vida em cima.</li>
+        <li><strong>Encerrar o mês</strong> — fecha a competência. A escala vira somente leitura e para de aceitar ajuste manual. Use quando o mês acabou e você não quer alteração retroativa.</li>
+      </ul>
+
+      <h3>Quando a geração está bloqueada</h3>
+      <figure class="tela">
+        <img src="imagens/gerar-bloqueado.png" alt="Tela de geração com uma pendência nos planos, sem bloco de simulação, mostrando o aviso de que é preciso resolver as pendências antes.">
+        <figcaption>
+          <b>Geração bloqueada</b> — com pendência em algum plano, a simulação nem roda. O
+          caminho é <em>Planos do mês</em> → caixa <em>Só com pendência</em>.
+        </figcaption>
+      </figure>
       <div class="porque">
-        <strong>Aprovar férias marca o plano do mês.</strong> Um pedido de 10/11 a 20/11 aprovado
-        vira uma ausência do período completo, e o plano de novembro já abre com as férias
-        marcadas. Ninguém relança à mão.
+        <strong>Por que bloquear em vez de gerar assim mesmo.</strong> Uma escala montada sobre
+        um plano incompleto <em>parece</em> válida: sai com todos os dias preenchidos e nada na
+        tela grita. O erro só aparece na segunda semana do mês, quando alguém está no lugar
+        errado. Barrar na hora custa cinco minutos; descobrir depois custa a confiança na
+        escala inteira.
       </div>
     </section>
 
     <section id="calendario">
       <h2>Calendário e ajustes <span class="fita planejamento">Planejamento</span></h2>
-      <p>
-        A visão do mês, com filtro por nome (a lista suspensa também aceita digitar), equipe,
-        modalidade e turno. Clicar num dia abre quem está onde e permite mover pessoas.
-      </p>
-      <p>
-        Todo ajuste manual vira uma <strong>trava</strong>: ele sobrevive a uma nova geração e só
-        sai se você destravar. É assim que a exceção combinada com alguém não se perde na próxima
-        vez que o mês for regerado.
+      <p class="entrada">
+        A escala pronta, em três formas de olhar: o mês, a grade e o dia.
       </p>
 
-      <h3>Modalidades</h3>
+      <h3>Vista de mês</h3>
+      <figure class="tela">
+        <img src="imagens/calendario-mes.png" alt="Calendário de novembro de 2026 em formato de mês, com cada dia mostrando as contagens por unidade, home office e férias, e os feriados nomeados.">
+        <figcaption>
+          <b>Vista de mês</b> — cada célula mostra quantas pessoas em cada unidade, quantas em
+          home office e quantas ausentes. Feriados aparecem nomeados.
+        </figcaption>
+      </figure>
+      <p>
+        É a visão de conferência rápida: dá para ver de longe se algum dia ficou vazio, se as
+        duas unidades estão equilibradas, e se os feriados foram respeitados. Clicar num dia
+        abre o detalhe dele.
+      </p>
+
+      <h3>Grade do mês</h3>
+      <figure class="tela">
+        <img src="imagens/calendario-grade.png" alt="Grade do mês com uma linha por colaborador, agrupada por equipe, uma coluna por dia com a sigla da alocação, colunas de total por unidade e home office à direita, e duas linhas de ocupação por unidade no rodapé.">
+        <figcaption>
+          <b>Grade do mês</b> — uma linha por pessoa, uma coluna por dia. À direita, o total do
+          mês por unidade e de home office; no rodapé, a ocupação de cada unidade dia a dia.
+        </figcaption>
+      </figure>
+      <p>
+        É a visão clássica de escala, agrupada por equipe. Serve para conferir o padrão de uma
+        pessoa ao longo do mês — se o 12x36 está alternando direito, se o home office ficou
+        espalhado, se as férias cobrem o período certo. O ponto <span class="atalho">·</span>
+        marca uma alocação travada, e <strong>Exportar grade</strong> baixa a mesma tabela.
+      </p>
+
+      <h3>Detalhe do dia</h3>
+      <figure class="tela">
+        <img src="imagens/calendario-dia.png" alt="Calendário com o painel do dia 9 de novembro aberto embaixo, mostrando contagem por unidade, a tabela de pessoas em atividade com seletor de alocação e botão mover, a etiqueta Corpo Clínico sob Felipe Souza, e o formulário de lançamento de ocorrência.">
+        <figcaption>
+          <b>Detalhe do dia</b> — quem está onde, com o seletor para mover a pessoa e o botão
+          para travar. Sob a alocação de Felipe Souza aparece a etiqueta <em>Corpo Clínico</em>,
+          o posto que ele cobre naquela semana.
+        </figcaption>
+      </figure>
+      <p>É a tela do ajuste fino. Nela você pode:</p>
+      <ul class="marcado">
+        <li>
+          <strong>Mover</strong> alguém para outra unidade ou modalidade — Home Office,
+          Trabalho Externo, Evento, Treinamento, Folga, Afastamento.
+        </li>
+        <li>
+          <strong>Travar</strong> a alocação. Trava é decisão tomada: o motor a respeita antes
+          de qualquer outra regra e ela sobrevive a uma nova geração.
+        </li>
+        <li>
+          <strong>Lançar ocorrência</strong> — atraso, falta justificada, falta não
+          justificada — com minutos e observação.
+        </li>
+      </ul>
+      <div class="aviso atencao">
+        <p>
+          <strong>Trava é para exceção, não para rotina.</strong> Cada trava é um pedaço da
+          escala que o motor não pode mais otimizar. Se você travou a mesma pessoa no mesmo dia
+          da semana três vezes, o lugar daquela decisão é <em>unidade fixa</em> no plano do mês.
+        </p>
+      </div>
+
+      <h3>Filtros</h3>
+      <figure class="tela">
+        <img src="imagens/calendario-filtro.png" alt="Calendário filtrado pelo nome Felipe, mostrando apenas os dias desse colaborador.">
+        <figcaption>
+          <b>Filtro por colaborador</b> — o campo aceita parte do nome e reduz o calendário a
+          quem casa com a busca.
+        </figcaption>
+      </figure>
+      <p>
+        Os quatro filtros — colaborador, equipe, modalidade e turno — podem ser combinados e
+        ficam guardados na URL. "Me mostre todo mundo em home office na sexta" é uma pergunta
+        que se responde aqui, e o endereço resultante pode ser enviado ao gestor.
+      </p>
+    </section>
+
+    <section id="ocupacao">
+      <h2>Ocupação</h2>
+      <p class="entrada">
+        Quantas posições de cada unidade estão ocupadas, dia a dia.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/ocupacao.png" alt="Painel de ocupação com a faixa de dias do mês no topo, cada dia com barras por unidade, e abaixo os cartões de Morumbi e Paulista listando quem está em cada uma no dia selecionado.">
+        <figcaption>
+          <b>Painel de ocupação</b> — as barras são proporcionais às posições operacionais
+          (capacidade total menos as reservadas). Clique num dia para ver quem está onde.
+        </figcaption>
+      </figure>
+
+      <p>
+        Enquanto o Calendário responde "onde está fulano", a Ocupação responde "quanto do
+        prédio está usado". É a tela de quem negocia espaço: mostra em que dias a unidade fica
+        perto do limite e em que dias sobra sala.
+      </p>
+      <ul class="marcado">
+        <li>A faixa do topo cobre o mês inteiro e rola na horizontal.</li>
+        <li>Abaixo, um cartão por unidade lista nominalmente quem está lá no dia escolhido, com cargo e horário.</li>
+        <li>O cartão <strong>Remoto e ausências</strong> mostra quem está fora das unidades físicas naquele dia.</li>
+        <li><strong>Exportar mês em CSV</strong> baixa a ocupação diária para planilha.</li>
+      </ul>
+    </section>
+
+    <section id="solicitacoes">
+      <h2>Solicitações</h2>
+      <p class="entrada">
+        Todo pedido segue o mesmo caminho, e o caminho é visível para os três papéis.
+      </p>
+
+      <h3>O fluxo</h3>
+      <div class="fluxo">
+        <div class="etapa"><span class="nome">Aberta</span><span class="oque">O colaborador registra o pedido com tipo, data e justificativa. <em>Só troca de plantão pede parceiro.</em></span></div>
+        <div class="seta">↓</div>
+        <div class="etapa"><span class="nome">Aguarda parceiro</span><span class="oque">Numa troca, o colega convidado aceita ou recusa antes de qualquer outra coisa. <em>Recusou, acabou.</em></span></div>
+        <div class="seta">↓</div>
+        <div class="etapa"><span class="nome">Em triagem</span><span class="oque">O Planejamento confere se cabe na escala e decide o encaminhamento.</span></div>
+        <div class="seta">↓</div>
+        <div class="etapa"><span class="nome">Com o gestor</span><span class="oque">O gestor da equipe aprova ou recusa. <em>A recusa exige motivo escrito.</em></span></div>
+        <div class="seta">↓</div>
+        <div class="etapa"><span class="nome">Aprovada</span><span class="oque">O pedido é aplicado na escala do dia e a alocação é travada, para não ser desfeita por uma regeração.</span></div>
+      </div>
+
+      <h3>A tela do Planejamento</h3>
+      <figure class="tela">
+        <img src="imagens/solicitacoes-planejamento.png" alt="Tela de solicitações com as abas Abertas, Lista de espera e Histórico, e três cartões de pedido: troca de horário aguardando parceiro, troca de unidade em triagem com quatro botões de ação, e férias com o gestor.">
+        <figcaption>
+          <b>Solicitações — triagem</b> — cada cartão traz tipo, data, quem pediu, o SLA do
+          tipo e o histórico do pedido. Os botões mudam conforme o estágio.
+        </figcaption>
+      </figure>
+
+      <p>Na triagem há quatro saídas:</p>
+      <dl class="campos">
+        <div><dt>Encaminhar ao gestor</dt><dd>O caminho normal. O gestor da equipe recebe a notificação e decide.</dd></div>
+        <div><dt>Aprovar direto</dt><dd>Encerra o pedido sem passar pelo gestor e <b>já altera a escala do dia</b>, travando a alocação. Para o que já está resolvido e cuja ida ao gestor só atrasaria a resposta.</dd></div>
+        <div><dt>Enviar para a lista de espera</dt><dd>Quando não cabe agora mas pode caber depois. O pedido ganha posição na fila, que fica visível para quem pediu.</dd></div>
+        <div><dt>Recusar na triagem</dt><dd>Exige motivo. O texto volta para o colaborador na tela dele e na notificação.</dd></div>
+      </dl>
+
+      <p>
+        As três abas separam o que está vivo do que já passou:
+        <strong>Abertas</strong> (o que espera decisão), <strong>Lista de espera</strong>
+        (o que ficou na fila) e <strong>Histórico</strong> (aprovadas e recusadas).
+      </p>
+
+      <h3>A tela do gestor</h3>
+      <figure class="tela">
+        <img src="imagens/gestor-solicitacoes.png" alt="Tela de solicitações vista pelo gestor, com apenas os pedidos da equipe dele e os botões aprovar e recusar.">
+        <figcaption>
+          <b>Solicitações — gestor</b> — só o que é da equipe dele, e só o que já passou pela
+          triagem.
+        </figcaption>
+      </figure>
+      <p>
+        Duas ações: <strong>Aprovar</strong>, que aplica o pedido na escala e trava a alocação,
+        e <strong>Recusar</strong>, que pede o motivo. O histórico do pedido, com cada etapa e
+        quem a executou, fica no próprio cartão sob <strong>Histórico</strong>.
+      </p>
+
+      <h3>Os tipos de pedido</h3>
       <div class="tabela-rolo">
         <table>
-          <thead><tr><th>Sigla</th><th>Significa</th></tr></thead>
+          <thead><tr><th>Tipo</th><th>O que pede</th><th>Efeito quando aprovado</th></tr></thead>
           <tbody>
-            <tr><td><code>HO</code></td><td>Home Office</td></tr>
-            <tr><td><code>EXT</code></td><td>Trabalho Externo — usado quando não sobrou posição em nenhuma unidade</td></tr>
-            <tr><td><code>FÉR</code></td><td>Férias</td></tr>
-            <tr><td><code>AUS</code></td><td>Ausência (folga, licença, atestado)</td></tr>
-            <tr><td><code>FRD</code></td><td>Feriado</td></tr>
-            <tr><td><code>—</code></td><td>Descanso do ciclo 12x36</td></tr>
+            <tr><td>Férias</td><td>Data de início e fim</td><td>Vira período de férias; os dias do mês já ficam marcados na escala</td></tr>
+            <tr><td>Folga</td><td>Data</td><td>Vira ausência no dia e trava a alocação</td></tr>
+            <tr><td>Troca de unidade</td><td>Data e unidade desejada</td><td>Move a pessoa para a unidade escolhida naquele dia</td></tr>
+            <tr><td>Troca de horário</td><td>Data e colega parceiro</td><td>Só avança depois do aceite do parceiro</td></tr>
+            <tr><td>Ajuste de ponto</td><td>Data e justificativa</td><td>Registro; não altera a alocação</td></tr>
           </tbody>
         </table>
       </div>
       <p>
-        A exportação disponível é CSV, com separador <code>;</code> e acentuação que o Excel em
-        português abre sem embaralhar.
+        Cada tipo tem um <strong>SLA</strong> próprio, mostrado no cartão — o prazo previsto de
+        resposta. Ele não bloqueia nada; serve para o Planejamento saber o que está atrasando.
+      </p>
+    </section>
+
+    <section id="notificacoes">
+      <h2>Notificações</h2>
+      <p>
+        O sino no topo mostra o que andou nos pedidos que dizem respeito a você. O conteúdo é
+        recortado pelo mesmo mecanismo de acesso das outras telas: o colaborador recebe a
+        devolutiva dos próprios pedidos e os convites de troca; o gestor, o que chega da
+        equipe; o Planejamento, o que entra em triagem.
+      </p>
+
+      <figure class="tela estreita">
+        <img src="imagens/notificacoes.png" alt="Painel de notificações aberto mostrando duas entradas, cada uma com a etapa, a data, o tipo de solicitação e quem a moveu.">
+        <figcaption>
+          <b>Sino de notificações</b> — cada linha diz a etapa, o tipo do pedido, a data de
+          referência e quem moveu.
+        </figcaption>
+      </figure>
+
+      <p>
+        O número vermelho conta as não lidas. <strong>Marcar como lidas</strong> zera o
+        contador sem apagar a lista, e clicar numa linha leva direto à tela de solicitações.
+        Você nunca recebe notificação de uma ação sua.
+      </p>
+    </section>
+
+    <section id="indicadores">
+      <h2>Indicadores</h2>
+      <p>
+        A tela inicial de quem tem acesso à conta consolida o mês. Todos os números seguem o
+        seletor de competência no topo — indicador vazio quase sempre é mês sem escala gerada.
+      </p>
+      <dl class="campos">
+        <div><dt>Absenteísmo</dt><dd>Faltas sobre o total de dias escalados no mês.</dd></div>
+        <div><dt>Atrasos</dt><dd>Quantidade de ocorrências de atraso e o total de minutos acumulados.</dd></div>
+        <div><dt>Aderência ao plano</dt><dd>Quantas pessoas terminaram o mês dentro da tolerância em relação ao percentual planejado.</dd></div>
+        <div><dt>Solicitações abertas</dt><dd>O que ainda espera decisão, e o total do período.</dd></div>
+        <div><dt>Ocupação média por unidade</dt><dd>Média nos dias úteis, sobre as posições operacionais. É o número que sustenta uma conversa sobre mudar de andar ou abrir unidade.</dd></div>
+        <div><dt>Home office realizado</dt><dd>Dias efetivamente escalados em casa, por pessoa. Compare com o que foi planejado.</dd></div>
+        <div><dt>Ocorrências do mês</dt><dd>Lançamentos de ponto e intercorrências, com data, tipo, minutos e observação.</dd></div>
+      </dl>
+    </section>
+
+    <section id="colaborador">
+      <h2>Guia do colaborador <span class="fita colaborador">Colaborador</span></h2>
+      <p class="entrada">
+        Duas telas, e a segunda é só a lista dos seus pedidos.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/minha-escala.png" alt="Tela Minha escala de Felipe Souza em novembro de 2026, com quatro cartões dos próximos dias, o calendário do mês com a sigla e o horário de cada dia, a legenda, o formulário de nova solicitação e a lista das solicitações dele.">
+        <figcaption>
+          <b>Minha escala</b> — os próximos dias em destaque, o mês inteiro logo abaixo, e o
+          formulário de pedido no fim da mesma página.
+        </figcaption>
+      </figure>
+
+      <h3>Ler a sua escala</h3>
+      <ul class="marcado">
+        <li>Os quatro cartões do topo são os próximos dias em que você trabalha, com o local e o horário.</li>
+        <li>No calendário, cada dia traz a sigla da unidade e o horário de entrada. Quando você está destacado num posto, o nome dele aparece no lugar do horário.</li>
+        <li>A legenda no rodapé traduz as siglas: as unidades, <strong>HO</strong> para home office, <strong>FÉR</strong> para férias e <strong>AUS</strong> para ausência.</li>
+        <li>Se a escala ainda estiver em rascunho, uma faixa amarela avisa que as datas podem mudar.</li>
+        <li>Mês sem escala publicada mostra um aviso — você continua podendo abrir solicitações.</li>
+      </ul>
+
+      <h3>Abrir um pedido</h3>
+      <ol class="passos">
+        <li><strong>Escolha o tipo.</strong> Férias e folga pedem data; troca de unidade pede a unidade desejada; troca de plantão pede o colega.</li>
+        <li><strong>Informe a data</strong> — em férias, o início e o fim.</li>
+        <li><strong>Escreva a justificativa.</strong> É o texto que o gestor lê para decidir; frase vaga costuma voltar como pedido de esclarecimento.</li>
+        <li><strong>Envie.</strong> O prazo previsto de resposta aparece ao lado do botão.</li>
+      </ol>
+      <p>
+        A lista <strong>Minhas solicitações</strong> mostra o estágio de cada pedido. Quando
+        alguém convida você para uma troca, o cartão ganha o selo <em>Aguarda sua resposta</em>
+        e o botão para responder. Se um pedido for recusado, o motivo aparece escrito no
+        próprio cartão.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/colaborador-solicitacoes.png" alt="Tela Minhas solicitações do colaborador, listando os pedidos dele com tipo, data, status e justificativa.">
+        <figcaption><b>Minhas solicitações</b> — o histórico dos seus pedidos e das trocas em que você foi convidado.</figcaption>
+      </figure>
+    </section>
+
+    <section id="gestor">
+      <h2>Guia do gestor <span class="fita gestor">Gestor</span></h2>
+      <p class="entrada">
+        Você vê a sua equipe, aprova o que chega da triagem e registra o que aconteceu.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/gestor-inicio.png" alt="Tela inicial do gestor com os indicadores recortados para a equipe dele.">
+        <figcaption><b>Início do gestor</b> — os mesmos indicadores, recortados na equipe.</figcaption>
+      </figure>
+
+      <figure class="tela">
+        <img src="imagens/gestor-calendario.png" alt="Calendário visto pelo gestor, mostrando só a equipe dele e sem os controles de edição da escala.">
+        <figcaption>
+          <b>Calendário do gestor</b> — a escala da equipe, sem os controles de geração e sem o
+          seletor que move pessoas entre unidades.
+        </figcaption>
+      </figure>
+
+      <h3>O que você pode fazer</h3>
+      <ul class="marcado">
+        <li><strong>Aprovar ou recusar</strong> as solicitações que a triagem encaminhou. Recusar pede motivo, e o motivo chega a quem pediu.</li>
+        <li><strong>Consultar</strong> o calendário e a ocupação da equipe, no mês que quiser.</li>
+        <li><strong>Lançar ocorrências</strong> — atraso, falta justificada, falta não justificada — pelo detalhe do dia.</li>
+      </ul>
+      <h3>O que não passa por você</h3>
+      <p>
+        Cadastro de pessoas, parâmetros, plano do mês e geração da escala são do Planejamento.
+        Se a escala da sua equipe precisa mudar de forma estrutural — alguém que deveria estar
+        sempre na outra unidade, uma cota apertada demais —, o caminho é falar com o
+        Planejamento, não ajustar dia a dia.
       </p>
     </section>
 
     <section id="motor">
       <h2>Como o motor decide</h2>
       <p class="entrada">
-        As regras rodam nesta ordem. As nove primeiras são rígidas e nunca são violadas; as três
-        últimas são otimizadas dentro do que sobrou.
+        Doze regras, em ordem. As nove primeiras são rígidas: nunca são violadas. As três
+        últimas são otimizadas dentro do que sobra.
       </p>
 
       <ol class="regras">
-        <li><span><span class="tit">Travas manuais</span><span class="desc">Ajuste feito no calendário é decisão tomada — vem antes de tudo</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Férias</span><span class="desc">Bloqueio absoluto; nenhuma regra reabre o dia</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Ausências</span><span class="desc">Folga, licença e atestado, mesmo iniciados em outro mês</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Regime de trabalho</span><span class="desc">12x36 alterna dias; 5x2 folga fim de semana e feriado</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Home office fixo</span><span class="desc">Dias marcados não entram na distribuição por unidade</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Unidade fixa por dia da semana</span><span class="desc">Ocupa posição e sai do rateio livre</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Capacidade da unidade</span><span class="desc">Nunca aloca acima de total menos reservadas</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Cota de posições por equipe</span><span class="desc">Teto por equipe, opcionalmente por dia da semana</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Cota semanal de home office</span><span class="desc">A quantidade é rígida; o dia é flexível</span></span><span class="tipo rigida">Rígida</span></li>
-        <li><span><span class="tit">Preferência de home office</span><span class="desc">Escolhe o dia; o espalhamento desempata dentro dela</span></span><span class="tipo flexivel">Flexível</span></li>
-        <li><span><span class="tit">Distribuição percentual</span><span class="desc">Reparte os dias presenciais pelo método do maior resto</span></span><span class="tipo flexivel">Flexível</span></li>
-        <li><span><span class="tit">Balanceamento e cobertura</span><span class="desc">Evita concentrar a mesma equipe e avisa sobre cobertura baixa</span></span><span class="tipo flexivel">Flexível</span></li>
+        <li><span><span class="tit">Travas manuais</span><span class="desc">Um ajuste travado no calendário é decisão já tomada: entra antes de qualquer regra e conta na ocupação da unidade.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Férias</span><span class="desc">Bloqueio absoluto. Nenhuma outra regra reabre o dia.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Ausências</span><span class="desc">Folga, licença, atestado e afastamento bloqueiam o dia, mesmo que tenham começado em outro mês.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Regime de trabalho</span><span class="desc">12x36 alterna dias pares/ímpares a partir do ciclo do mês; 5x2 trabalha de segunda a sexta e folga em feriado.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Home office fixo</span><span class="desc">Dias da semana marcados como home office não entram na distribuição por unidade.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Unidade fixa por dia da semana</span><span class="desc">Ocupa posição na unidade e sai da distribuição percentual livre.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Capacidade da unidade</span><span class="desc">Nunca aloca acima das posições operacionais. Quem ocupa um posto interno ocupa lugar também na unidade que o contém, então prédio cheio bloqueia o posto. Quem não couber vira Trabalho Externo, com conflito registrado.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Cota de posições por equipe</span><span class="desc">Teto de pessoas de cada equipe por unidade, opcionalmente por dia da semana. Quando as cotas somam a capacidade livre, o teto vira garantia.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Cota semanal de home office</span><span class="desc">A quantidade é rígida; o dia é flexível. Dias proibidos nunca são usados. Em semana encurtada, a cota é rateada pelo tamanho da semana.</span></span><span class="tipo rigida">Rígida</span></li>
+        <li><span><span class="tit">Preferência de home office</span><span class="desc">Regra primária na escolha do dia: quem marcou sexta vai na sexta. O espalhamento pelo mês age dentro do que foi marcado — entre dois dias preferidos, ganha o menos cheio — e só decide sozinho para quem não marcou preferência. Na disputa, analista escolhe antes de técnico.</span></span><span class="tipo flexivel">Flexível</span></li>
+        <li><span><span class="tit">Distribuição percentual</span><span class="desc">Reparte os dias presenciais entre as unidades pelo método do maior resto, dentro da tolerância configurada.</span></span><span class="tipo flexivel">Flexível</span></li>
+        <li><span><span class="tit">Balanceamento e cobertura</span><span class="desc">Evita concentrar a mesma equipe numa unidade e garante a cobertura mínima do dia, destacando quem está mais atrasado na meta daquela unidade.</span></span><span class="tipo flexivel">Flexível</span></li>
       </ol>
 
-      <h3>Prioridade por cargo</h3>
-      <p>
-        Quando duas pessoas disputam a mesma coisa, o cargo desempata: <strong>analista tem
-        preferência no home office</strong> e <strong>técnico na posição presencial</strong> —
-        é quem precisa estar perto do equipamento. Quem não é nem um nem outro não ganha nem
-        perde prioridade.
-      </p>
+      <figure class="tela">
+        <img src="imagens/parametros-precedencia.png" alt="Aba Regras do motor mostrando a lista de precedência das doze regras com a marcação de rígida ou flexível em cada uma.">
+        <figcaption>
+          <b>A mesma lista dentro do sistema</b> — em <em>Parâmetros → Regras do motor</em>, e
+          também no rodapé da tela de geração.
+        </figcaption>
+      </figure>
 
-      <h3>Por que a mesma entrada dá sempre a mesma escala</h3>
+      <h3>Duas prioridades que valem lembrar</h3>
+      <ul class="marcado">
+        <li><strong>Técnico tem prioridade na posição presencial.</strong> Na disputa por um lugar na unidade, o técnico entra antes do analista — é quem precisa estar perto do equipamento.</li>
+        <li><strong>Analista tem prioridade no home office.</strong> Na escolha dos dias de casa, o analista escolhe antes.</li>
+      </ul>
+
       <div class="porque">
-        Todos os critérios de desempate terminam no identificador da pessoa, então não há sorteio
-        em lugar nenhum. Regerar o mesmo mês sem mudar nada produz exatamente a mesma escala —
-        e é isso que torna a simulação confiável.
+        <strong>A mesma entrada produz sempre a mesma escala.</strong> Não há sorteio em lugar
+        nenhum: todo empate é desfeito por um critério estável — cargo, depois quem está mais
+        atrasado na meta, depois a ordem de cadastro. Gerar duas vezes seguidas, sem mudar
+        nada, dá exatamente o mesmo resultado. É o que torna possível comparar duas simulações
+        e saber que a diferença veio da mudança que você fez.
       </div>
-    </section>
-
-    <section id="notificacoes">
-      <h2>Notificações</h2>
-      <p>
-        O sino no topo mostra o que mudou desde a última vez que você olhou. O que aparece
-        depende do papel, sem você configurar nada:
-      </p>
-      <ul class="marcado">
-        <li><strong>Colaborador</strong> — a devolutiva dos próprios pedidos e os convites de troca</li>
-        <li><strong>Gestor</strong> — o que chega da equipe para decisão</li>
-        <li><strong>Planejamento</strong> — o que entra em triagem</li>
-      </ul>
-      <p>
-        O que você mesmo fez não aparece. “Marcar como lidas” zera o contador; o histórico
-        completo continua na própria solicitação.
-      </p>
-      <div class="aviso atencao">
-        <p>
-          <strong>Nada sai do sistema.</strong> Não há e-mail nem push. Quem precisa responder
-          rápido deve abrir o Escala — o sino avisa lá dentro, não na caixa de entrada.
-        </p>
-      </div>
-    </section>
-
-    <section id="colaborador">
-      <h2>Guia do colaborador <span class="fita colaborador">Colaborador</span></h2>
-      <p>Você tem duas telas.</p>
-
-      <h3>Minha escala</h3>
-      <p>
-        Seus dias do mês, com a unidade de cada um. Só aparece depois que o Planejamento publica —
-        antes disso a escala ainda é rascunho e pode mudar.
-      </p>
-
-      <h3>Minhas solicitações</h3>
-      <p>
-        Abra um pedido pela própria escala. Para <strong>férias</strong>, informe início e fim: o
-        período inteiro é considerado, e quando aprovado já entra na escala daquele mês.
-      </p>
-      <p>
-        Em <strong>troca de plantão</strong>, o colega escolhido precisa aceitar antes de o pedido
-        chegar ao Planejamento. Se ele recusar, o pedido termina ali — e você é avisado no sino.
-      </p>
-      <div class="aviso atencao">
-        <p>
-          <strong>Não vê nada em “Minha escala”?</strong> Seu login provavelmente não está ligado
-          ao seu cadastro de colaborador. A própria tela diz isso quando é o caso. Peça ao
-          Planejamento para fazer o vínculo.
-        </p>
-      </div>
-    </section>
-
-    <section id="gestor">
-      <h2>Guia do gestor <span class="fita gestor">Gestor</span></h2>
-      <p>
-        Você enxerga <strong>apenas as equipes que gerencia</strong> — em todas as telas, inclusive
-        nos números.
-      </p>
-      <ul class="marcado">
-        <li><strong>Indicadores</strong> — absenteísmo, atrasos e aderência da sua equipe</li>
-        <li><strong>Escala</strong> — o calendário do mês, filtrado à sua equipe</li>
-        <li><strong>Ocupação</strong> — quantas pessoas <em>suas</em> estão em cada unidade</li>
-        <li><strong>Aprovações</strong> — o que a triagem encaminhou para você decidir</li>
-      </ul>
-      <div class="aviso atencao">
-        <p>
-          <strong>Ocupação mostra um recorte, não o prédio.</strong> Como você não enxerga as
-          outras equipes, “Morumbi 3” significa três pessoas <em>suas</em> ali — o prédio pode
-          estar cheio. A tela avisa isso no topo.
-        </p>
-      </div>
-      <p>
-        Recusar exige justificativa: ela vai para quem pediu e fica no histórico do pedido.
-      </p>
     </section>
 
     <section id="problemas">
       <h2>Quando algo dá errado</h2>
 
-      <h3>A geração está bloqueada</h3>
-      <p>
-        Há pendência em algum plano. A tela de geração lista quais e de quem. As mais comuns:
-        distribuição que não soma 100%, e pessoa 12x36 sem ciclo definido no mês.
-      </p>
-
-      <h3>Alguém saiu como “Trabalho Externo”</h3>
-      <p>
-        Não sobrou posição para ela em nenhuma unidade elegível. O conflito na tela de geração diz
-        se faltou <em>lugar físico</em> ou se foi a <em>cota da equipe</em> que fechou — são
-        problemas diferentes e a mensagem distingue os dois.
-      </p>
-
-      <h3>Uma unidade aparece estourada</h3>
-      <p>
-        Decisões rígidas — travas e unidades fixas — podem, somadas, passar da capacidade. O motor
-        não desfaz decisão rígida, então reporta o conflito nomeando quem está fixado ali. Revise
-        as travas do dia ou a capacidade daquela data.
-      </p>
-
-      <h3>Muita gente em home no mesmo dia</h3>
-      <p>
-        Isso é esperado quando todos marcaram o mesmo dia de preferência — a preferência é a regra
-        primária. Para espalhar, remova a preferência de parte do time, ou marque dois dias em vez
-        de um: o sistema equilibra entre os dias marcados.
-      </p>
-
-      <h3>Não consigo excluir uma unidade</h3>
-      <p>
-        Se ela já tem escala gerada, a exclusão é recusada de propósito: a alocação é histórico
-        (“no dia 10/11 o Felipe estava no Morumbi”). Use <strong>desativar</strong> — a unidade
-        sai das próximas gerações e o passado continua íntegro.
-      </p>
-
-      <div class="aviso parada">
-        <p>
-          <strong>Mês encerrado não aceita mais nada.</strong> Nem solicitação, nem ajuste, nem
-          aprovação. Se precisar corrigir algo depois de encerrar, reabra o mês antes.
-        </p>
+      <h3>A tela está vazia</h3>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Sintoma</th><th>Causa provável</th><th>O que fazer</th></tr></thead>
+          <tbody>
+            <tr><td>Calendário sem nada</td><td>Mês sem escala gerada, ou seletor no mês errado</td><td>Confira o mês no topo; se estiver certo, gere a escala</td></tr>
+            <tr><td>Indicadores zerados</td><td>Mês sem escala gerada</td><td>Use <em>Ir para a geração</em> no próprio aviso</td></tr>
+            <tr><td>"Seu usuário não está vinculado a um colaborador"</td><td>O login existe, o cadastro de colaborador não aponta para ele</td><td>Planejamento: preencha <em>Usuário do sistema</em> no cadastro da pessoa</td></tr>
+            <tr><td>Colaborador não vê a escala publicada</td><td>Escala em rascunho, ou pessoa fora da geração</td><td>Publique; confira se a situação dela é <em>Ativo</em></td></tr>
+          </tbody>
+        </table>
       </div>
+
+      <h3>A geração não sai como o esperado</h3>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Sintoma</th><th>Causa provável</th><th>O que fazer</th></tr></thead>
+          <tbody>
+            <tr><td>Alterei o plano e a escala não mudou</td><td>Salvar o plano não regera a escala</td><td>Vá em <em>Gerar escala</em> e regere</td></tr>
+            <tr><td>Alguém apareceu como Trabalho Externo</td><td>Não sobrou posição em nenhuma unidade elegível</td><td>Leia o conflito: ele diz se foi lotação ou cota de equipe</td></tr>
+            <tr><td>A distribuição não bateu com o percentual</td><td>Dias fixos e ausências saem da conta antes do rateio</td><td>Normal. Só investigue se a aderência cair fora da tolerância</td></tr>
+            <tr><td>Uma unidade ficou vazia num dia</td><td>Ninguém no mês está planejado para ela</td><td>Ajuste a distribuição de alguém, ou reduza a cobertura mínima</td></tr>
+            <tr><td>O posto não foi reservado</td><td>Não havia semana com dias seguidos livres</td><td>Solte a semana para o rodízio, ou reduza os dias seguidos</td></tr>
+            <tr><td>O 12x36 caiu nos dias errados</td><td>Ciclo do mês invertido</td><td>Troque ímpares/pares no plano da pessoa</td></tr>
+            <tr><td>Um ajuste manual desapareceu</td><td>Nova geração recalculou o dia</td><td>Trave o ajuste no detalhe do dia antes de regerar</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Mensagens de erro ao salvar</h3>
+      <p>
+        As mensagens do sistema tentam dizer o que fazer, não só o que falhou. Duas famílias
+        aparecem com frequência:
+      </p>
+      <ul class="marcado">
+        <li>
+          <strong>"Rode a migration …"</strong> — o banco de dados está numa versão anterior à
+          do sistema. É tarefa de quem administra a instalação: aplicar os arquivos de
+          <code>supabase/migrations/</code> que ainda faltam, em ordem.
+        </li>
+        <li>
+          <strong>"Período sobreposto"</strong> — a ausência que você tenta gravar cobre dias
+          de outra já existente. A mensagem diz qual.
+        </li>
+      </ul>
     </section>
 
     <section id="glossario">
       <h2>Glossário</h2>
-      <div class="tabela-rolo">
-        <table>
-          <thead><tr><th>Termo</th><th>Significa</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Competência</strong></td><td>O mês de referência da escala</td></tr>
-            <tr><td><strong>Geração</strong></td><td>Uma versão da escala do mês. Cada nova geração cria uma versão nova</td></tr>
-            <tr><td><strong>Rascunho</strong></td><td>Escala gerada e ainda invisível para os colaboradores</td></tr>
-            <tr><td><strong>Trava</strong></td><td>Ajuste manual que sobrevive a novas gerações</td></tr>
-            <tr><td><strong>Posição operacional</strong></td><td>Capacidade total menos as reservadas — o que o motor pode usar</td></tr>
-            <tr><td><strong>Posto</strong></td><td>Função exercida dentro de uma unidade, por dias seguidos de uma semana</td></tr>
-            <tr><td><strong>Aderência</strong></td><td>Quanto o realizado se aproximou da distribuição planejada, em dias</td></tr>
-            <tr><td><strong>Ciclo (12x36)</strong></td><td>Se a pessoa trabalha nos dias pares ou nos ímpares do mês</td></tr>
-            <tr><td><strong>Ocorrência</strong></td><td>Registro de atraso, falta ou observação lançado pelo gestor</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <dl class="campos">
+        <div><dt>Competência</dt><dd>O mês da escala, no formato <em>mês/ano</em>. Quase toda tela é filtrada por ela.</dd></div>
+        <div><dt>Unidade</dt><dd>Um local físico com número finito de posições.</dd></div>
+        <div><dt>Posições operacionais</dt><dd>Capacidade total menos as reservadas. É o teto que o motor respeita.</dd></div>
+        <div><dt>Posto</dt><dd>Uma função exercida dentro de uma unidade. Ocupa uma posição normal dela.</dd></div>
+        <div><dt>Equipe</dt><dd>Agrupamento que carrega o regime de trabalho e o gestor responsável.</dd></div>
+        <div><dt>Regime</dt><dd>5x2 (segunda a sexta) ou 12x36 (plantão em dias alternados).</dd></div>
+        <div><dt>Ciclo</dt><dd>No 12x36, se a pessoa trabalha nos dias ímpares ou pares do mês.</dd></div>
+        <div><dt>Âncora do ciclo</dt><dd>O mês a partir do qual a paridade do 12x36 é contada.</dd></div>
+        <div><dt>Plano do mês</dt><dd>O conjunto de decisões de uma pessoa para uma competência: distribuição, home office, unidade fixa, posto, ausências.</dd></div>
+        <div><dt>Distribuição</dt><dd>O percentual dos dias presenciais que vai para cada unidade.</dd></div>
+        <div><dt>Unidade fixa</dt><dd>Dia da semana travado numa unidade, fora do rateio percentual.</dd></div>
+        <div><dt>Cota de home office</dt><dd>Quantidade de dias de casa por semana, com o dia escolhido pelo motor.</dd></div>
+        <div><dt>Cota por equipe</dt><dd>Teto de pessoas de uma equipe numa unidade.</dd></div>
+        <div><dt>Cobertura mínima</dt><dd>Piso de pessoas por unidade em cada dia com atividade.</dd></div>
+        <div><dt>Aderência</dt><dd>Quanto o resultado ficou perto do percentual planejado, dentro da tolerância.</dd></div>
+        <div><dt>Pendência</dt><dd>Erro de configuração no plano que bloqueia a geração.</dd></div>
+        <div><dt>Conflito</dt><dd>Situação que o motor não conseguiu resolver e que precisa de decisão manual.</dd></div>
+        <div><dt>Alerta</dt><dd>Aviso de que algo não saiu como planejado, sem invalidar a escala.</dd></div>
+        <div><dt>Trava</dt><dd>Alocação marcada como decisão final; sobrevive a uma nova geração.</dd></div>
+        <div><dt>Versão</dt><dd>Cada geração cria uma nova versão do mês. A vigente é a que vale.</dd></div>
+        <div><dt>Rascunho / Publicada / Encerrada</dt><dd>Os três estados da escala do mês.</dd></div>
+        <div><dt>SLA</dt><dd>Prazo previsto de resposta de um tipo de solicitação.</dd></div>
+        <div><dt>Trabalho externo</dt><dd>Modalidade de quem trabalha fora das unidades — inclusive quando não sobrou posição para a pessoa.</dd></div>
+      </dl>
     </section>
 
   </main>
 </div>
 
 <footer class="rodape">
-  Escala — manual de operação. A precedência das regras também aparece dentro do sistema, em
-  Parâmetros → Regras do motor.
+  Manual de operação do Escala. As telas deste documento vêm de uma base de demonstração —
+  Hospital São Lucas, Suporte de TI, novembro de 2026 — com 15 colaboradores, duas unidades e
+  o posto Corpo Clínico dentro do Morumbi.
 </footer>

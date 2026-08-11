@@ -144,6 +144,21 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
   const postoPorId = new Map(input.postos.filter(p => p.ativo).map(p => [p.id, p]));
   const semanasDoMes = [...new Set(Array.from({ length: nDias }, (_, i) => semanaDoMes(i + 1)))].sort((a, b) => a - b);
 
+  // Semanas encurtadas — a primeira e a última do mês, e as que perdem dias
+  // para feriado — não comportam a cota cheia de home office. Exigir 2 dias de
+  // casa numa semana com 1 dia útil produzia um alerta que ninguém consegue
+  // resolver e, pior, mandava o time inteiro para casa nesse único dia, porque
+  // era o único lugar onde a cota cabia. A cota é rateada pelo tamanho da
+  // semana e nunca ultrapassa a cota cheia.
+  const uteisPorSemana = new Map<number, number>();
+  for (let d = 1; d <= nDias; d++) {
+    const dow = diaSemana(ano, mes, d);
+    if (dow === 0 || dow === 6 || feriados[datas[d - 1]]) continue;
+    uteisPorSemana.set(semanaDoMes(d), (uteisPorSemana.get(semanaDoMes(d)) ?? 0) + 1);
+  }
+  const cotaDaSemana = (quantidade: number, semana: number) =>
+    Math.min(quantidade, Math.round((quantidade * (uteisPorSemana.get(semana) ?? 0)) / 5));
+
   /** postoId|data -> quantas pessoas já estão cobrindo. Respeita `vagas`. */
   const ocupacaoPosto = new Map<string, number>();
   const usoDePosto = (postoId: number, data: string) => ocupacaoPosto.get(`${postoId}|${data}`) ?? 0;
@@ -237,7 +252,7 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       if (c.elegHome && ho?.modo === 'COTA') {
         const semana = semanaDoMes(d);
         const porSemana = cotaRestante.get(c.id) ?? new Map<number, number>();
-        if (!porSemana.has(semana)) porSemana.set(semana, ho.quantidade);
+        if (!porSemana.has(semana)) porSemana.set(semana, cotaDaSemana(ho.quantidade, semana));
         cotaRestante.set(c.id, porSemana);
       }
 
@@ -528,7 +543,41 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
 
     const cabe = (id: number, equipeId: number) => temLugar(id) && dentroDaCota(id, equipeId);
 
+    // Cobertura mínima na GERAÇÃO, não só na conferência. Antes o motor
+    // distribuía tudo pela meta de cada pessoa e só no fim reclamava que a
+    // Paulista tinha ficado vazia — com a escala pronta e nada a fazer. Aqui
+    // cada unidade abaixo do piso puxa primeiro quem está mais atrasado na
+    // meta dela; o balanceamento fica para os que sobram.
+    //
+    // Só entra quem tem meta > 0 na unidade: destacar alguém planejado 100%
+    // Morumbi para cobrir a Paulista seria inventar uma alocação que ninguém
+    // pediu. Se ninguém está planejado para lá, o alerta continua — e aí ele é
+    // acionável: falta gente no plano do mês, não na escala.
+    const destacados = new Set<number>();
+    if (coberturaMinima > 0) {
+      for (const u of unidades) {
+        while (ocupacao[data][u.id] < coberturaMinima) {
+          const falta = (x: Candidato) => (metas[x.colab.id][u.id] ?? 0) - alocado[x.colab.id][u.id];
+          const escolhido = candidatos
+            .filter(x => !destacados.has(x.colab.id)
+              && (metas[x.colab.id][u.id] ?? 0) > 0
+              && cabe(u.id, x.colab.equipeId))
+            .sort((a, b) => falta(b) - falta(a) || a.colab.id - b.colab.id)[0];
+          if (!escolhido) break;
+
+          definir(escolhido.colab.id, data, 'UNIDADE', u.id);
+          ocupacao[data][u.id]++;
+          alocado[escolhido.colab.id][u.id]++;
+          contaEquipe(u.id, escolhido.colab.equipeId);
+          concentracao[u.id][escolhido.colab.equipeId] =
+            (concentracao[u.id][escolhido.colab.equipeId] ?? 0) + 1;
+          destacados.add(escolhido.colab.id);
+        }
+      }
+    }
+
     for (const { colab, preferida } of candidatos) {
+      if (destacados.has(colab.id)) continue;
       const ordem = [preferida, ...idsUnidades.filter(id => id !== preferida)];
       let colocado = false;
 

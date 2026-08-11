@@ -41,6 +41,13 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
   const minhas = alocacoes.filter(a => a.colaboradorId === sessao.colaboradorId);
   const porData = new Map(minhas.map(a => [a.data, a]));
 
+  // O posto diz onde dentro da unidade a pessoa fica. Quem foi destacado para
+  // o Corpo Clínico precisa ver isso na própria escala — só "MOR" não conta a
+  // semana inteira que ela vai passar lá.
+  const postoPorId = new Map(ctx.postos.map(p => [p.id, p]));
+  const nomeDoPosto = (a?: { postoId: number | null }) =>
+    (a?.postoId && postoPorId.get(a.postoId)?.nome) || null;
+
   const { ano, mes } = ctx;
   const nDias = diasNoMes(ano, mes);
   const hoje = iso(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
@@ -108,6 +115,11 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
                   <div key={a.data} className="esc-card px-4 py-3" style={{ borderLeft: `3px solid ${ap.cor}` }}>
                     <div className="esc-rotulo mb-1">{DIAS_ABREV[dow]}, {formatarData(a.data)}</div>
                     <div className="text-[15px] font-semibold" style={{ color: ap.cor }}>{ap.label}</div>
+                    {nomeDoPosto(a) && (
+                      <div className="text-[11.5px] font-medium mt-0.5" style={{ color: 'var(--brand-700)' }}>
+                        {nomeDoPosto(a)}
+                      </div>
+                    )}
                     {!ausente && <div className="text-[12px] esc-num mt-0.5" style={{ color: 'var(--muted)' }}>{faixa(dow)}</div>}
                   </div>
                 );
@@ -146,7 +158,13 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
                       {a && a.modalidade !== 'DESCANSO' && (
                         <>
                           <span className="text-[10px] font-semibold mt-auto" style={{ color: ap!.cor }}>{ap!.sigla}</span>
-                          {trabalha && <span className="text-[9px] esc-num" style={{ color: ap!.cor }}>{eu?.entrada}</span>}
+                          {nomeDoPosto(a) ? (
+                            <span className="text-[8.5px] leading-tight truncate" title={nomeDoPosto(a)!} style={{ color: 'var(--brand-700)' }}>
+                              {nomeDoPosto(a)}
+                            </span>
+                          ) : (
+                            trabalha && <span className="text-[9px] esc-num" style={{ color: ap!.cor }}>{eu?.entrada}</span>
+                          )}
                         </>
                       )}
                       {ctx.feriados[data] && (

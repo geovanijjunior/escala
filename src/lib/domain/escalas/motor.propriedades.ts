@@ -392,6 +392,42 @@ inv.push({
 });
 
 inv.push({
+  // Trava o rateio da cota em semanas encurtadas. Sem ele, uma semana com um
+  // dia útil só aceitava a cota cheia — e o motor mandava o time inteiro para
+  // casa nesse dia, porque era o único lugar onde a cota cabia.
+  nome: 'cota de home office por semana nunca passa do rateio pelo tamanho da semana',
+  checa: (e, r) => {
+    const nDias = new Date(Date.UTC(e.ano, e.mes + 1, 0)).getUTCDate();
+    const dowDoPrimeiro = diaSemana(e.ano, e.mes, 1);
+    const semanaDe = (dia: number) => Math.floor((dia + dowDoPrimeiro - 1) / 7);
+
+    const uteis = new Map<number, number>();
+    for (let d = 1; d <= nDias; d++) {
+      const dow = diaSemana(e.ano, e.mes, d);
+      const data = `${e.ano}-${String(e.mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      if (dow === 0 || dow === 6 || e.feriados[data]) continue;
+      uteis.set(semanaDe(d), (uteis.get(semanaDe(d)) ?? 0) + 1);
+    }
+
+    for (const c of ativos(e)) {
+      const ho = e.planos.find(p => p.colaboradorId === c.id)?.homeOffice;
+      if (ho?.modo !== 'COTA') continue;
+
+      const porSemana = new Map<number, number>();
+      for (const a of r.alocacoes.filter(x => x.colaboradorId === c.id && x.modalidade === 'HOME' && !x.travado)) {
+        const s = semanaDe(Number(a.data.slice(8)));
+        porSemana.set(s, (porSemana.get(s) ?? 0) + 1);
+      }
+      for (const [s, usados] of porSemana) {
+        const teto = Math.min(ho.quantidade, Math.round((ho.quantidade * (uteis.get(s) ?? 0)) / 5));
+        if (usados > teto) return `${c.nome} recebeu ${usados} home na semana ${s + 1}, teto ${teto}`;
+      }
+    }
+    return null;
+  },
+});
+
+inv.push({
   nome: 'quem não é elegível a home office nunca recebe home',
   checa: (e, r) => {
     for (const c of ativos(e).filter(x => !x.elegHome)) {

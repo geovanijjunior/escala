@@ -274,6 +274,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
           colaboradores={ctx.colaboradores}
           equipes={ctx.equipes}
           unidades={ctx.unidades}
+          postos={ctx.postos}
           ocorrencias={ocorrencias.filter(o => o.data === dia)}
           feriado={ctx.feriados[dia]}
           podeEditar={planeja && geracao.status !== 'encerrada'}

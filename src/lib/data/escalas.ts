@@ -305,9 +305,13 @@ export async function listarSolicitacoes(): Promise<Solicitacao[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('solicitacoes')
+    // As dicas nomeiam as constraints CRIADAS PELA 0009 (compostas, com
+    // `_conta_` no nome). A 0009 derruba as FKs de coluna única antigas, então
+    // apontar para `solicitacoes_colaborador_id_fkey` aqui deixaria de resolver
+    // e o PostgREST recusaria a consulta inteira.
     .select(`*,
-      colaborador:colaboradores!solicitacoes_colaborador_id_fkey(id, nome, equipe_id),
-      parceiro:colaboradores!solicitacoes_parceiro_id_fkey(id, nome),
+      colaborador:colaboradores!solicitacoes_colaborador_id_conta_fkey(id, nome, equipe_id),
+      parceiro:colaboradores!solicitacoes_parceiro_id_conta_fkey(id, nome),
       solicitacao_eventos(etapa, detalhe, por_nome, em)`)
     .order('criado_em', { ascending: false });
 
@@ -426,11 +430,12 @@ export async function listarNotificacoes(
     .from('solicitacao_eventos')
     // `colaboradores` sem dica seria ambíguo: solicitacoes aponta para essa
     // tabela duas vezes (colaborador_id e parceiro_id), e o PostgREST recusaria
-    // a consulta inteira — no cabeçalho, isso derrubaria todas as páginas. O
-    // nome da constraint foi conferido em pg_constraint.
+    // a consulta inteira — no cabeçalho, isso derrubaria todas as páginas.
+    // O nome é o da constraint composta criada pela 0009; a de coluna única
+    // com o nome antigo não existe mais depois dessa migration.
     .select(
       'id, solicitacao_id, etapa, detalhe, por_id, por_nome, em, '
-      + 'solicitacoes(tipo, data, colaboradores!solicitacoes_colaborador_id_fkey(nome))'
+      + 'solicitacoes(tipo, data, colaboradores!solicitacoes_colaborador_id_conta_fkey(nome))'
     )
     .neq('por_id', usuarioId)
     .order('em', { ascending: false })

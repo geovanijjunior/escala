@@ -4,7 +4,7 @@ import { MODALIDADES, TIPOS_OCORRENCIA } from '@/lib/domain/escalas/constantes';
 import { alternarTrava, reposicionarAlocacao } from '@/app/actions-geracao';
 import { registrarOcorrencia } from '@/app/actions-solicitacoes';
 import { Badge, Bloco, aparencia } from './Ui';
-import type { Alocacao, Colaborador, Equipe, Unidade } from '@/lib/domain/escalas/tipos';
+import type { Alocacao, Colaborador, Equipe, Posto, Unidade } from '@/lib/domain/escalas/tipos';
 import type { Ocorrencia } from '@/lib/data/escalas';
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   colaboradores: Colaborador[];
   equipes: Equipe[];
   unidades: Unidade[];
+  postos: Posto[];
   ocorrencias: Ocorrencia[];
   feriado?: string;
   podeEditar: boolean;
@@ -33,11 +34,12 @@ function faixaHoraria(c: Colaborador, dow: number): string {
  * navegador funciona e o link do dia pode ser compartilhado com o gestor.
  */
 export function DetalheDoDia({
-  data, competencia, alocacoes, colaboradores, equipes, unidades, ocorrencias,
+  data, competencia, alocacoes, colaboradores, equipes, unidades, postos, ocorrencias,
   feriado, podeEditar, podeLancarOcorrencia, fecharHref, volta,
 }: Props) {
   const dow = dowDeIso(data);
   const colabPorId = new Map(colaboradores.map(c => [c.id, c]));
+  const postoPorId = new Map(postos.map(p => [p.id, p]));
   const equipePorId = new Map(equipes.map(e => [e.id, e]));
   const ativas = unidades.filter(u => u.ativa);
 
@@ -143,6 +145,17 @@ export function DetalheDoDia({
                       </form>
                     ) : (
                       <Badge cor={ap.cor} bg={ap.bg}>{ap.label}</Badge>
+                    )}
+                    {/* O posto é a informação que diz ONDE dentro da unidade a
+                        pessoa está. Sem ela, quem foi destacado para o Corpo
+                        Clínico aparece como "Morumbi" igual a todo mundo, e o
+                        destaque some da escala depois de gerado. */}
+                    {a.postoId && postoPorId.has(a.postoId) && (
+                      <div className="mt-1">
+                        <Badge cor="var(--brand-700)" bg="var(--brand-100)">
+                          {postoPorId.get(a.postoId)!.nome}
+                        </Badge>
+                      </div>
                     )}
                   </td>
                   <td className="esc-num" style={{ color: 'var(--muted)' }}>
