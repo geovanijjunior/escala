@@ -279,10 +279,68 @@
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
   @media print {
-    .sumario { display: none; }
-    .corpo { grid-template-columns: 1fr; }
-    .capa { background: none; color: var(--tinta); border-bottom: 2px solid var(--tinta); }
-    .capa p, .capa .marca { color: var(--apagado); }
+    /* Impressão sempre no tema claro: o escuro gastaria tinta e as cores de
+       papel não sobrevivem à conversão. Os tokens são redefinidos aqui porque a
+       preferência do sistema continua valendo durante a impressão. */
+    :root {
+      --tinta: #0E1726; --navio: #0B2D5B; --azul: #1A4E8C; --azul-suave: #EDF3FA;
+      --fundo: #FFFFFF; --papel: #FFFFFF; --apagado: #4B5A70;
+      --linha: #C9D3E2; --linha-forte: #A9B7CB; --capa: #FFFFFF;
+      --planejamento: #0B2D5B; --gestor: #0A5B58; --colaborador: #7A4110;
+      --ok: #14612F; --ok-bg: #EDF6F0; --atencao: #7A360B; --atencao-bg: #FBF4E8;
+      --erro: #8E1032; --erro-bg: #FBEEF1;
+    }
+
+    @page { size: A4; margin: 16mm 15mm 18mm; }
+
+    body { background: #fff; font-size: 10.5pt; line-height: 1.5; }
+    .corpo { grid-template-columns: 1fr; max-width: none; padding: 0; gap: 0; }
+    main { padding-top: 0; }
+    .rodape { display: none; }
+
+    /* O sumário vira índice de abertura em vez de sumir. Num manual impresso
+       ele é o que permite folhear direto para a seção certa. */
+    .sumario {
+      position: static; padding: 0 0 18pt; margin-bottom: 18pt;
+      border-bottom: 1pt solid var(--linha); break-after: page; page-break-after: page;
+    }
+    .sumario h2 { font-size: 9pt; break-before: auto; page-break-before: auto; padding-top: 0; }
+    .sumario ol { columns: 2; column-gap: 14mm; gap: 0; }
+    .sumario li { break-inside: avoid; }
+    .sumario a { padding: 3pt 0; color: var(--tinta); }
+    .sumario .grupo { margin-top: 9pt; padding-left: 0; }
+
+    .capa {
+      background: none; color: var(--tinta); padding: 0 0 14pt;
+      border-bottom: 2pt solid var(--navio); margin-bottom: 22pt;
+    }
+    .capa-interna { max-width: none; padding: 0; }
+    .capa h1 { font-size: 30pt; color: var(--navio); margin: 6pt 0 8pt; }
+    .capa p { color: var(--apagado); font-size: 11pt; max-width: none; }
+    .capa .marca { color: var(--apagado); }
+
+    /* Nada de título órfão no pé da página, nem tabela partida ao meio. */
+    /* Sem quebra forçada por seção: medido no conteúdo real, 8 das 15 deixavam
+       mais de 60% da última página em branco, três delas acima de 95%. A
+       separação vem da hierarquia — régua e respiro antes do título. */
+    h2 {
+      break-after: avoid; page-break-after: avoid;
+      font-size: 16pt; margin-top: 20pt; padding-top: 8pt;
+      border-top: 1.5pt solid var(--navio); color: var(--navio);
+    }
+    section:first-of-type h2 { margin-top: 0; }
+    h3, h4 { break-after: avoid; page-break-after: avoid; }
+    section { margin-bottom: 14pt; }
+    p, li { orphans: 3; widows: 3; max-width: none; }
+    table, .aviso, .porque, .papel, .etapa, ol.passos > li { break-inside: avoid; page-break-inside: avoid; }
+    .regras li { break-inside: avoid; page-break-inside: avoid; }
+    .tabela-rolo { overflow: visible; }
+
+    /* Impressoras costumam descartar fundos; a borda garante que a distinção
+       entre nota, alerta e texto corrido sobreviva em preto e branco. */
+    .aviso { border: 1pt solid var(--linha-forte); border-left-width: 3pt; }
+    .papel, table, .etapa, .regras { border: 1pt solid var(--linha); }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 

@@ -22,6 +22,19 @@ de quem o programa: implantação passo a passo, a rotina de cada mês, o que ca
 papel enxerga, as doze regras do motor e o que fazer quando algo dá errado. Abre
 no navegador com dois cliques.
 
+Para distribuir em papel ou anexo, [`docs/manual.pdf`](docs/manual.pdf) (13
+páginas, A4). Ele sai do **mesmo arquivo** que a versão web — o que difere entre
+tela e papel é só o bloco `@media print` do próprio manual, então não há uma
+segunda cópia do texto para sair de sincronia.
+
+Regenerar depois de editar o HTML: abra o arquivo no navegador e imprima em PDF
+(`Ctrl+P`), ou use o script, que faz a mesma coisa sem abrir janela:
+
+```bash
+npm i -D playwright && npx playwright install chromium   # só na primeira vez
+npm run manual:pdf
+```
+
 ## Experimente antes de instalar
 
 [`docs/prototipo-escalas.html`](docs/prototipo-escalas.html) é um arquivo único
