@@ -1,62 +1,117 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  GRUPO_DO_TIPO, GRUPOS_AUSENCIA, OPCOES_FERIAS, TIPOS_COM_PERIODO,
+  type TipoSolicitacao,
+} from '@/lib/domain/escalas/constantes';
+
+/** Soma dias corridos a uma data ISO, sem passar por fuso. */
+function somaDias(iso: string, dias: number): string {
+  const [a, m, d] = iso.split('-').map(Number);
+  const base = new Date(Date.UTC(a, m - 1, d + dias));
+  return base.toISOString().slice(0, 10);
+}
+
+const formatar = (iso: string) => iso.split('-').reverse().join('/');
 
 /**
- * Formulário de abertura de solicitação. Os campos condicionais (parceiro de
- * troca, unidade desejada) aparecem só no tipo que os exige, em vez de deixar
- * campos irrelevantes visíveis e vazios.
+ * Formulário de abertura de solicitação.
+ *
+ * Cada tipo pede uma coisa diferente, e os campos aparecem só no tipo que os
+ * exige — campo irrelevante visível e vazio é convite a preencher errado.
  */
 export function NovaSolicitacao({
-  colegas, unidades, tipos,
+  unidades, tipos,
 }: {
-  colegas: { id: number; nome: string }[];
   unidades: { id: number; nome: string }[];
   tipos: { chave: string; label: string; sla: number }[];
 }) {
   const [tipo, setTipo] = useState(tipos[0]?.chave ?? '');
-  const escolhido = tipos.find(t => t.chave === tipo);
+  const [opcao, setOpcao] = useState(OPCOES_FERIAS[0].chave);
+  const [inicio, setInicio] = useState('');
 
-  // Férias e folga cobrem um período; os demais tipos são de um dia só.
-  const temPeriodo = tipo === 'FERIAS' || tipo === 'FOLGA';
+  const escolhido = tipos.find(t => t.chave === tipo);
+  const temPeriodo = TIPOS_COM_PERIODO.includes(tipo as TipoSolicitacao);
+  const grupo = GRUPO_DO_TIPO[tipo as TipoSolicitacao];
+  const motivos = GRUPOS_AUSENCIA.find(g => g.grupo === grupo)?.motivos ?? [];
+
+  // Férias: a opção define quantos dias tem a primeira parcela, e o fim sai da
+  // conta assim que a data de início é preenchida. Calcular de cabeça "20 dias
+  // a partir de 03/11" é a fonte clássica do erro de um dia.
+  const ferias = OPCOES_FERIAS.find(o => o.chave === opcao)!;
+  const diasPrimeira = ferias.parcelas[0];
+  const fimCalculado = tipo === 'FERIAS' && inicio ? somaDias(inicio, diasPrimeira - 1) : '';
 
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label className="block">
           <span className="esc-rotulo">Tipo</span>
-          <select name="tipo" value={tipo} onChange={e => setTipo(e.target.value)} className="esc-input">
+          <select name="tipo" value={tipo} onChange={e => setTipo(e.target.value)} required className="esc-input">
             {tipos.map(t => <option key={t.chave} value={t.chave}>{t.label}</option>)}
           </select>
         </label>
 
+        {tipo === 'FERIAS' && (
+          <label className="block lg:col-span-2">
+            <span className="esc-rotulo">Opção de férias</span>
+            <select
+              name="opcaoFerias"
+              value={opcao}
+              onChange={e => setOpcao(e.target.value)}
+              required
+              className="esc-input"
+            >
+              {OPCOES_FERIAS.map(o => <option key={o.chave} value={o.chave}>{o.label}</option>)}
+            </select>
+          </label>
+        )}
+
+        {grupo && (
+          <label className="block">
+            <span className="esc-rotulo">Motivo</span>
+            <select name="motivo" required className="esc-input">
+              {motivos.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
+        )}
+
         <label className="block">
           <span className="esc-rotulo">{temPeriodo ? 'Início' : 'Data de referência'}</span>
-          <input type="date" name="data" required className="esc-input" />
+          <input
+            type="date"
+            name="data"
+            required
+            className="esc-input"
+            value={inicio}
+            onChange={e => setInicio(e.target.value)}
+          />
         </label>
 
         {temPeriodo && (
           <label className="block">
             <span className="esc-rotulo">Fim</span>
-            {/* Férias sem fim não têm como virar período na escala — e o
-                Planejamento já exige as duas datas ao lançar. Folga aceita
-                vazio, que significa um dia só. */}
-            <input type="date" name="dataFim" required={tipo === 'FERIAS'} className="esc-input" />
+            {/* Em férias o fim é calculado e fica travado: quem decide o
+                tamanho é a opção escolhida, não a digitação. */}
+            <input
+              type="date"
+              name="dataFim"
+              required={tipo !== 'FOLGA'}
+              readOnly={tipo === 'FERIAS'}
+              value={tipo === 'FERIAS' ? fimCalculado : undefined}
+              className="esc-input"
+              style={tipo === 'FERIAS' ? { background: 'var(--bg)' } : undefined}
+            />
             <span className="esc-ajuda mt-1 block">
               {tipo === 'FERIAS'
-                ? 'O período inteiro entra na escala quando as férias forem aprovadas.'
-                : 'Vazio = só o dia de início.'}
+                ? (inicio
+                    ? `${diasPrimeira} dias corridos: ${formatar(inicio)} a ${formatar(fimCalculado)}.`
+                    : 'Preencha o início e o fim é calculado.')
+                : tipo === 'FOLGA'
+                  ? 'Vazio = só o dia de início.'
+                  : 'O período inteiro entra na escala quando a licença for aprovada.'}
             </span>
-          </label>
-        )}
-
-        {tipo === 'TROCA_HORARIO' && (
-          <label className="block">
-            <span className="esc-rotulo">Trocar com</span>
-            <select name="parceiroId" required className="esc-input">
-              <option value="">Selecione o colega</option>
-              {colegas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
           </label>
         )}
 
@@ -70,6 +125,33 @@ export function NovaSolicitacao({
           </label>
         )}
       </div>
+
+      {tipo === 'FERIAS' && (
+        <div className="rounded-md border p-3 space-y-2" style={{ borderColor: 'var(--line-2)' }}>
+          {ferias.abono > 0 && (
+            <p className="text-[12px]" style={{ color: 'var(--muted)' }}>
+              Esta opção inclui <strong>{ferias.abono} dias de abono</strong> — vendidos, não descansados,
+              e por isso fora da escala.
+            </p>
+          )}
+          {ferias.parcelas.length > 1 && (
+            <p className="text-[12px]" style={{ color: 'var(--muted)' }}>
+              Férias parceladas: este pedido cobre a <strong>1ª parcela, de {diasPrimeira} dias</strong>.
+              Abra um pedido para cada parcela seguinte
+              ({ferias.parcelas.slice(1).join(' e ')} dias) — cada uma tem a sua data e precisa caber na
+              escala do mês dela.
+            </p>
+          )}
+          <label className="flex items-center gap-2 text-[12.5px]">
+            <input type="checkbox" name="lancadoFiori" value="1" />
+            Já lancei estas férias no Fiori
+          </label>
+          <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
+            Marque só se o lançamento no Fiori já foi feito. O Planejamento usa isso para saber
+            o que ainda falta lançar no sistema da folha.
+          </p>
+        </div>
+      )}
 
       <label className="block">
         <span className="esc-rotulo">Justificativa</span>
@@ -88,8 +170,8 @@ export function NovaSolicitacao({
         {escolhido && (
           <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>
             Prazo de resposta previsto: {escolhido.sla}h.
-            {tipo === 'TROCA_HORARIO' && ' A troca só vale após o aceite do colega, a triagem e a aprovação do gestor.'}
-            {colegas.length === 0 && tipo === 'TROCA_HORARIO' && ' Não há colegas do mesmo regime e equipe disponíveis.'}
+            {tipo === 'TROCA_HORARIO'
+              && ' O Planejamento encontra com quem a troca é possível e registra o par ao aplicar.'}
           </span>
         )}
       </div>

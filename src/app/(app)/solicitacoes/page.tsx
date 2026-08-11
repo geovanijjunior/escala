@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getSessao, podeAprovar } from '@/lib/sessao';
 import { listarSolicitacoes, listarUnidades, listarColaboradores } from '@/lib/data/escalas';
 import { formatarData } from '@/lib/domain/escalas/datas';
-import { STATUS_ABERTOS, STATUS_SOLICITACAO, TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
+import { OPCOES_FERIAS, STATUS_ABERTOS, STATUS_SOLICITACAO, TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import { Volta } from '@/components/Volta';
 import { valorVolta } from '@/lib/volta';
@@ -146,6 +146,7 @@ function Cartao({
 }) {
   const cfg = STATUS_SOLICITACAO[s.status];
   const tipo = TIPOS_SOLICITACAO[s.tipo];
+  const opcao = s.opcaoFerias ? OPCOES_FERIAS.find(o => o.chave === s.opcaoFerias) : null;
   const aprovador = podeAprovar(papel as 'planejamento' | 'gestor' | 'colaborador');
 
   return (
@@ -177,6 +178,23 @@ function Cartao({
         {unidadeNome && (
           <p className="text-[12px]" style={{ color: 'var(--muted)' }}>
             Unidade desejada: <strong className="font-semibold">{unidadeNome}</strong>
+          </p>
+        )}
+        {s.motivo && (
+          <p className="text-[12px]" style={{ color: 'var(--muted)' }}>
+            Motivo: <strong className="font-semibold">{s.motivo}</strong>
+          </p>
+        )}
+        {/* Quem faz a triagem precisa da combinação escolhida e do abono para
+            conferir contra o que o RH vai lançar — sem isso, só o intervalo de
+            datas chega, e 20 dias podem ser 20+10 de abono ou 20 secos. */}
+        {opcao && (
+          <p className="text-[12px]" style={{ color: 'var(--muted)' }}>
+            Opção de férias: <strong className="font-semibold">{opcao.label}</strong>
+            {' · '}
+            {s.lancadoFiori
+              ? <span style={{ color: 'var(--green)' }}>já lançada no Fiori</span>
+              : <span style={{ color: 'var(--amber)' }}>ainda não lançada no Fiori</span>}
           </p>
         )}
 

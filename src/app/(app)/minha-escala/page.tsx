@@ -63,12 +63,6 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
     return `${eu.entrada}–${somaHoras(eu.entrada, horas + (horas > 6 ? 1 : 0))}`;
   };
 
-  // Só entram trocas com quem está no mesmo regime e na mesma equipe — o motor
-  // não conseguiria honrar uma troca entre 12x36 e 5x2.
-  const colegas = eu
-    ? ctx.colaboradores.filter(c => c.id !== eu.id && c.status === 'ativo' && c.regime === eu.regime && c.equipeId === eu.equipeId)
-    : [];
-
   const minhasSolicitacoes = solicitacoes.filter(
     s => s.colaboradorId === sessao.colaboradorId || s.parceiroId === sessao.colaboradorId
   );
@@ -196,7 +190,6 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
         <form action={abrirSolicitacao} className="px-4 py-4">
           <input type="hidden" name="volta" value="/minha-escala" />
           <NovaSolicitacao
-            colegas={colegas.map(c => ({ id: c.id, nome: c.nome }))}
             unidades={unidades.filter(u => u.ativa).map(u => ({ id: u.id, nome: u.nome }))}
             tipos={Object.entries(TIPOS_SOLICITACAO).map(([k, v]) => ({ chave: k, label: v.label, sla: v.sla }))}
           />

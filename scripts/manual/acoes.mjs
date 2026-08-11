@@ -142,12 +142,38 @@ await acao('alternarTrava', `/calendario?${COMP}&vista=dia&dia=2026-11-11`, asyn
   await p.locator('button:text("Travar")').first().click();
 }, "select count(*) c from alocacoes where travado and data='2026-11-11'");
 
-await acao('registrarOcorrencia', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
-  const f = p.locator('form:has(button:text("Registrar"))');
-  await f.locator('select[name="colaboradorId"]').selectOption({ index: 1 });
-  await f.locator('input[name="minutos"]').fill('15');
+// O lançamento virou um botão por linha, com campos que mudam pelo tipo.
+await acao('ocorrência: atraso', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
+  await p.locator('button:text("Lançar ocorrência")').first().click();
+  const f = p.locator('form:has(button:text("Registrar"))').first();
+  await f.locator('select[name="tipo"]').selectOption('ATRASO');
+  await f.locator('input[name="minutos"]').fill('20');
   await f.locator('button:text("Registrar")').click();
-}, "select count(*) c from ocorrencias");
+}, "select count(*) c from ocorrencias where tipo='ATRASO'");
+
+await acao('ocorrência: falta com dias', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
+  await p.locator('button:text("Lançar ocorrência")').first().click();
+  const f = p.locator('form:has(button:text("Registrar"))').first();
+  await f.locator('select[name="tipo"]').selectOption('FALTA_J');
+  await f.locator('input[name="dias"]').fill('3');
+  await f.locator('button:text("Registrar")').click();
+}, "select count(*) c from ocorrencias where tipo='FALTA_J' and dias = 3");
+
+await acao('ocorrência: saída antecipada', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
+  await p.locator('button:text("Lançar ocorrência")').first().click();
+  const f = p.locator('form:has(button:text("Registrar"))').first();
+  await f.locator('select[name="tipo"]').selectOption('SAIDA_ANTEC');
+  await f.locator('input[name="horaSaida"]').fill('15:00');
+  await f.locator('button:text("Registrar")').click();
+}, "select count(*) c from ocorrencias where tipo='SAIDA_ANTEC' and minutos = 120");
+
+await acao('ocorrência: troca com parceiro', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
+  await p.locator('button:text("Lançar ocorrência")').first().click();
+  const f = p.locator('form:has(button:text("Registrar"))').first();
+  await f.locator('select[name="tipo"]').selectOption('TROCA');
+  await f.locator('select[name="parceiroId"]').selectOption({ index: 1 });
+  await f.locator('button:text("Registrar")').click();
+}, "select count(*) c from ocorrencias where tipo='TROCA' and parceiro_id is not null");
 
 // ── Geração ───────────────────────────────────────────────────
 await acao('regerar mês completo', `/gerar?${COMP}`, async p => {

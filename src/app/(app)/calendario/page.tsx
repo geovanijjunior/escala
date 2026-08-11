@@ -28,7 +28,13 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
   const [ano, mes] = [ctx.ano, ctx.mes];
   const nDias = diasNoMes(ano, mes);
   const vista = texto(busca, 'vista') || 'mes';
-  const dia = texto(busca, 'dia');
+
+  // Sem dia na URL, abre no de hoje — quando hoje cai no mês exibido. Chegar
+  // no calendário e ter de clicar na data atual para ver quem está trabalhando
+  // agora é um passo que o sistema podia ter dado sozinho.
+  const hojeIso = iso(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const hojeEhDesteMes = hojeIso.slice(0, 7) === competencia.slice(0, 7);
+  const dia = texto(busca, 'dia') || (hojeEhDesteMes ? hojeIso : '');
 
   const equipeFiltro = Number(texto(busca, 'equipe')) || null;
   const turnoFiltro = texto(busca, 'turno');

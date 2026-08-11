@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao } from '@/lib/sessao';
 import { voltar } from '@/lib/volta';
@@ -24,4 +25,31 @@ export async function marcarNotificacoesLidas(formData: FormData) {
 
   revalidatePath('/', 'layout');
   voltar(String(formData.get('rota') || '/'), formData);
+}
+
+/**
+ * Abre a solicitação de uma notificação e, no mesmo passo, zera o sino.
+ *
+ * O item era um link puro: a pessoa lia o aviso, ia até a solicitação, voltava
+ * — e o contador continuava no mesmo número. Só o botão "Marcar como lidas"
+ * mexia nele, e ninguém associa ter lido um aviso a precisar marcá-lo depois.
+ *
+ * Marca tudo até agora, não só o item clicado: `notificacoes_vistas_em` é um
+ * instante, não uma lista. Ler por item exigiria uma tabela de leitura por
+ * evento e por pessoa, e o histórico completo já vive na própria solicitação.
+ *
+ * O destino é fixo de propósito — rota vinda do formulário seria redirecionamento
+ * aberto.
+ */
+export async function abrirNotificacao() {
+  const sessao = await getSessao();
+  const supabase = await createClient();
+
+  await supabase
+    .from('perfis')
+    .update({ notificacoes_vistas_em: new Date().toISOString() })
+    .eq('id', sessao.usuario.id);
+
+  revalidatePath('/', 'layout');
+  redirect('/solicitacoes');
 }

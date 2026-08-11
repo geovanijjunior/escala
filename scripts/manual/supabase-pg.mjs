@@ -175,6 +175,11 @@ class Consulta {
     if (opcoes.count) this.contando = true;
     if (opcoes.head) this.somenteCabeca = true;
     if (this.acao === 'select') this.colunas = spec ?? '*';
+    // Depois de insert/update, `.select()` é o que faz o PostgREST devolver a
+    // linha. Sem esse pedido ele manda `Prefer: return=minimal` e não há
+    // RETURNING nenhum — distinção que importa sob RLS, porque ler a linha
+    // recém-inserida passa pela policy de SELECT, não pela de INSERT.
+    this.querRetorno = true;
     return this;
   }
 
@@ -190,8 +195,8 @@ class Consulta {
   order(col, o = {}) { this.ordem.push(`${cita(col)} ${o.ascending === false ? 'desc' : 'asc'}`); return this; }
   limit(n) { this.limite = n; return this; }
   range(de, ate) { this.deslocamento = de; this.limite = ate - de + 1; return this; }
-  single() { this.umSo = 'obrigatorio'; return this; }
-  maybeSingle() { this.umSo = 'opcional'; return this; }
+  single() { this.umSo = 'obrigatorio'; this.querRetorno = true; return this; }
+  maybeSingle() { this.umSo = 'opcional'; this.querRetorno = true; return this; }
 
   insert(dados) { this.acao = 'insert'; this.dados = Array.isArray(dados) ? dados : [dados]; return this; }
   update(dados) { this.acao = 'update'; this.dados = dados; return this; }
@@ -225,15 +230,15 @@ class Consulta {
         const alvo = this.conflito.split(',').map(c => cita(c.trim())).join(', ');
         s += ` on conflict (${alvo}) do update set ` + chaves.map(k => `${cita(k)} = excluded.${cita(k)}`).join(', ');
       }
-      return (this._cache = s + ' returning *');
+      return (this._cache = s + (this.querRetorno ? ' returning *' : ''));
     }
 
     if (this.acao === 'update') {
       const sets = Object.entries(this.dados).map(([k, v]) => `${cita(k)} = ${this._p(v, k)}`).join(', ');
-      return (this._cache = `update ${cita(this.tabela)} set ${sets}${filtro} returning *`);
+      return (this._cache = `update ${cita(this.tabela)} set ${sets}${filtro}${this.querRetorno ? ' returning *' : ''}`);
     }
 
-    return (this._cache = `delete from ${cita(this.tabela)}${filtro} returning *`);
+    return (this._cache = `delete from ${cita(this.tabela)}${filtro}${this.querRetorno ? ' returning *' : ''}`);
   }
 
   async then(resolver) {

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
-import { CARGOS } from '@/lib/domain/escalas/constantes';
+import { CARGOS, MOTIVOS_INATIVACAO } from '@/lib/domain/escalas/constantes';
 import { DIAS_ABREV } from '@/lib/domain/escalas/datas';
 import { voltar, voltarComErro } from '@/lib/volta';
 import { mensagemErroBanco } from '@/lib/erros-banco';
@@ -48,8 +48,15 @@ export async function salvarColaborador(formData: FormData) {
   const entrada = texto(formData, 'entrada');
   const jornada = Number(formData.get('jornada'));
   const admissao = texto(formData, 'admissao');
-  const status = texto(formData, 'status') || 'ativo';
   const desligamento = texto(formData, 'desligamento');
+
+  // O status é DERIVADO do motivo, não enviado ao lado dele. Com os dois vindo
+  // da tela, um dia eles discordariam — "ativo" com motivo de desligamento — e
+  // não haveria como saber qual dos dois é o verdadeiro.
+  const ativo = texto(formData, 'ativo') !== '0';
+  const motivoStatus = ativo ? '' : texto(formData, 'motivoStatus');
+  const regra = MOTIVOS_INATIVACAO.find(m => m.chave === motivoStatus);
+  const status = ativo ? 'ativo' : (regra?.desliga ? 'desligado' : 'afastado');
   const turno = texto(formData, 'turno') === 'N' ? 'N' : 'D';
   const cicloBruto = texto(formData, 'ciclo');
   const perfilIdBruto = texto(formData, 'perfilId');
@@ -63,7 +70,7 @@ export async function salvarColaborador(formData: FormData) {
   if (!/^\d{2}:\d{2}$/.test(entrada)) voltarComErro(COLABS, formData, 'Horário de entrada inválido.');
   if (!(jornada > 0 && jornada <= 24)) voltarComErro(COLABS, formData, 'A jornada precisa estar entre 1 e 24 horas.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(admissao)) voltarComErro(COLABS, formData, 'Informe a data de admissão.');
-  if (!['ativo', 'afastado', 'desligado'].includes(status)) voltarComErro(COLABS, formData, 'Situação inválida.');
+  if (!ativo && !regra) voltarComErro(COLABS, formData, 'Informe o motivo da inativação.');
   if (status === 'desligado' && !desligamento) voltarComErro(COLABS, formData, 'Um colaborador desligado precisa da data de desligamento.');
   if (desligamento && desligamento < admissao) voltarComErro(COLABS, formData, 'O desligamento não pode ser anterior à admissão.');
 
@@ -105,6 +112,7 @@ export async function salvarColaborador(formData: FormData) {
     eleg_externo: marcado(formData, 'elegExterno'),
     sexta_reduzida: equipe.regime === '5x2' && marcado(formData, 'sextaReduzida'),
     status,
+    motivo_status: motivoStatus,
     admissao,
     desligamento: status === 'desligado' ? desligamento : null,
   };
@@ -115,7 +123,7 @@ export async function salvarColaborador(formData: FormData) {
 
   if (error) voltarComErro(COLABS, formData, `Não foi possível salvar: ${mensagemErroBanco(error)}`);
 
-  await registrarLog(sessao, id ? 'Colaborador atualizado' : 'Colaborador criado', `${nome} · ${matricula} · ${status}`);
+  await registrarLog(sessao, id ? 'Colaborador atualizado' : 'Colaborador criado', `${nome} · ${matricula} · ${status}${regra ? ` (${regra.label})` : ''}`);
   revalidatePath('/', 'layout');
   voltar(COLABS, formData);
 }

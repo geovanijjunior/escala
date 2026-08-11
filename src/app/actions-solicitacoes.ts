@@ -7,11 +7,15 @@ import { getSessao, exigirAprovador, exigirPlanejamento, type Sessao } from '@/l
 import { registrarLog } from '@/lib/log';
 import { voltar, rotaComErro } from '@/lib/volta';
 import { getGeracaoAtual } from '@/lib/data/escalas';
-import { addDias, diffDias, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
-import { TIPOS_SOLICITACAO, type TipoSolicitacao } from '@/lib/domain/escalas/constantes';
+import { mensagemErroBanco } from '@/lib/erros-banco';
+import { addDias, diffDias, dowDeIso, formatarData, iso, partesIso, somaHoras } from '@/lib/domain/escalas/datas';
+import { GRUPOS_AUSENCIA, GRUPO_DO_TIPO, OPCOES_FERIAS, TIPOS_COM_PERIODO, TIPOS_OCORRENCIA, TIPOS_SOLICITACAO, type TipoOcorrencia, type TipoSolicitacao } from '@/lib/domain/escalas/constantes';
 import type { Modalidade } from '@/lib/domain/escalas/tipos';
 
 const VOLTA = '/solicitacoes';
+
+/** "17:30" → 1050. Comparar horário como texto só funciona com zero à esquerda. */
+const emMinutos = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 
 function erro(rota: string, msg: string): never {
   redirect(rotaComErro(rota, msg));
@@ -48,11 +52,12 @@ export async function abrirSolicitacao(formData: FormData) {
   const data = String(formData.get('data') ?? '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) erro(volta, 'Informe a data de referência.');
 
-  // Férias e folga cobrem período; o banco recusa data_fim nos demais tipos.
+  // Férias, folga e licença cobrem período; o banco recusa data_fim nos demais.
   const dataFimBruta = String(formData.get('dataFim') ?? '').trim();
-  const aceitaPeriodo = tipo === 'FERIAS' || tipo === 'FOLGA';
+  const aceitaPeriodo = TIPOS_COM_PERIODO.includes(tipo);
   if (dataFimBruta && !aceitaPeriodo) erro(volta, 'Esse tipo de solicitação vale para um dia só.');
   if (tipo === 'FERIAS' && !dataFimBruta) erro(volta, 'Informe a data final das férias.');
+  if (tipo === 'LICENCA' && !dataFimBruta) erro(volta, 'Informe a data final da licença.');
   if (dataFimBruta && !/^\d{4}-\d{2}-\d{2}$/.test(dataFimBruta)) erro(volta, 'Data final inválida.');
   if (dataFimBruta && dataFimBruta < data) erro(volta, 'O fim do período não pode ser anterior ao início.');
   const dataFim = aceitaPeriodo && dataFimBruta ? dataFimBruta : null;
@@ -73,31 +78,40 @@ export async function abrirSolicitacao(formData: FormData) {
   const geracao = await getGeracaoAtual(iso(ano, mes, 1));
   if (geracao?.status === 'encerrada') erro(volta, 'O mês dessa data já foi encerrado e não aceita novas solicitações.');
 
-  let parceiroId: number | null = null;
   let unidadeDesejadaId: number | null = null;
-
-  if (tipo === 'TROCA_HORARIO') {
-    parceiroId = Number(formData.get('parceiroId') ?? 0) || null;
-    if (!parceiroId) erro(volta, 'Selecione o colega com quem a troca será feita.');
-    if (parceiroId === colaboradorId) erro(volta, 'Não dá para trocar de plantão com você mesmo.');
-
-    const { data: ambos } = await supabase
-      .from('colaboradores')
-      .select('id, equipe_id, regime, status')
-      .in('id', [colaboradorId, parceiroId]);
-    const eu = ambos?.find(c => c.id === colaboradorId);
-    const ele = ambos?.find(c => c.id === parceiroId);
-    if (!eu || !ele) erro(volta, 'Colaborador não encontrado.');
-    if (ele.status !== 'ativo') erro(volta, 'O colega selecionado não está ativo.');
-    if (eu.regime !== ele.regime) erro(volta, 'A troca só vale entre pessoas do mesmo regime de trabalho.');
-  }
-
   if (tipo === 'TROCA_UNIDADE') {
     unidadeDesejadaId = Number(formData.get('unidadeDesejadaId') ?? 0) || null;
     if (!unidadeDesejadaId) erro(volta, 'Selecione a unidade desejada.');
   }
 
-  const status = tipo === 'TROCA_HORARIO' ? 'AGUARDA_PARCEIRO' : 'TRIAGEM';
+  // Opção de férias: define o parcelamento e quantos dias de abono. O fim já
+  // vem calculado da tela, mas a opção é conferida aqui — a tela é palpite,
+  // o servidor é decisão.
+  let opcaoFerias: string | null = null;
+  let lancadoFiori: boolean | null = null;
+  if (tipo === 'FERIAS') {
+    const escolha = String(formData.get('opcaoFerias') ?? '');
+    if (!OPCOES_FERIAS.some(o => o.chave === escolha)) erro(volta, 'Escolha a opção de férias.');
+    opcaoFerias = escolha;
+    lancadoFiori = formData.get('lancadoFiori') === '1';
+  }
+
+  // Folga e licença tiram o motivo da mesma lista que o Planejamento usa ao
+  // lançar a ausência — assim o pedido aprovado vira ausência sem retrabalho.
+  let motivo: string | null = null;
+  const grupo = GRUPO_DO_TIPO[tipo];
+  if (grupo) {
+    const escolhido = String(formData.get('motivo') ?? '').trim();
+    const permitidos = GRUPOS_AUSENCIA.find(g => g.grupo === grupo)?.motivos ?? [];
+    if (!permitidos.includes(escolhido)) erro(volta, `Selecione o motivo da ${grupo.toLowerCase()}.`);
+    motivo = escolhido;
+  }
+
+  // Troca de horário entra direto na triagem: quem encontra o par é o
+  // Planejamento, ao encaixar na escala. Exigir o nome do colega na abertura
+  // obrigava a inventar um antes de saber se a troca era possível.
+  const status = 'TRIAGEM';
+  const parceiroId: number | null = null;
 
   const { data: nova, error } = await supabase
     .from('solicitacoes')
@@ -109,8 +123,11 @@ export async function abrirSolicitacao(formData: FormData) {
       data_fim: dataFim,
       detalhe,
       parceiro_id: parceiroId,
-      aceite_parceiro: tipo === 'TROCA_HORARIO' ? 'PENDENTE' : null,
+      aceite_parceiro: null,
       unidade_desejada_id: unidadeDesejadaId,
+      opcao_ferias: opcaoFerias,
+      lancado_fiori: lancadoFiori,
+      motivo,
       status,
     })
     .select('id')
@@ -244,7 +261,7 @@ async function aplicarNaEscala(
   sessao: Sessao,
   s: {
     id: number; tipo: TipoSolicitacao; data: string; data_fim: string | null;
-    colaborador_id: number; parceiro_id: number | null; unidade_desejada_id: number | null;
+    colaborador_id: number; parceiro_id: number | null; unidade_desejada_id: number | null; motivo: string | null;
   },
   volta: string
 ): Promise<string> {
@@ -322,6 +339,7 @@ async function aplicarNaEscala(
     }
 
     case 'FOLGA':
+    case 'LICENCA':
     case 'FERIAS': {
       const tipoAusencia = s.tipo === 'FERIAS' ? 'FERIAS' : 'AUSENCIA';
       const fim = s.data_fim ?? s.data;
@@ -346,8 +364,10 @@ async function aplicarNaEscala(
           tipo: tipoAusencia,
           inicio: s.data,
           dias,
-          grupo: tipoAusencia === 'AUSENCIA' ? 'Folga' : '',
-          motivo: tipoAusencia === 'AUSENCIA' ? 'Compensação' : '',
+          // O motivo veio do pedido; 'Compensação' era um chute que apagava
+          // a razão real — atestado virava folga por compensação no histórico.
+          grupo: tipoAusencia === 'AUSENCIA' ? (s.tipo === 'LICENCA' ? 'Licença' : 'Folga') : '',
+          motivo: tipoAusencia === 'AUSENCIA' ? (s.motivo || 'Compensação') : '',
           criado_por: sessao.usuario.id,
         });
       }
@@ -382,29 +402,102 @@ export async function registrarOcorrencia(formData: FormData) {
   exigirAprovador(sessao.papel, volta);
 
   const colaboradorId = Number(formData.get('colaboradorId'));
-  const data = String(formData.get('data') ?? '');
-  const tipo = String(formData.get('tipo') ?? '');
-  const minutos = Number(formData.get('minutos') ?? 0);
+  const tipo = String(formData.get('tipo') ?? '') as TipoOcorrencia;
+  const obs = String(formData.get('obs') ?? '').trim();
+  let data = String(formData.get('data') ?? '');
 
   if (!colaboradorId) erro(volta, 'Selecione o colaborador.');
+  if (!TIPOS_OCORRENCIA[tipo]) erro(volta, 'Tipo de ocorrência inválido.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) erro(volta, 'Data inválida.');
-  const tiposValidos = ['ATRASO', 'FALTA_J', 'FALTA_I', 'SAIDA_ANTEC', 'PAUSA_EXC', 'SEM_MARCACAO', 'TROCA', 'OBS'];
-  if (!tiposValidos.includes(tipo)) erro(volta, 'Tipo de ocorrência inválido.');
-  if (minutos < 0) erro(volta, 'Minutos não podem ser negativos.');
 
   const supabase = await createClient();
+
+  // Cada tipo pede uma coisa diferente, e o servidor conferindo por tipo é o que
+  // impede um atraso sem minutos ou uma troca sem parceiro de entrar como
+  // registro vazio — antes tudo isso cabia na observação, em texto livre.
+  let minutos = 0;
+  let dias = 1;
+  let horaSaida: string | null = null;
+  let parceiroId: number | null = null;
+
+  switch (TIPOS_OCORRENCIA[tipo].pede) {
+    case 'minutos': {
+      minutos = Number(formData.get('minutos') ?? 0);
+      if (!Number.isInteger(minutos) || minutos < 1) {
+        erro(volta, 'Informe quantos minutos, como um número inteiro maior que zero.');
+      }
+      break;
+    }
+
+    case 'dias': {
+      dias = Number(formData.get('dias') ?? 0);
+      if (!Number.isInteger(dias) || dias < 1 || dias > 365) {
+        erro(volta, 'Informe quantos dias de falta, entre 1 e 365.');
+      }
+      const inicio = String(formData.get('inicio') ?? '').trim();
+      if (inicio) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) erro(volta, 'Data de início inválida.');
+        data = inicio; // a falta começa no dia informado, não no dia aberto na tela
+      }
+      break;
+    }
+
+    case 'saida': {
+      horaSaida = String(formData.get('horaSaida') ?? '').trim();
+      if (!/^\d{2}:\d{2}$/.test(horaSaida)) erro(volta, 'Informe o horário de saída.');
+
+      // Os minutos saem do cálculo contra a jornada da pessoa, não da digitação:
+      // quem lança sabe a que horas a pessoa saiu, não quanto isso deu.
+      const { data: c } = await supabase
+        .from('colaboradores')
+        .select('entrada, jornada, sexta_reduzida')
+        .eq('id', colaboradorId)
+        .single();
+      if (!c) erro(volta, 'Colaborador não encontrado.');
+
+      const dow = dowDeIso(data);
+      const horas = Number(c.jornada) - (c.sexta_reduzida && dow === 5 ? 1 : 0);
+      const fimPrevisto = somaHoras(String(c.entrada).slice(0, 5), horas + (horas > 6 ? 1 : 0));
+      minutos = emMinutos(fimPrevisto) - emMinutos(horaSaida);
+      if (minutos <= 0) {
+        erro(volta, `Saída às ${horaSaida} não é antecipada: o turno terminava às ${fimPrevisto}.`);
+      }
+      break;
+    }
+
+    case 'parceiro': {
+      parceiroId = Number(formData.get('parceiroId') ?? 0) || null;
+      if (!parceiroId) erro(volta, 'Selecione com quem a troca foi feita.');
+      if (parceiroId === colaboradorId) erro(volta, 'A troca precisa ser com outra pessoa.');
+      break;
+    }
+
+    case 'nada':
+      if (!obs) erro(volta, 'Escreva a observação — é o único conteúdo deste registro.');
+      break;
+  }
+
   const { error } = await supabase.from('ocorrencias').insert({
     conta_id: sessao.conta.id,
     colaborador_id: colaboradorId,
     data,
     tipo,
     minutos,
-    obs: String(formData.get('obs') ?? '').trim(),
+    dias,
+    hora_saida: horaSaida,
+    parceiro_id: parceiroId,
+    obs,
     registrado_por: sessao.usuario.id,
   });
-  if (error) erro(volta, `Não foi possível registrar a ocorrência: ${error.message}`);
+  if (error) erro(volta, `Não foi possível registrar a ocorrência: ${mensagemErroBanco(error)}`);
 
-  await registrarLog(sessao, 'Ocorrência registrada', `Colaborador ${colaboradorId} · ${formatarData(data)} · ${tipo}`);
+  await registrarLog(
+    sessao,
+    'Ocorrência registrada',
+    `Colaborador ${colaboradorId} · ${formatarData(data)} · ${TIPOS_OCORRENCIA[tipo].label}`
+    + (minutos ? ` · ${minutos} min` : '')
+    + (dias > 1 ? ` · ${dias} dias` : ''),
+  );
   revalidatePath('/', 'layout');
   redirect(`${volta}?${new URLSearchParams({ competencia: String(formData.get('competencia') ?? ''), dia: data, ok: '1' })}`);
 }

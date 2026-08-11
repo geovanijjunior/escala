@@ -67,6 +67,15 @@ roteiro.push(['ana', async p => {
 
   await foto(p, 'colaboradores', '/colaboradores');
   await foto(p, 'colaborador-editar', '/colaboradores?id=2', { recorte: '#editor-colaborador' });
+  await foto(p, 'colaborador-inativar', '/colaboradores?id=2', {
+    recorte: '#editor-colaborador',
+    antes: async pg => {
+      await pg.selectOption('#editor-colaborador select[name="ativo"]', '0');
+      await pg.waitForTimeout(200);
+      await pg.selectOption('#editor-colaborador select[name="motivoStatus"]', 'DESLIGAMENTO');
+      await pg.waitForTimeout(200);
+    },
+  });
 
   await foto(p, 'parametros-unidades', '/parametros?aba=unidades', { recorte: '#bloco-unidades' });
   await foto(p, 'parametros-capacidade', '/parametros?aba=unidades', { recorte: '#bloco-capacidade' });
@@ -88,6 +97,14 @@ roteiro.push(['ana', async p => {
   await foto(p, 'calendario-mes', `/calendario?${COMP}`);
   await foto(p, 'calendario-grade', `/calendario?${COMP}&vista=grade`, { janela: { width: 2100, height: 1320 } });
   await foto(p, 'calendario-dia', `/calendario?${COMP}&vista=dia&dia=2026-11-09`);
+  await foto(p, 'ocorrencia', `/calendario?${COMP}&vista=dia&dia=2026-11-09`, {
+    recorte: 'table',
+    antes: async pg => {
+      await pg.locator('button:text("Lançar ocorrência")').nth(4).click();
+      await pg.locator('form:has(button:text("Registrar")) select[name="tipo"]').first().selectOption('SAIDA_ANTEC');
+      await pg.waitForTimeout(300);
+    },
+  });
   await foto(p, 'calendario-filtro', `/calendario?${COMP}&q=felipe`);
   await foto(p, 'ocupacao', `/ocupacao?${COMP}&dia=2026-11-09`);
   await foto(p, 'solicitacoes-planejamento', '/solicitacoes');
@@ -125,6 +142,16 @@ roteiro.push(['ricardo', async p => {
 roteiro.push(['felipe', async p => {
   await foto(p, 'minha-escala', `/minha-escala?${COMP}`);
   await foto(p, 'colaborador-solicitacoes', '/solicitacoes');
+  await foto(p, 'pedido-ferias', `/minha-escala?${COMP}`, {
+    recorte: 'form:has(button:text("Enviar solicitação"))',
+    antes: async pg => {
+      await pg.selectOption('select[name="tipo"]', 'FERIAS');
+      await pg.waitForTimeout(250);
+      await pg.selectOption('select[name="opcaoFerias"]', '20+10A');
+      await pg.fill('input[name="data"]', '2027-01-04');
+      await pg.waitForTimeout(300);
+    },
+  });
 }]);
 
 // O formato dos campos <input type="date"> e <input type="time"> segue o idioma

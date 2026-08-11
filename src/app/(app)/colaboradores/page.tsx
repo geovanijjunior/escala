@@ -10,6 +10,7 @@ import { salvarColaborador } from '@/app/actions-cadastros';
 import { Aviso, Badge, Bloco, Pill, Vazio } from '@/components/Ui';
 import { Volta } from '@/components/Volta';
 import { FiltrosAuto } from '@/components/FiltrosAuto';
+import { SituacaoColaborador } from '@/components/SituacaoColaborador';
 import type { Colaborador } from '@/lib/domain/escalas/tipos';
 
 const SITUACAO = {
@@ -300,24 +301,14 @@ function Formulario({
           <span className="esc-rotulo">Admissão</span>
           <input type="date" name="admissao" defaultValue={c?.admissao} required className="esc-input" />
         </label>
-        <label className="block">
-          <span className="esc-rotulo">Situação</span>
-          <select name="status" defaultValue={c?.status ?? 'ativo'} className="esc-input">
-            <option value="ativo">Ativo</option>
-            <option value="afastado">Afastado</option>
-            <option value="desligado">Desligado</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="esc-rotulo">Desligamento</span>
-          <input type="date" name="desligamento" defaultValue={c?.desligamento ?? ''} className="esc-input" />
-        </label>
+        <SituacaoColaborador
+          statusInicial={c?.status ?? 'ativo'}
+          motivoInicial={c?.motivoStatus ?? ''}
+          desligamentoInicial={c?.desligamento ?? ''}
+        />
 
         <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap items-center gap-3">
           <button type="submit" className="esc-btn">Salvar colaborador</button>
-          <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>
-            Colaboradores afastados ou desligados ficam de fora da geração da escala.
-          </span>
         </div>
       </form>
     </Bloco>

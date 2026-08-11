@@ -22,7 +22,8 @@ interface LinhaColaborador {
   cargo: string; equipe_id: number; gestor_id: string | null; regime: '12x36' | '5x2';
   turno: 'D' | 'N'; ciclo: 'IMPAR' | 'PAR' | null; entrada: string; jornada: number;
   unidade_base_id: number; eleg_home: boolean; eleg_externo: boolean; sexta_reduzida: boolean;
-  status: 'ativo' | 'afastado' | 'desligado'; admissao: string; desligamento: string | null;
+  status: 'ativo' | 'afastado' | 'desligado'; motivo_status: string | null;
+  admissao: string; desligamento: string | null;
 }
 
 interface LinhaPlano {
@@ -61,6 +62,12 @@ export interface Solicitacao {
   parceiroNome: string | null;
   aceiteParceiro: 'PENDENTE' | 'ACEITO' | 'RECUSADO' | null;
   unidadeDesejadaId: number | null;
+  /** Combinação de férias escolhida (chave de OPCOES_FERIAS). */
+  opcaoFerias: string | null;
+  /** Se quem pediu já lançou as férias no Fiori. */
+  lancadoFiori: boolean | null;
+  /** Motivo da folga ou licença, vindo da lista de ausências. */
+  motivo: string | null;
   status: StatusSolicitacao;
   posicaoFila: number | null;
   motivoRecusa: string | null;
@@ -90,7 +97,8 @@ const paraColaborador = (c: LinhaColaborador): Colaborador => ({
   cargo: c.cargo, equipeId: c.equipe_id, gestorId: c.gestor_id, regime: c.regime, turno: c.turno,
   ciclo: c.ciclo, entrada: (c.entrada ?? '08:00').slice(0, 5), jornada: Number(c.jornada),
   unidadeBaseId: c.unidade_base_id, elegHome: c.eleg_home, elegExterno: c.eleg_externo,
-  sextaReduzida: c.sexta_reduzida, status: c.status, admissao: c.admissao, desligamento: c.desligamento,
+  sextaReduzida: c.sexta_reduzida, status: c.status, motivoStatus: c.motivo_status ?? '',
+  admissao: c.admissao, desligamento: c.desligamento,
 });
 
 const paraPlano = (p: LinhaPlano): PlanoMensal => ({
@@ -352,6 +360,7 @@ export async function listarSolicitacoes(): Promise<Solicitacao[]> {
     id: number; colaborador_id: number; tipo: TipoSolicitacao; data: string; data_fim: string | null; detalhe: string;
     parceiro_id: number | null; aceite_parceiro: 'PENDENTE' | 'ACEITO' | 'RECUSADO' | null;
     unidade_desejada_id: number | null; status: StatusSolicitacao; posicao_fila: number | null;
+    opcao_ferias: string | null; lancado_fiori: boolean | null; motivo: string | null;
     motivo_recusa: string | null; aplicada: boolean; criado_em: string;
     solicitacao_eventos: { etapa: string; detalhe: string; por_nome: string; em: string }[] | null;
   };
@@ -378,6 +387,9 @@ export async function listarSolicitacoes(): Promise<Solicitacao[]> {
     parceiroNome: s.parceiro_id ? porId.get(s.parceiro_id)?.nome ?? null : null,
     aceiteParceiro: s.aceite_parceiro,
     unidadeDesejadaId: s.unidade_desejada_id,
+    opcaoFerias: s.opcao_ferias ?? null,
+    lancadoFiori: s.lancado_fiori ?? null,
+    motivo: s.motivo ?? null,
     status: s.status,
     posicaoFila: s.posicao_fila,
     motivoRecusa: s.motivo_recusa,

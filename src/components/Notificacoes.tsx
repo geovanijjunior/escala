@@ -1,7 +1,6 @@
-import Link from 'next/link';
 import { formatarData } from '@/lib/domain/escalas/datas';
 import { TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
-import { marcarNotificacoesLidas } from '@/app/actions-notificacoes';
+import { abrirNotificacao, marcarNotificacoesLidas } from '@/app/actions-notificacoes';
 import type { Notificacao } from '@/lib/data/escalas';
 import type { TipoSolicitacao } from '@/lib/domain/escalas/constantes';
 
@@ -66,9 +65,12 @@ export function Notificacoes({
               const tipo = TIPOS_SOLICITACAO[n.tipo as TipoSolicitacao];
               return (
                 <li key={n.id}>
-                  <Link
-                    href="/solicitacoes"
-                    className="block px-3 py-2.5 hover:bg-[var(--surface-2)]"
+                  {/* Form, e não link: abrir o aviso precisa marcar o sino como
+                      lido no mesmo passo, senão o contador nunca baixa. */}
+                  <form action={abrirNotificacao}>
+                  <button
+                    type="submit"
+                    className="block w-full text-left px-3 py-2.5 hover:bg-[var(--surface-2)]"
                     style={n.naoLida ? { background: 'var(--brand-50)' } : undefined}
                   >
                     <div className="flex items-baseline gap-2">
@@ -86,7 +88,8 @@ export function Notificacoes({
                     {n.detalhe && (
                       <p className="text-[11px] mt-1 line-clamp-2" style={{ color: 'var(--muted)' }}>{n.detalhe}</p>
                     )}
-                  </Link>
+                  </button>
+                  </form>
                 </li>
               );
             })}

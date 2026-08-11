@@ -86,6 +86,12 @@ export interface Colaborador {
   elegExterno: boolean;
   sextaReduzida: boolean;
   status: StatusColaborador;
+  /**
+   * Por que foi inativado — chave de MOTIVOS_INATIVACAO, vazio quando ativo.
+   * Opcional porque é dado de cadastro: o motor decide por `status` e nunca
+   * lê o motivo, então exigi-lo obrigaria toda fixture de teste a inventar um.
+   */
+  motivoStatus?: string;
   admissao: string;
   desligamento: string | null;
 }

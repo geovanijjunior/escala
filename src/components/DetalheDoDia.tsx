@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { DIAS_ABREV, dowDeIso, formatarData, somaHoras } from '@/lib/domain/escalas/datas';
 import { MODALIDADES, TIPOS_OCORRENCIA } from '@/lib/domain/escalas/constantes';
 import { alternarTrava, reposicionarAlocacao } from '@/app/actions-geracao';
-import { registrarOcorrencia } from '@/app/actions-solicitacoes';
+import { LinhaDoColaborador } from './LinhaDoColaborador';
 import { Badge, Bloco, aparencia } from './Ui';
 import type { Alocacao, Colaborador, Equipe, Posto, Unidade } from '@/lib/domain/escalas/tipos';
 import type { Ocorrencia } from '@/lib/data/escalas';
@@ -105,7 +105,29 @@ export function DetalheDoDia({
               const ap = aparencia(a.modalidade, a.unidadeId, unidades);
               const ocs = ocorrenciasPorColab.get(c.id) ?? [];
               return (
-                <tr key={c.id}>
+                <LinhaDoColaborador
+                  key={c.id}
+                  colaboradorId={c.id}
+                  colaboradorNome={c.nome}
+                  data={data}
+                  competencia={competencia}
+                  volta={volta}
+                  colunas={podeEditar || podeLancarOcorrencia ? 5 : 4}
+                  colegas={trabalhando.filter(x => x.c.id !== c.id).map(x => ({ id: x.c.id, nome: x.c.nome }))}
+                  acoes={podeEditar ? (
+                    <form action={alternarTrava} className="inline">
+                      <input type="hidden" name="colaboradorId" value={c.id} />
+                      <input type="hidden" name="data" value={data} />
+                      <input type="hidden" name="competencia" value={competencia} />
+                      <input type="hidden" name="volta" value={volta} />
+                      <input type="hidden" name="modalidade" value={a.modalidade} />
+                      <input type="hidden" name="unidadeId" value={a.unidadeId ?? ''} />
+                      <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">
+                        {a.travado ? 'Liberar' : 'Travar'}
+                      </button>
+                    </form>
+                  ) : undefined}
+                >
                   <td>
                     <div className="font-medium flex items-center gap-1.5 flex-wrap">
                       {c.nome}
@@ -161,61 +183,13 @@ export function DetalheDoDia({
                   <td className="esc-num" style={{ color: 'var(--muted)' }}>
                     {['FERIAS', 'FOLGA', 'AFAST', 'FERIADO'].includes(a.modalidade) ? '—' : faixaHoraria(c, dow)}
                   </td>
-                  {(podeEditar || podeLancarOcorrencia) && (
-                    <td className="text-right whitespace-nowrap">
-                      {podeEditar && (
-                        <form action={alternarTrava} className="inline">
-                          <input type="hidden" name="colaboradorId" value={c.id} />
-                          <input type="hidden" name="data" value={data} />
-                          <input type="hidden" name="competencia" value={competencia} />
-                          <input type="hidden" name="volta" value={volta} />
-                          <input type="hidden" name="modalidade" value={a.modalidade} />
-                          <input type="hidden" name="unidadeId" value={a.unidadeId ?? ''} />
-                          <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">
-                            {a.travado ? 'Liberar' : 'Travar'}
-                          </button>
-                        </form>
-                      )}
-                    </td>
-                  )}
-                </tr>
+                </LinhaDoColaborador>
               );
             })}
           </tbody>
         </table>
       </div>
 
-      {podeLancarOcorrencia && (
-        <form action={registrarOcorrencia} className="px-4 py-3 border-t flex flex-wrap items-end gap-2.5" style={{ borderColor: 'var(--line)' }}>
-          <input type="hidden" name="data" value={data} />
-          <input type="hidden" name="competencia" value={competencia} />
-          <input type="hidden" name="volta" value={volta} />
-          <label className="block">
-            <span className="esc-rotulo">Lançar ocorrência</span>
-            <select name="colaboradorId" required className="esc-input w-52">
-              <option value="">Selecione o colaborador</option>
-              {trabalhando.map(({ c }) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
-          </label>
-          <label className="block">
-            <span className="esc-rotulo">Tipo</span>
-            <select name="tipo" required className="esc-input w-44">
-              {(Object.keys(TIPOS_OCORRENCIA) as (keyof typeof TIPOS_OCORRENCIA)[]).map(t => (
-                <option key={t} value={t}>{TIPOS_OCORRENCIA[t].label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="esc-rotulo">Minutos</span>
-            <input type="number" name="minutos" min={0} defaultValue={0} className="esc-input w-24 esc-num" />
-          </label>
-          <label className="block flex-1 min-w-[180px]">
-            <span className="esc-rotulo">Observação</span>
-            <input name="obs" className="esc-input" placeholder="Contexto do lançamento" />
-          </label>
-          <button type="submit" className="esc-btn esc-btn-sm">Registrar</button>
-        </form>
-      )}
     </Bloco>
   );
 }

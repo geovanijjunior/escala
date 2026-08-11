@@ -697,8 +697,41 @@
         <div><dt>Elegível a home office</dt><dd>Porteiro da regra: sem esta caixa marcada, a seção de home office do plano do mês fica desligada e o motor nunca escala home para a pessoa.</dd></div>
         <div><dt>Elegível a trabalho externo</dt><dd>Permite que a pessoa seja alocada como Trabalho Externo quando não sobra posição em nenhuma unidade.</dd></div>
         <div><dt>Sexta reduzida (−1 h, só 5x2)</dt><dd>Encurta a jornada de sexta em uma hora no horário mostrado.</dd></div>
-        <div><dt>Admissão, Situação, Desligamento</dt><dd>Situação <b>Ativo</b> é o que entra na geração. Afastado e desligado ficam de fora sem precisar apagar o cadastro — o histórico dos meses anteriores continua íntegro.</dd></div>
+        <div><dt>Admissão</dt><dd>Data de entrada. O desligamento nunca pode ser anterior a ela.</dd></div>
+        <div><dt>Situação</dt><dd><b>Ativo</b> é o que entra na geração. <b>Inativo</b> abre o campo de motivo — ver abaixo.</dd></div>
       </dl>
+
+      <h3>Inativar alguém</h3>
+      <p>
+        Marcar <strong>Inativo</strong> abre a pergunta que importa: <strong>por quê</strong>. A data
+        de desligamento aparece só quando o motivo é <em>Desligamento</em> — é o único que encerra o
+        vínculo, e nos outros ela não quer dizer nada.
+      </p>
+      <figure class="tela recorte">
+        <img src="imagens/colaborador-inativar.png" alt="Formulário do colaborador com situação Inativo, motivo Desligamento selecionado e o campo de data de desligamento visível.">
+        <figcaption>
+          <b>Inativação</b> — motivo obrigatório; a data só aparece no desligamento.
+        </figcaption>
+      </figure>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Motivo</th><th>Efeito</th></tr></thead>
+          <tbody>
+            <tr><td>Desligamento</td><td>Encerra o vínculo. Pede a data e a grava.</td></tr>
+            <tr><td>Afastamento pelo INSS</td><td>Fica fora da geração; volta mudando a situação para Ativo.</td></tr>
+            <tr><td>Licença sem vencimento</td><td>Idem.</td></tr>
+            <tr><td>Licença maternidade ou paternidade</td><td>Idem.</td></tr>
+            <tr><td>Transferência para outra área</td><td>Idem.</td></tr>
+            <tr><td>Cedido a outra unidade</td><td>Idem.</td></tr>
+            <tr><td>Outro</td><td>Idem — descreva na justificativa do log.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="porque">
+        <strong>Inativo não é apagado.</strong> A pessoa sai da geração e o histórico dos meses
+        anteriores continua íntegro — escalas, ocorrências e solicitações permanecem com o nome
+        dela. Apagar o cadastro levaria tudo isso junto.
+      </div>
 
       <div class="aviso atencao">
         <p>
@@ -1122,7 +1155,8 @@
         <img src="imagens/calendario-mes.png" alt="Calendário de novembro de 2026 em formato de mês, com cada dia mostrando as contagens por unidade, home office e férias, e os feriados nomeados.">
         <figcaption>
           <b>Vista de mês</b> — cada célula mostra quantas pessoas em cada unidade, quantas em
-          home office e quantas ausentes. Feriados aparecem nomeados.
+          home office e quantas ausentes. Feriados aparecem nomeados. Ao abrir o calendário no mês
+          corrente, o dia de hoje já vem selecionado, com o detalhe aberto embaixo.
         </figcaption>
       </figure>
       <p>
@@ -1166,10 +1200,36 @@
           de qualquer outra regra e ela sobrevive a uma nova geração.
         </li>
         <li>
-          <strong>Lançar ocorrência</strong> — atraso, falta justificada, falta não
-          justificada — com minutos e observação.
+          <strong>Lançar ocorrência</strong> pelo botão na linha da própria pessoa.
         </li>
       </ul>
+
+      <h4>Lançar ocorrência</h4>
+      <p>
+        O botão fica na linha de cada colaborador e abre o formulário logo abaixo dela, com a pessoa
+        já escolhida. Os campos mudam conforme o tipo, porque cada tipo mede uma coisa diferente:
+      </p>
+      <div class="tabela-rolo">
+        <table>
+          <thead><tr><th>Tipo</th><th>O que o sistema pergunta</th></tr></thead>
+          <tbody>
+            <tr><td>Atraso</td><td>Quantos minutos</td></tr>
+            <tr><td>Falta justificada / injustificada</td><td>Quantos dias e a data de início</td></tr>
+            <tr><td>Saída antecipada</td><td>A hora em que a pessoa saiu — os minutos saem do cálculo contra a jornada dela</td></tr>
+            <tr><td>Pausa excedida</td><td>Quantos minutos</td></tr>
+            <tr><td>Ausência de marcação</td><td>Só a observação, que passa a ser obrigatória</td></tr>
+            <tr><td>Troca realizada</td><td>Com quem foi a troca, escolhido entre quem trabalha naquele dia</td></tr>
+            <tr><td>Observação</td><td>Só a caixa de texto</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figure class="tela">
+        <img src="imagens/ocorrencia.png" alt="Tabela do dia com o formulário de ocorrência aberto sob a linha de Felipe Souza, mostrando o tipo Saída antecipada e o campo de horário de saída.">
+        <figcaption>
+          <b>Ocorrência</b> — em <em>Saída antecipada</em> você informa a hora; quantos minutos isso
+          deu é conta do sistema, contra a jornada da pessoa naquele dia.
+        </figcaption>
+      </figure>
       <div class="aviso atencao">
         <p>
           <strong>Trava é para exceção, não para rotina.</strong> Cada trava é um pedaço da
@@ -1230,8 +1290,6 @@
       <div class="fluxo">
         <div class="etapa"><span class="nome">Aberta</span><span class="oque">O colaborador registra o pedido com tipo, data e justificativa. <em>Só troca de plantão pede parceiro.</em></span></div>
         <div class="seta">↓</div>
-        <div class="etapa"><span class="nome">Aguarda parceiro</span><span class="oque">Numa troca, o colega convidado aceita ou recusa antes de qualquer outra coisa. <em>Recusou, acabou.</em></span></div>
-        <div class="seta">↓</div>
         <div class="etapa"><span class="nome">Em triagem</span><span class="oque">O Planejamento confere se cabe na escala e decide o encaminhamento.</span></div>
         <div class="seta">↓</div>
         <div class="etapa"><span class="nome">Com o gestor</span><span class="oque">O gestor da equipe aprova ou recusa. <em>A recusa exige motivo escrito.</em></span></div>
@@ -1281,10 +1339,11 @@
         <table>
           <thead><tr><th>Tipo</th><th>O que pede</th><th>Efeito quando aprovado</th></tr></thead>
           <tbody>
-            <tr><td>Férias</td><td>Data de início e fim</td><td>Vira período de férias; os dias do mês já ficam marcados na escala</td></tr>
-            <tr><td>Folga</td><td>Data</td><td>Vira ausência no dia e trava a alocação</td></tr>
+            <tr><td>Férias</td><td>Opção de férias e data de início — o fim é calculado</td><td>Vira período de férias; os dias do mês já ficam marcados na escala</td></tr>
+            <tr><td>Folga</td><td>Motivo, data e (opcional) fim</td><td>Vira ausência no período e trava a alocação</td></tr>
+            <tr><td>Licenças</td><td>Motivo, início e fim</td><td>Vira ausência no período inteiro e trava a alocação</td></tr>
             <tr><td>Troca de unidade</td><td>Data e unidade desejada</td><td>Move a pessoa para a unidade escolhida naquele dia</td></tr>
-            <tr><td>Troca de horário</td><td>Data e colega parceiro</td><td>Só avança depois do aceite do parceiro</td></tr>
+            <tr><td>Troca de horário</td><td>Data</td><td>Entra direto na triagem; o Planejamento encontra o par e o registra ao aplicar</td></tr>
             <tr><td>Ajuste de ponto</td><td>Data e justificativa</td><td>Registro; não altera a alocação</td></tr>
           </tbody>
         </table>
@@ -1313,9 +1372,11 @@
       </figure>
 
       <p>
-        O número vermelho conta as não lidas. <strong>Marcar como lidas</strong> zera o
-        contador sem apagar a lista, e clicar numa linha leva direto à tela de solicitações.
-        Você nunca recebe notificação de uma ação sua.
+        O número vermelho conta as não lidas. <strong>Clicar num aviso</strong> leva à tela de
+        solicitações e zera o contador no mesmo passo — antes era preciso lembrar de marcar depois,
+        e o número ficava parado mesmo depois de tudo lido. <strong>Marcar como lidas</strong>
+        continua ali para zerar sem abrir nada. A lista não é apagada em nenhum dos dois casos, e
+        você nunca recebe notificação de uma ação sua.
       </p>
     </section>
 
@@ -1361,11 +1422,52 @@
 
       <h3>Abrir um pedido</h3>
       <ol class="passos">
-        <li><strong>Escolha o tipo.</strong> Férias e folga pedem data; troca de unidade pede a unidade desejada; troca de plantão pede o colega.</li>
-        <li><strong>Informe a data</strong> — em férias, o início e o fim.</li>
+        <li><strong>Escolha o tipo.</strong> Cada um pede o que precisa e nada além: folga e licença pedem o motivo, troca de unidade pede a unidade, férias pedem a combinação escolhida.</li>
+        <li><strong>Informe a data.</strong> Nos tipos que cobrem período, é o início.</li>
         <li><strong>Escreva a justificativa.</strong> É o texto que o gestor lê para decidir; frase vaga costuma voltar como pedido de esclarecimento.</li>
         <li><strong>Envie.</strong> O prazo previsto de resposta aparece ao lado do botão.</li>
       </ol>
+
+      <h4>Férias</h4>
+      <p>
+        Férias não são um intervalo livre: são uma das combinações fechadas que o RH aceita. Escolha
+        a <strong>opção de férias</strong> e informe só o início — <strong>o fim é calculado</strong>
+        a partir dos dias da combinação, e o campo fica travado.
+      </p>
+      <figure class="tela recorte">
+        <img src="imagens/pedido-ferias.png" alt="Formulário de solicitação de férias com a opção 20 dias mais 10 de abono, início em 04/01/2027, fim calculado em 23/01/2027, aviso de abono e caixa de confirmação do lançamento no Fiori.">
+        <figcaption>
+          <b>Pedido de férias</b> — 20 dias a partir de 04/01 fecham em 23/01, e o sistema faz a conta.
+        </figcaption>
+      </figure>
+      <ul class="marcado">
+        <li>
+          <strong>Abono</strong> são dias vendidos, não descansados — ficam fora da escala, e o
+          formulário avisa quando a opção escolhida os inclui.
+        </li>
+        <li>
+          <strong>Férias parceladas</strong> (10+20, 15+5+10…) valem uma solicitação por parcela:
+          cada uma tem a sua data e precisa caber na escala do mês dela. Este pedido cobre a primeira.
+        </li>
+        <li>
+          <strong>Já lancei no Fiori</strong> é o que diz ao Planejamento o que ainda falta lançar
+          no sistema da folha. Marque só se o lançamento realmente já foi feito.
+        </li>
+      </ul>
+
+      <h4>Folga e licença</h4>
+      <p>
+        Os dois pedem o <strong>motivo</strong>, escolhido da mesma lista que o Planejamento usa ao
+        lançar a ausência — assim o pedido aprovado vira ausência sem ninguém redigitar nada. Folga
+        aceita um dia só (fim em branco); licença exige o período completo.
+      </p>
+
+      <h4>Troca de horário</h4>
+      <p>
+        Você não escolhe o colega. Peça a troca com a data e a justificativa: quem encontra com quem
+        ela é possível é o Planejamento, ao encaixar na escala, e o par fica registrado na ocorrência
+        <em>Troca realizada</em>. Antes era preciso apontar um nome antes de saber se a troca cabia.
+      </p>
       <p>
         A lista <strong>Minhas solicitações</strong> mostra o estágio de cada pedido. Quando
         alguém convida você para uma troca, o cartão ganha o selo <em>Aguarda sua resposta</em>
