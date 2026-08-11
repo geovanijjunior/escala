@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { rotaComErro } from '@/lib/volta';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
@@ -13,7 +14,7 @@ import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
 const VOLTA = '/usuarios';
 
 function erro(msg: string): never {
-  redirect(`${VOLTA}?erro=${encodeURIComponent(msg)}`);
+  redirect(rotaComErro(VOLTA, msg));
 }
 
 const PAPEIS: PapelEscalas[] = ['planejamento', 'gestor', 'colaborador'];

@@ -17,6 +17,8 @@ telas sutilmente erradas.
 | `supabase-pg.mjs` | Cliente Supabase falso sobre o Postgres local |
 | `semear.ts` | Massa de exemplo: Hospital São Lucas, 15 pessoas, novembro de 2026 |
 | `fotografar.mjs` | Roteiro de captura, papel por papel |
+| `varrer.mjs` | Abre toda tela em todo papel e acusa erro de HTTP, de JS ou de consulta |
+| `acoes.mjs` | Executa cada ação de escrita e confere que ela gravou no banco |
 
 ## Receita
 
@@ -52,6 +54,28 @@ git checkout -- src/lib/supabase/
 node scripts/manual-pdf.mjs
 ```
 
+## Suíte de regressão
+
+Os dois roteiros abaixo rodam contra o mesmo dev server das fotos e existem
+porque a tela de solicitações ficou vazia em produção sem ninguém perceber.
+
+```bash
+node scripts/manual/varrer.mjs   # 18 telas × 3 papéis
+node scripts/manual/acoes.mjs    # 21 ações de escrita, cada uma conferida no banco
+```
+
+Rode os dois em DOIS bancos, um em cada nível de migration — é isso que pega o
+descompasso entre o código e o esquema que a instalação realmente tem:
+
+```bash
+createdb manual_0008   # migrations 0001..0008
+createdb manual        # migrations 0001..0009
+```
+
+`varrer.mjs` confere a URL final, não só o status: um redirecionamento para
+`/login` devolve 200, e a primeira versão da varredura passou inteira sem ter
+aberto uma única tela do sistema.
+
 ## Detalhes que custaram tempo
 
 - **O shim resolve as chaves estrangeiras pelo catálogo**, não por convenção de
@@ -72,6 +96,18 @@ node scripts/manual-pdf.mjs
   `auth.uid()` da pessoa logada. Sem isso o shim consultaria como superusuário,
   o RLS não valeria nada, e as fotos do papel "colaborador" mostrariam a
   empresa inteira.
+
+- **`_sql()` do shim é memoizado**: montar tem efeito colateral (cada `$n`
+  empilha em `valores`), e o método é chamado duas vezes — na execução e no log
+  de erro. Sem cache, a segunda chamada deslocava os índices e a linha era
+  gravada com os campos trocados, produzindo erros de RLS e de tipo que
+  pareciam do app.
+- **Colunas `json`/`jsonb` são lidas do catálogo.** Um `[]` enviado como
+  literal de array do Postgres entra na coluna jsonb como objeto vazio, e a
+  tela de geração quebrava com "conflitos is not iterable".
+- **`semear.ts` avança as sequências.** Os ids explícitos do `overriding system
+  value` não adiantam a sequência, e o primeiro cadastro feito pela tela
+  colidia com a chave primária.
 
 ## Só para fotos
 

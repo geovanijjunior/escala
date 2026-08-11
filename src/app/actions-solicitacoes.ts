@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirAprovador, exigirPlanejamento, type Sessao } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
-import { voltar } from '@/lib/volta';
+import { voltar, rotaComErro } from '@/lib/volta';
 import { getGeracaoAtual } from '@/lib/data/escalas';
 import { addDias, diffDias, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { TIPOS_SOLICITACAO, type TipoSolicitacao } from '@/lib/domain/escalas/constantes';
@@ -14,7 +14,7 @@ import type { Modalidade } from '@/lib/domain/escalas/tipos';
 const VOLTA = '/solicitacoes';
 
 function erro(rota: string, msg: string): never {
-  redirect(`${rota}?erro=${encodeURIComponent(msg)}`);
+  redirect(rotaComErro(rota, msg));
 }
 
 async function registrarEvento(

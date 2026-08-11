@@ -13,7 +13,14 @@ import { gerarEscala } from '../../src/lib/domain/escalas/motor';
 import type { Colaborador, PlanoMensal, Unidade } from '../../src/lib/domain/escalas/tipos';
 
 pg.types.setTypeParser(1082, (v: string) => v);
-const db = new pg.Pool({ host: '/tmp', port: 5433, user: 'postgres', database: 'manual' });
+// Respeita PGDATABASE: a massa é semeada em mais de um banco — um por nível de
+// migration — para conferir que o app roda em todos eles.
+const db = new pg.Pool({
+  host: process.env.PGHOST || '/tmp',
+  port: Number(process.env.PGPORT || 5433),
+  user: process.env.PGUSER || 'postgres',
+  database: process.env.PGDATABASE || 'manual',
+});
 
 const CONTA = '11111111-1111-1111-1111-111111111111';
 const ANA    = '00000000-0000-0000-0000-000000000001'; // planejamento
@@ -127,7 +134,13 @@ async function main() {
        p.cargo, p.equipe, RICARDO, p.regime, p.ciclo ?? null,
        p.morumbi >= 50 ? 1 : 2, !!p.home]);
   }
-  await db.query(`select setval(pg_get_serial_sequence('colaboradores','id'), 100, false)`);
+  // As tabelas acima receberam ids explícitos (`overriding system value`), o que
+  // NÃO adianta a sequência: o primeiro insert feito pela tela tentaria o id 1 e
+  // colidiria com a chave primária. Empurrar as sequências para longe dos ids
+  // semeados é o que deixa a base de demonstração utilizável de verdade.
+  for (const t of ['unidades', 'postos', 'equipes', 'colaboradores']) {
+    await db.query(`select setval(pg_get_serial_sequence('${t}','id'), 100, false)`);
+  }
 
   // Férias em curso e uma ausência curta — a grade fica realista.
   await db.query(`insert into ausencias (conta_id, colaborador_id, tipo, inicio, dias, grupo, motivo, criado_por) values

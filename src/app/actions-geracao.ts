@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { rotaComErro } from '@/lib/volta';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
@@ -12,7 +13,7 @@ import type { Modalidade } from '@/lib/domain/escalas/tipos';
 const VOLTA = '/gerar';
 
 function erro(rota: string, msg: string): never {
-  redirect(`${rota}?erro=${encodeURIComponent(msg)}`);
+  redirect(rotaComErro(rota, msg));
 }
 
 /**

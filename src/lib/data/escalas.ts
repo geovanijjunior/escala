@@ -114,22 +114,45 @@ const paraPlano = (p: LinhaPlano): PlanoMensal => ({
    Leituras
    ============================================================ */
 
+/**
+ * Desembrulha uma leitura deixando o erro à vista.
+ *
+ * `const { data } = await supabase…` descarta o erro e devolve `undefined`, que
+ * o código seguinte trata como "não há nada". Foi assim que a tela de
+ * solicitações passou a mostrar "Nada por aqui" enquanto o contador do menu
+ * dizia 2: a consulta falhava, o `catch` não existia, e a falha virava lista
+ * vazia — o modo mais caro de errar, porque parece que o sistema está certo.
+ *
+ * Aqui a falha continua não derrubando a página (uma tela parcial é melhor que
+ * um erro 500 no cabeçalho), mas vai para o log do servidor com o nome da
+ * consulta, que é o que faltava para alguém perceber.
+ */
+function conferir<T>(
+  rotulo: string,
+  r: { data: T; error: { message: string; code?: string } | null },
+): T {
+  if (r.error) {
+    console.error(`[escala] ${rotulo}: ${r.error.message}${r.error.code ? ` (${r.error.code})` : ''}`);
+  }
+  return r.data;
+}
+
 export async function listarUnidades(): Promise<Unidade[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from('unidades').select('*').order('ordem').order('id');
+  const data = conferir('listarUnidades', await supabase.from('unidades').select('*').order('ordem').order('id'));
   return ((data ?? []) as LinhaUnidade[]).map(paraUnidade);
 }
 
 export async function listarEquipes(): Promise<Equipe[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from('equipes').select('*').order('nome');
+  const data = conferir('listarEquipes', await supabase.from('equipes').select('*').order('nome'));
   return ((data ?? []) as { id: number; codigo: string; nome: string; regime: '12x36' | '5x2'; turno: 'D' | 'N'; gestor_id: string | null }[])
     .map(e => ({ id: e.id, codigo: e.codigo, nome: e.nome, regime: e.regime, turno: e.turno, gestorId: e.gestor_id }));
 }
 
 export async function listarColaboradores(): Promise<Colaborador[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from('colaboradores').select('*').order('nome');
+  const data = conferir('listarColaboradores', await supabase.from('colaboradores').select('*').order('nome'));
   return ((data ?? []) as LinhaColaborador[]).map(paraColaborador);
 }
 
@@ -137,7 +160,7 @@ export async function listarFeriados(ano?: number): Promise<{ data: string; nome
   const supabase = await createClient();
   let q = supabase.from('feriados').select('data, nome').order('data');
   if (ano) q = q.gte('data', `${ano}-01-01`).lte('data', `${ano}-12-31`);
-  const { data } = await q;
+  const data = conferir('listarFeriados', await q);
   return (data ?? []) as { data: string; nome: string }[];
 }
 
@@ -149,7 +172,7 @@ export interface ConfigEscalas {
 
 export async function getConfig(contaId: string): Promise<ConfigEscalas> {
   const supabase = await createClient();
-  const { data } = await supabase.from('config').select('*').eq('conta_id', contaId).maybeSingle();
+  const data = conferir('getConfig', await supabase.from('config').select('*').eq('conta_id', contaId).maybeSingle());
   return {
     cicloAncora: data?.ciclo_ancora ?? iso(new Date().getFullYear(), 0, 1),
     toleranciaAderencia: data?.tolerancia_aderencia ?? 1,
@@ -262,17 +285,25 @@ export function pendenciasDoMes(ctx: ContextoMes): Pendencia[] {
 
 export async function getGeracaoAtual(competencia: string): Promise<Geracao | null> {
   const supabase = await createClient();
-  const { data } = await supabase
+  const data = conferir('getGeracaoAtual', await supabase
     .from('geracoes')
     .select('*')
     .eq('competencia', competencia)
     .eq('atual', true)
-    .maybeSingle();
+    .maybeSingle());
   if (!data) return null;
   return {
     id: data.id, competencia: data.competencia, versao: data.versao, status: data.status,
-    escopo: data.escopo, conflitos: data.conflitos ?? [], alertas: data.alertas ?? [],
-    aderencia: data.aderencia ?? [], geradaEm: data.gerada_em, geradaPorNome: data.gerada_por_nome,
+    escopo: data.escopo,
+    // `?? []` só cobre null. Uma coluna jsonb pode guardar objeto, número ou
+    // texto, e a tela faz spread em cima — um único registro torto derrubava a
+    // tela de geração inteira com "conflitos is not iterable". A escala está
+    // gravada e correta; recusar-se a exibi-la por causa do painel de avisos é
+    // a troca errada.
+    conflitos: Array.isArray(data.conflitos) ? data.conflitos : [],
+    alertas: Array.isArray(data.alertas) ? data.alertas : [],
+    aderencia: Array.isArray(data.aderencia) ? data.aderencia : [],
+    geradaEm: data.gerada_em, geradaPorNome: data.gerada_por_nome,
   };
 }
 
@@ -303,39 +334,48 @@ export async function listarAlocacoes(geracaoId: number): Promise<Alocacao[]> {
 
 export async function listarSolicitacoes(): Promise<Solicitacao[]> {
   const supabase = await createClient();
-  const { data } = await supabase
+  // Sem dica de constraint. `solicitacoes` aponta para `colaboradores` duas
+  // vezes — quem pediu e o parceiro da troca —, e desambiguar pelo nome da
+  // constraint amarrou esta tela à migration em vigor: a 0009 renomeia essas
+  // FKs, e a consulta inteira passou a ser recusada pelo PostgREST de um lado
+  // ou do outro da migration, deixando a tela vazia sem dizer por quê. Os nomes
+  // vêm de uma segunda consulta, que não depende de nome de constraint nenhum.
+  //
+  // O embed de `solicitacao_eventos` fica: é a única FK entre as duas tabelas,
+  // então não há o que desambiguar.
+  const data = conferir('listarSolicitacoes', await supabase
     .from('solicitacoes')
-    // As dicas nomeiam as constraints CRIADAS PELA 0009 (compostas, com
-    // `_conta_` no nome). A 0009 derruba as FKs de coluna única antigas, então
-    // apontar para `solicitacoes_colaborador_id_fkey` aqui deixaria de resolver
-    // e o PostgREST recusaria a consulta inteira.
-    .select(`*,
-      colaborador:colaboradores!solicitacoes_colaborador_id_conta_fkey(id, nome, equipe_id),
-      parceiro:colaboradores!solicitacoes_parceiro_id_conta_fkey(id, nome),
-      solicitacao_eventos(etapa, detalhe, por_nome, em)`)
-    .order('criado_em', { ascending: false });
+    .select('*, solicitacao_eventos(etapa, detalhe, por_nome, em)')
+    .order('criado_em', { ascending: false }));
 
   type Linha = {
     id: number; colaborador_id: number; tipo: TipoSolicitacao; data: string; data_fim: string | null; detalhe: string;
     parceiro_id: number | null; aceite_parceiro: 'PENDENTE' | 'ACEITO' | 'RECUSADO' | null;
     unidade_desejada_id: number | null; status: StatusSolicitacao; posicao_fila: number | null;
     motivo_recusa: string | null; aplicada: boolean; criado_em: string;
-    colaborador: { id: number; nome: string; equipe_id: number } | null;
-    parceiro: { id: number; nome: string } | null;
     solicitacao_eventos: { etapa: string; detalhe: string; por_nome: string; em: string }[] | null;
   };
 
-  return ((data ?? []) as Linha[]).map(s => ({
+  const linhas = (data ?? []) as Linha[];
+  if (linhas.length === 0) return [];
+
+  const ids = [...new Set(linhas.flatMap(s => [s.colaborador_id, s.parceiro_id]))]
+    .filter((n): n is number => typeof n === 'number');
+  const pessoas = conferir('listarSolicitacoes/colaboradores', await supabase
+    .from('colaboradores').select('id, nome, equipe_id').in('id', ids)) ?? [];
+  const porId = new Map((pessoas as { id: number; nome: string; equipe_id: number }[]).map(c => [c.id, c]));
+
+  return linhas.map(s => ({
     id: s.id,
     colaboradorId: s.colaborador_id,
-    colaboradorNome: s.colaborador?.nome ?? '—',
-    equipeId: s.colaborador?.equipe_id ?? null,
+    colaboradorNome: porId.get(s.colaborador_id)?.nome ?? '—',
+    equipeId: porId.get(s.colaborador_id)?.equipe_id ?? null,
     tipo: s.tipo,
     data: s.data,
     dataFim: s.data_fim ?? null,
     detalhe: s.detalhe,
     parceiroId: s.parceiro_id,
-    parceiroNome: s.parceiro?.nome ?? null,
+    parceiroNome: s.parceiro_id ? porId.get(s.parceiro_id)?.nome ?? null : null,
     aceiteParceiro: s.aceite_parceiro,
     unidadeDesejadaId: s.unidade_desejada_id,
     status: s.status,
@@ -358,7 +398,7 @@ export async function listarOcorrencias(de?: string, ate?: string): Promise<Ocor
     .order('data', { ascending: false });
   if (de) q = q.gte('data', de);
   if (ate) q = q.lte('data', ate);
-  const { data } = await q;
+  const data = conferir('listarOcorrencias', await q);
   type Linha = {
     id: number; colaborador_id: number; data: string; tipo: TipoOcorrencia;
     minutos: number; obs: string; colaborador: { nome: string } | null;
@@ -371,11 +411,11 @@ export async function listarOcorrencias(de?: string, ate?: string): Promise<Ocor
 
 export async function listarLogs(limite = 60) {
   const supabase = await createClient();
-  const { data } = await supabase
+  const data = conferir('listarLogs', await supabase
     .from('logs')
     .select('*')
     .order('criado_em', { ascending: false })
-    .limit(limite);
+    .limit(limite));
   return (data ?? []) as { id: number; usuario_nome: string; acao: string; detalhe: string; criado_em: string }[];
 }
 
@@ -426,28 +466,32 @@ export async function listarNotificacoes(
   limite = 20,
 ): Promise<{ itens: Notificacao[]; naoLidas: number }> {
   const supabase = await createClient();
-  const { data } = await supabase
+  // O embed de `solicitacoes` fica — há uma FK só entre as duas tabelas. O de
+  // `colaboradores` saiu: dali para frente seria preciso desambiguar pelo nome
+  // da constraint, e este cabeçalho aparece em TODAS as páginas. Uma consulta
+  // recusada por nome de constraint apagava o sino do sistema inteiro.
+  const data = conferir('listarNotificacoes', await supabase
     .from('solicitacao_eventos')
-    // `colaboradores` sem dica seria ambíguo: solicitacoes aponta para essa
-    // tabela duas vezes (colaborador_id e parceiro_id), e o PostgREST recusaria
-    // a consulta inteira — no cabeçalho, isso derrubaria todas as páginas.
-    // O nome é o da constraint composta criada pela 0009; a de coluna única
-    // com o nome antigo não existe mais depois dessa migration.
-    .select(
-      'id, solicitacao_id, etapa, detalhe, por_id, por_nome, em, '
-      + 'solicitacoes(tipo, data, colaboradores!solicitacoes_colaborador_id_conta_fkey(nome))'
-    )
+    .select('id, solicitacao_id, etapa, detalhe, por_id, por_nome, em, solicitacoes(tipo, data, colaborador_id)')
     .neq('por_id', usuarioId)
     .order('em', { ascending: false })
-    .limit(limite);
+    .limit(limite));
 
   type Linha = {
     id: number; solicitacao_id: number; etapa: string; detalhe: string;
     por_nome: string; em: string;
-    solicitacoes: { tipo: string; data: string; colaboradores: { nome: string } | null } | null;
+    solicitacoes: { tipo: string; data: string; colaborador_id: number } | null;
   };
 
-  const itens = ((data ?? []) as unknown as Linha[]).map(e => ({
+  const linhas = ((data ?? []) as unknown as Linha[]);
+  const ids = [...new Set(linhas.map(e => e.solicitacoes?.colaborador_id).filter((n): n is number => !!n))];
+  const pessoas = ids.length
+    ? conferir('listarNotificacoes/colaboradores', await supabase
+        .from('colaboradores').select('id, nome').in('id', ids)) ?? []
+    : [];
+  const nomePorId = new Map((pessoas as { id: number; nome: string }[]).map(c => [c.id, c.nome]));
+
+  const itens = linhas.map(e => ({
     naoLida: e.em > vistasEm,
     id: e.id,
     solicitacaoId: e.solicitacao_id,
@@ -457,7 +501,7 @@ export async function listarNotificacoes(
     em: e.em,
     tipo: e.solicitacoes?.tipo ?? '',
     data: e.solicitacoes?.data ?? '',
-    colaboradorNome: e.solicitacoes?.colaboradores?.nome ?? '',
+    colaboradorNome: nomePorId.get(e.solicitacoes?.colaborador_id ?? -1) ?? '',
   }));
 
   return { itens, naoLidas: itens.filter(i => i.naoLida).length };

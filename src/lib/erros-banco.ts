@@ -29,9 +29,12 @@ function ondeMora(nome: string): string {
 }
 
 /** Aceita o erro do supabase-js, ou qualquer coisa com `code`/`message`. */
-export function mensagemErroBanco(erro: { code?: string; message?: string } | null | undefined): string {
+export function mensagemErroBanco(
+  erro: { code?: string; message?: string; details?: string | null } | null | undefined,
+): string {
   if (!erro) return 'Não foi possível concluir. Tente de novo.';
   const texto = erro.message ?? '';
+  const detalhe = erro.details ?? '';
 
   // PGRST204 — coluna ausente no cache de esquema do PostgREST.
   const coluna = texto.match(/Could not find the '([^']+)' column of '([^']+)'/i);
@@ -52,7 +55,25 @@ export function mensagemErroBanco(erro: { code?: string; message?: string } | nu
   }
 
   if (/duplicate key value|already exists/i.test(texto)) {
-    return 'Já existe um registro com esse identificador. Use um código ou sigla diferente.';
+    // O Postgres diz exatamente qual campo colidiu, em `details`:
+    // "Key (codigo)=(MOR) already exists." Mandar sempre "use um código ou
+    // sigla diferente" jogava a pessoa no campo errado quando a colisão era de
+    // matrícula, de data de feriado ou da chave primária.
+    const chave = detalhe.match(/Key \(([^)]+)\)=\(([^)]*)\)/i);
+    if (chave) {
+      const campos = chave[1].split(',').map(c => c.trim()).join(' + ');
+      return `Já existe um registro com ${campos} = ${chave[2]}. Use outro valor.`;
+    }
+    // Sem `details`, o nome da constraint ainda diz a tabela e, quase sempre,
+    // a coluna: `unidades_codigo_key`, `colaboradores_matricula_key`.
+    const constraint = texto.match(/unique constraint "([^"]+)"/i);
+    if (constraint?.[1].endsWith('_pkey')) {
+      return `A chave primária de \`${constraint[1].replace(/_pkey$/, '')}\` colidiu. `
+        + 'Isso acontece quando a sequência de ids do banco está atrás dos dados já gravados — '
+        + 'normalmente depois de uma carga com ids explícitos.';
+    }
+    if (constraint) return `Já existe um registro com esse valor (\`${constraint[1]}\`). Use outro.`;
+    return 'Já existe um registro com esse identificador. Use um valor diferente.';
   }
   if (/violates foreign key constraint/i.test(texto)) {
     return 'O registro está em uso por outros dados e não pode ser removido ou alterado assim.';

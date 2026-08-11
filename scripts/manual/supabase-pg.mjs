@@ -68,6 +68,24 @@ async function carregarFks() {
   return fks;
 }
 
+/**
+ * Colunas `json`/`jsonb`, por tabela.
+ *
+ * Sem isso, um `[]` vindo do app era enviado como literal de array do Postgres
+ * (`{}`), que a coluna jsonb aceita — e passa a ler como OBJETO vazio. A tela
+ * de geração então quebrava com "conflitos is not iterable", e o erro parecia
+ * do app. Adivinhar pelo valor não resolve: `[]` é ambíguo.
+ */
+let colunasJson = null;
+async function carregarColunasJson() {
+  if (colunasJson) return colunasJson;
+  const { rows } = await pool.query(`
+    select table_name, column_name from information_schema.columns
+    where table_schema = 'public' and data_type in ('json', 'jsonb')`);
+  colunasJson = new Set(rows.map(r => `${r.table_name}.${r.column_name}`));
+  return colunasJson;
+}
+
 /** Quebra "a, b(c, d(e)), f" em ["a", "b(c, d(e))", "f"] sem cair no parêntese. */
 function partir(spec) {
   const partes = [];
@@ -143,7 +161,15 @@ class Consulta {
     this.somenteCabeca = false;
   }
 
-  _p(v) { this.valores.push(v); return '$' + this.valores.length; }
+  /**
+   * Registra um valor e devolve o `$n`. Quando a coluna de destino é json/jsonb,
+   * serializa — o PostgREST manda JSON, o node-pg mandaria literal de array.
+   */
+  _p(v, coluna) {
+    const ehJson = coluna && colunasJson?.has(`${this.tabela}.${coluna}`);
+    this.valores.push(ehJson && v !== null && typeof v === 'object' ? JSON.stringify(v) : v);
+    return '$' + this.valores.length;
+  }
 
   select(spec, opcoes = {}) {
     if (opcoes.count) this.contando = true;
@@ -173,39 +199,46 @@ class Consulta {
   delete() { this.acao = 'delete'; return this; }
 
   _sql() {
+    // Memoizado porque montar tem efeito colateral: cada `$n` é criado
+    // empilhando em `this.valores`. `_sql()` é chamado duas vezes — na execução
+    // e no log de erro —, e sem o cache a segunda chamada duplicava os valores
+    // e deslocava os índices, gravando a linha com os campos trocados. O erro
+    // resultante (RLS, tipo errado) parecia do app e não era.
+    if (this._cache) return this._cache;
     const filtro = this.onde.length ? ' where ' + this.onde.join(' and ') : '';
 
     if (this.acao === 'select') {
-      if (this.contando && this.somenteCabeca) return `select count(*)::int as n from ${cita(this.tabela)}${filtro}`;
+      if (this.contando && this.somenteCabeca) return (this._cache = `select count(*)::int as n from ${cita(this.tabela)}${filtro}`);
       const cols = montaSelect(this.tabela, this.colunas);
       let s = `select ${cols} from ${cita(this.tabela)} p${filtro.replace(/"(\w+)"/g, 'p."$1"')}`;
       if (this.ordem.length) s += ' order by ' + this.ordem.map(o => 'p.' + o).join(', ');
       if (this.limite !== null) s += ` limit ${this.limite}`;
       if (this.deslocamento) s += ` offset ${this.deslocamento}`;
-      return s;
+      return (this._cache = s);
     }
 
     if (this.acao === 'insert' || this.acao === 'upsert') {
       const chaves = [...new Set(this.dados.flatMap(Object.keys))];
-      const linhas = this.dados.map(d => '(' + chaves.map(k => this._p(d[k] ?? null)).join(', ') + ')');
+      const linhas = this.dados.map(d => '(' + chaves.map(k => this._p(d[k] ?? null, k)).join(', ') + ')');
       let s = `insert into ${cita(this.tabela)} (${chaves.map(cita).join(', ')}) values ${linhas.join(', ')}`;
       if (this.acao === 'upsert' && this.conflito) {
         const alvo = this.conflito.split(',').map(c => cita(c.trim())).join(', ');
         s += ` on conflict (${alvo}) do update set ` + chaves.map(k => `${cita(k)} = excluded.${cita(k)}`).join(', ');
       }
-      return s + ' returning *';
+      return (this._cache = s + ' returning *');
     }
 
     if (this.acao === 'update') {
-      const sets = Object.entries(this.dados).map(([k, v]) => `${cita(k)} = ${this._p(v)}`).join(', ');
-      return `update ${cita(this.tabela)} set ${sets}${filtro} returning *`;
+      const sets = Object.entries(this.dados).map(([k, v]) => `${cita(k)} = ${this._p(v, k)}`).join(', ');
+      return (this._cache = `update ${cita(this.tabela)} set ${sets}${filtro} returning *`);
     }
 
-    return `delete from ${cita(this.tabela)}${filtro} returning *`;
+    return (this._cache = `delete from ${cita(this.tabela)}${filtro} returning *`);
   }
 
   async then(resolver) {
     await carregarFks();
+    await carregarColunasJson();
     const conexao = await pool.connect();
     try {
       const sql = this._sql();

@@ -10,7 +10,10 @@
     "test": "tsx src/lib/domain/escalas/motor.teste.ts",
     "test:propriedades": "tsx src/lib/domain/escalas/motor.propriedades.ts",
     "test:tudo": "./scripts/testar.sh",
-    "manual:pdf": "node scripts/manual-pdf.mjs"
+    "manual:pdf": "node scripts/manual-pdf.mjs",
+    "manual:fotos": "node scripts/manual/fotografar.mjs",
+    "manual:varrer": "node scripts/manual/varrer.mjs",
+    "manual:acoes": "node scripts/manual/acoes.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

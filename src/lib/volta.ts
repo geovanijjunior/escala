@@ -54,3 +54,26 @@ export function voltar(rota: string, formData: FormData, extras: Record<string, 
 export function voltarComErro(rota: string, formData: FormData, msg: string): never {
   redirect(montar(rota, formData, { erro: msg }));
 }
+
+/**
+ * Acrescenta `erro` a uma rota que já pode trazer query string e âncora.
+ *
+ * As actions de geração e de solicitações montavam `${rota}?erro=…` na mão, e a
+ * rota de retorno quase sempre já tinha um `?`. O resultado,
+ * `/gerar?competencia=2026-11-01?erro=…`, não mostrava erro nenhum: o segundo
+ * `?` entra no VALOR de `competencia`, que deixa de casar com o formato
+ * esperado — então a mensagem some e a tela ainda pula para o mês corrente.
+ * Falha silenciosa em cima de falha silenciosa.
+ */
+export function rotaComErro(rota: string, msg: string): string {
+  const corte = rota.indexOf('#');
+  const ancora = corte >= 0 ? rota.slice(corte) : '';
+  const semAncora = corte >= 0 ? rota.slice(0, corte) : rota;
+
+  const inicio = semAncora.indexOf('?');
+  const caminho = inicio >= 0 ? semAncora.slice(0, inicio) : semAncora;
+  const q = new URLSearchParams(inicio >= 0 ? semAncora.slice(inicio + 1) : '');
+  q.set('erro', msg);
+
+  return `${caminho}?${q.toString()}${ancora}`;
+}
