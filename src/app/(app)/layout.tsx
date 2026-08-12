@@ -6,6 +6,7 @@ import { Notificacoes } from '@/components/Notificacoes';
 import { createClient } from '@/lib/supabase/server';
 import { NavEscalas, type GrupoNav } from '@/components/NavEscalas';
 import { Marca } from '@/components/Marca';
+import { TabBar } from '@/components/TabBar';
 import { ROTULO_PAPEL } from '@/lib/supabase/types';
 import { sair } from '@/app/actions-sessao';
 
@@ -61,11 +62,14 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
     listarNotificacoes(sessao.usuario.id, sessao.usuario.notificacoes_vistas_em),
   ]);
 
+  const ehColaborador = sessao.papel === 'colaborador';
+
   const grupos: GrupoNav[] =
     sessao.papel === 'colaborador'
       ? [{
           secao: null,
           itens: [
+            { href: '/hoje', label: 'Hoje' },
             { href: '/minha-escala', label: 'Minha escala' },
             { href: '/solicitacoes', label: 'Minhas solicitações', badge: pendentes },
             { href: '/mural', label: 'Mural', badge: muralNovo },
@@ -118,6 +122,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <Suspense fallback={<div className="hidden lg:block w-[230px] shrink-0" style={{ background: 'var(--ink)' }} />}>
         <NavEscalas
           grupos={grupos}
+          semFaixaMobile={ehColaborador}
           marca={
             <Link href="/" className="block text-white">
               {/* O descritor é o nome da conta, e não "gestão de equipes": com
@@ -179,8 +184,26 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="px-3 sm:px-5 max-w-[1560px] py-4 lg:py-5 space-y-4">{children}</main>
+        <main
+          className="px-3 sm:px-5 max-w-[1560px] py-4 lg:py-5 space-y-4"
+          style={ehColaborador ? { paddingBottom: 'calc(72px + env(safe-area-inset-bottom))' } : undefined}
+        >
+          {children}
+        </main>
       </div>
+
+      {ehColaborador && (
+        <Suspense fallback={null}>
+          <TabBar
+            abas={[
+              { href: '/hoje', label: 'Hoje' },
+              { href: '/minha-escala', label: 'Escala' },
+              { href: '/solicitacoes', label: 'Pedidos', novidade: pendentes > 0 },
+              { href: '/mural', label: 'Mural', novidade: muralNovo > 0 },
+            ]}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

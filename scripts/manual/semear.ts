@@ -275,6 +275,55 @@ async function main() {
       [CONTA, ger.rows[0].id, a.colaboradorId, a.data, a.modalidade, a.unidadeId, a.postoId]);
   }
 
+  // ── O mês corrente, para a tela "Hoje" não nascer vazia ──────
+  //
+  // A massa mostra novembro de 2026 porque é o mês das capturas do manual. Só
+  // que o app do colaborador abre em "Hoje", e "hoje" é a data real de quem
+  // roda isto — normalmente um mês qualquer sem escala nenhuma. Uma
+  // demonstração que abre num vazio não demonstra nada.
+  //
+  // Os planos do mês de referência valem para o mês corrente sem cópia: a
+  // herança já faz isso. O que falta é a escala gerada.
+  const agora = new Date();
+  const [anoHoje, mesHoje] = [agora.getFullYear(), agora.getMonth()];
+  const compHoje = `${anoHoje}-${String(mesHoje + 1).padStart(2, '0')}-01`;
+
+  if (compHoje !== COMP) {
+    const doMesCorrente = gerarEscala({
+      ano: anoHoje,
+      mes: mesHoje,
+      unidades,
+      equipes: (await q('select id, nome from equipes')).map(e => ({ id: e.id, nome: e.nome })),
+      postos: (await q('select * from postos')).map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo })),
+      colaboradores,
+      // Mesmos planos, competência trocada: é exatamente o que a herança
+      // entrega ao motor quando o mês não tem plano próprio.
+      planos: planos.map(pl => ({ ...pl, competencia: compHoje })),
+      ausencias: [],
+      capacidades: (await q('select * from capacidades')).map(c => ({
+        unidadeId: c.unidade_id, dow: c.dow, data: c.data, total: c.total, reservadas: c.reservadas,
+      })),
+      cotasEquipe: (await q('select * from cotas_equipe')).map(c => ({
+        unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, limite: c.limite,
+      })),
+      feriados: {},
+      pins: [], cicloAncora: '2026-01-01', toleranciaAderencia: 3, coberturaMinima: 1,
+    });
+
+    const gerHoje = await db.query(
+      `insert into geracoes (conta_id, competencia, versao, status, conflitos, alertas, aderencia, gerada_por, gerada_por_nome)
+       values ($1,$2,1,'publicada',$3,$4,$5,$6,'Ana Ribeiro') returning id`,
+      [CONTA, compHoje, JSON.stringify(doMesCorrente.conflitos), JSON.stringify(doMesCorrente.alertas),
+       JSON.stringify(doMesCorrente.aderencia), ANA]);
+
+    for (const a of doMesCorrente.alocacoes) {
+      await db.query(
+        `insert into alocacoes (conta_id, geracao_id, colaborador_id, data, modalidade, unidade_id, posto_id)
+         values ($1,$2,$3,$4,$5,$6,$7)`,
+        [CONTA, gerHoje.rows[0].id, a.colaboradorId, a.data, a.modalidade, a.unidadeId, a.postoId]);
+    }
+  }
+
   // ── Solicitações em estágios diferentes, para a tela ter o que mostrar ──
   const sol = async (colab: number, tipo: string, data: string, detalhe: string,
                      status: string, extra: Record<string, unknown> = {}) => {

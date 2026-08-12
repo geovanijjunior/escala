@@ -67,6 +67,14 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
     s => s.colaboradorId === sessao.colaboradorId || s.parceiroId === sessao.colaboradorId
   );
 
+  // Três números que respondem "como foi meu mês" antes de olhar a grade:
+  // quantos dias presenciais, quantos de casa, quantos fora.
+  const resumo = {
+    presencial: minhas.filter(a => a.modalidade === 'UNIDADE').length,
+    home: minhas.filter(a => a.modalidade === 'HOME').length,
+    fora: minhas.filter(a => ['FERIAS', 'FOLGA', 'AFAST', 'FERIADO'].includes(a.modalidade)).length,
+  };
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -99,8 +107,26 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
             </div>
           )}
 
+          <div className="grid grid-cols-3 gap-2.5">
+            {[
+              ['Presencial', resumo.presencial, 'var(--brand-700)'],
+              ['Home office', resumo.home, 'var(--violet)'],
+              ['Fora', resumo.fora, 'var(--muted)'],
+            ].map(([rotulo, n, cor]) => (
+              <div key={rotulo as string} className="esc-card px-3.5 py-2.5">
+                <div className="esc-rotulo mb-1 truncate">{rotulo as string}</div>
+                <div
+                  className="text-[24px] font-bold esc-num leading-none"
+                  style={{ color: cor as string, letterSpacing: '-.03em' }}
+                >
+                  {n as number}
+                </div>
+              </div>
+            ))}
+          </div>
+
           {proximos.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="hidden lg:grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {proximos.map(a => {
                 const ap = aparencia(a.modalidade, a.unidadeId, unidades);
                 const dow = diaSemana(ano, mes, Number(a.data.slice(8)));

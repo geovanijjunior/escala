@@ -25,7 +25,9 @@ export interface GrupoNav {
  * menu sanduíche: quem opera escala precisa ver as seções disponíveis sem
  * descobrir que existe um botão escondido.
  */
-export function NavEscalas({ grupos, marca }: { grupos: GrupoNav[]; marca?: React.ReactNode }) {
+export function NavEscalas({
+  grupos, marca, semFaixaMobile,
+}: { grupos: GrupoNav[]; marca?: React.ReactNode; semFaixaMobile?: boolean }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const competencia = params.get('competencia');
@@ -98,8 +100,10 @@ export function NavEscalas({ grupos, marca }: { grupos: GrupoNav[]; marca?: Reac
         </div>
       </nav>
 
+      {/* O colaborador tem a tab bar no rodapé; repetir os mesmos quatro
+          destinos numa faixa no topo seria menu em dobro. */}
       <div
-        className="lg:hidden sticky top-12 z-30 -mx-3 px-3 border-b overflow-x-auto"
+        className={`${semFaixaMobile ? 'hidden' : 'lg:hidden'} sticky top-12 z-30 -mx-3 px-3 border-b overflow-x-auto`}
         style={{ background: 'var(--surface)', borderColor: 'var(--line)' }}
       >
         <div className="flex gap-1 py-1.5 w-max">

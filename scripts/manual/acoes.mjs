@@ -389,7 +389,7 @@ await acao('gestor publica p/ a equipe', '/mural', async p => {
 como(ANA);
 await acao('publicar para a equipe', `/calendario?${COMP}`, async p => {
   await p.click('button:text("Publicar para a equipe")');
-}, "select count(*) c from geracoes where atual and status='publicada'", 1);
+}, "select count(*) c from geracoes where atual and status='publicada' and competencia='2026-11-01'", 1);
 
 // A massa já traz avisos de alteração; o que interessa aqui é o que sai DAGORA
 // em diante.
@@ -481,13 +481,13 @@ como(FELIPE);
 {
   const abrirSino = async () => {
     await p.goto(`${BASE}/minha-escala?${COMP}`, { waitUntil: 'networkidle' });
-    const sino = p.locator('header details summary').first();
+    const sino = p.locator('header details summary:visible').first();
     const badge = (await sino.innerText()).trim().replace(/\s+/g, '');
     await sino.click();
     await p.waitForTimeout(250);
     // Só os itens: o botão "Marcar como lidas" também é um submit dentro do
     // painel, e contá-lo fazia a lista parecer ter um item a mais que o sino.
-    return { badge, itens: await p.locator('header details li form button[type=submit]').count() };
+    return { badge, itens: await p.locator('header details:visible li form button[type=submit]').count() };
   };
 
   const antes = await abrirSino();
@@ -495,7 +495,7 @@ como(FELIPE);
     falhas++;
     console.log(`  FALHOU sino com o que ler                 ${antes.itens} item(ns); o cenário precisa de 2+`);
   } else {
-    await p.locator('header details li form button[type=submit]').first().click();
+    await p.locator('header details:visible li form button[type=submit]').first().click();
     await p.waitForLoadState('networkidle');
     const depois = await abrirSino();
     if (depois.itens !== antes.itens - 1) {
@@ -518,7 +518,7 @@ como(FELIPE);
     await p.goto(`${BASE}/minha-escala?${COMP}`, { waitUntil: 'networkidle' });
     // O link do menu carrega a competência na query, então casar a href exata
     // não funciona.
-    const item = p.locator('a[href^="/mural"]').first();
+    const item = p.locator('a[href^="/mural"]:visible').first();
     const t = await item.innerText().catch(() => 'Mural');
     return Number(t.replace(/[^0-9]/g, '') || 0);
   };

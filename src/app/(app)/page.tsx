@@ -13,7 +13,7 @@ import { SeletorMes } from '@/components/SeletorMes';
 export default async function IndicadoresPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
-  if (sessao.papel === 'colaborador') redirect('/minha-escala');
+  if (sessao.papel === 'colaborador') redirect('/hoje');
 
   const competencia = competenciaDaBusca(busca);
   const ctx = await carregarContextoMes(competencia, sessao.conta.id);
