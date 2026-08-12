@@ -15,12 +15,18 @@ import type { Notificacao } from '@/lib/data/escalas';
  * entra em triagem.
  */
 export function Notificacoes({
-  itens, naoLidas, rota,
-}: { itens: Notificacao[]; naoLidas: number; rota: string }) {
+  itens, naoLidas, rota, escuro = true,
+}: { itens: Notificacao[]; naoLidas: number; rota: string; escuro?: boolean }) {
   return (
     <details className="relative">
+      {/* O sino vive nos dois fundos: escuro no cabeçalho do celular, claro na
+          topbar do desktop. Sem saber em qual está, ele fica invisível em um
+          dos dois. */}
       <summary
-        className="list-none cursor-pointer grid place-items-center w-9 h-9 rounded-md hover:bg-white/10 relative"
+        className={`list-none cursor-pointer grid place-items-center w-9 h-9 rounded-[11px] relative ${
+          escuro ? 'hover:bg-white/10' : 'hover:bg-[color:var(--bg)]'
+        }`}
+        style={escuro ? undefined : { color: 'var(--muted)' }}
         aria-label={naoLidas > 0 ? `Notificações — ${naoLidas} não lida(s)` : 'Notificações'}
       >
         <Sino />

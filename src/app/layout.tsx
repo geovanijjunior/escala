@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, IBM_Plex_Mono } from 'next/font/google';
+import { Figtree, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
-const inter = Inter({
-  variable: '--font-inter',
+// Figtree tem números de altura uniforme e boa leitura em 11px, que é o tamanho
+// da maior parte do texto de apoio aqui.
+const figtree = Figtree({
+  variable: '--font-figtree',
   subsets: ['latin'],
   display: 'swap',
 });
@@ -17,7 +19,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Escala — gestão de escalas de trabalho',
+  title: 'Jornada — gestão de equipes',
   description:
     'Planejamento de turnos, presença por unidade, home office e solicitações para equipes em regime 12x36 e 5x2.',
 };
@@ -29,7 +31,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body className={`${inter.variable} ${plexMono.variable}`}>{children}</body>
+      <body className={`${figtree.variable} ${plexMono.variable}`}>{children}</body>
     </html>
   );
 }

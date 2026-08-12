@@ -15,11 +15,17 @@ export interface GrupoNav {
 }
 
 /**
- * Navegação do módulo. Abaixo de lg vira uma faixa horizontal rolável em vez de
- * sumir atrás de um menu sanduíche — quem opera escala precisa ver as seções
- * disponíveis sem descobrir que existe um botão escondido.
+ * Trilho de navegação do console.
+ *
+ * Escuro e de altura cheia, com a marca no topo: o menu recua para o fundo e o
+ * conteúdo — que é onde se trabalha — fica sendo a única superfície clara da
+ * tela. Antes o trilho era claro e disputava atenção com as tabelas.
+ *
+ * Abaixo de lg vira uma faixa horizontal rolável em vez de sumir atrás de um
+ * menu sanduíche: quem opera escala precisa ver as seções disponíveis sem
+ * descobrir que existe um botão escondido.
  */
-export function NavEscalas({ grupos }: { grupos: GrupoNav[] }) {
+export function NavEscalas({ grupos, marca }: { grupos: GrupoNav[]; marca?: React.ReactNode }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const competencia = params.get('competencia');
@@ -33,43 +39,59 @@ export function NavEscalas({ grupos }: { grupos: GrupoNav[] }) {
 
   return (
     <>
-      <nav className="hidden lg:block w-[212px] shrink-0" aria-label="Seções do módulo de escalas">
-        <div className="sticky top-14 py-4 pr-3 space-y-5">
+      <nav
+        className="hidden lg:flex w-[230px] shrink-0 flex-col sticky top-0 h-dvh"
+        style={{ background: 'var(--ink)' }}
+        aria-label="Seções do sistema"
+      >
+        {marca && <div className="px-4 pt-4 pb-5">{marca}</div>}
+
+        <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-5">
           {grupos.map((g, i) => (
             <div key={g.secao ?? i}>
               {g.secao && (
                 <div
-                  className="text-[10px] font-semibold uppercase tracking-wider px-3 mb-1.5"
-                  style={{ color: 'var(--faint)' }}
+                  className="px-3 mb-1.5"
+                  style={{
+                    fontSize: 9.5, fontWeight: 700, letterSpacing: '.15em',
+                    textTransform: 'uppercase', color: 'rgba(255,255,255,.38)',
+                  }}
                 >
                   {g.secao}
                 </div>
               )}
               <ul className="space-y-0.5">
-                {g.itens.map(item => (
-                  <li key={item.href}>
-                    <Link
-                      href={comMes(item.href)}
-                      aria-current={ativo(item.href) ? 'page' : undefined}
-                      className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-md text-[12.5px] font-medium border-l-2 transition-colors"
-                      style={
-                        ativo(item.href)
-                          ? { background: 'var(--brand-100)', color: 'var(--brand-900)', borderLeftColor: 'var(--brand-700)', fontWeight: 600 }
-                          : { color: 'var(--muted)', borderLeftColor: 'transparent' }
-                      }
-                    >
-                      <span className="truncate">{item.label}</span>
-                      {item.badge ? (
-                        <span
-                          className="ml-auto esc-num text-[10.5px] font-semibold px-1.5 rounded-full"
-                          style={{ background: 'var(--amber-bg)', color: 'var(--amber)' }}
-                        >
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </Link>
-                  </li>
-                ))}
+                {g.itens.map(item => {
+                  const aqui = ativo(item.href);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={comMes(item.href)}
+                        aria-current={aqui ? 'page' : undefined}
+                        className="flex items-center gap-2 px-3 py-2 rounded-[10px] text-[12.5px] transition-colors"
+                        style={
+                          aqui
+                            ? { background: 'var(--accent)', color: '#fff', fontWeight: 600 }
+                            : { color: 'rgba(255,255,255,.62)', fontWeight: 500 }
+                        }
+                      >
+                        <span className="truncate">{item.label}</span>
+                        {item.badge ? (
+                          <span
+                            className="ml-auto esc-num text-[10.5px] font-bold px-1.5 rounded-full"
+                            style={
+                              aqui
+                                ? { background: 'rgba(255,255,255,.22)', color: '#fff' }
+                                : { background: 'var(--amber)', color: '#fff' }
+                            }
+                          >
+                            {item.badge}
+                          </span>
+                        ) : null}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
@@ -86,7 +108,7 @@ export function NavEscalas({ grupos }: { grupos: GrupoNav[] }) {
               key={item.href}
               href={comMes(item.href)}
               aria-current={ativo(item.href) ? 'page' : undefined}
-              className="px-2.5 py-1.5 rounded-md text-[12px] font-semibold whitespace-nowrap"
+              className="px-2.5 py-1.5 rounded-[9px] text-[12px] font-semibold whitespace-nowrap"
               style={
                 ativo(item.href)
                   ? { background: 'var(--brand-100)', color: 'var(--brand-900)' }

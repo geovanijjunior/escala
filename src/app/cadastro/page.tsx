@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { cadastrar } from '@/app/actions-sessao';
+import { Simbolo } from '@/components/Marca';
 
 export default async function CadastroPage({
   searchParams,
@@ -11,16 +12,10 @@ export default async function CadastroPage({
   return (
     <div className="min-h-dvh grid place-items-center px-4 py-10">
       <div className="w-full max-w-[420px]">
-        <div className="flex items-center gap-2.5 mb-6">
-          <div
-            className="w-9 h-9 rounded-lg grid place-items-center text-[11px] font-bold text-white"
-            style={{ background: 'var(--brand-900)' }}
-            aria-hidden
-          >
-            ESC
-          </div>
+        <div className="flex items-center gap-3 mb-6">
+          <Simbolo tamanho={44} />
           <div className="leading-tight">
-            <h1 className="text-[17px] font-semibold">Criar organização</h1>
+            <h1 className="text-[19px] font-bold" style={{ letterSpacing: '-.025em' }}>Criar organização</h1>
             <p className="text-[11.5px]" style={{ color: 'var(--muted)' }}>
               Você entra como Planejamento e convida o resto do time depois
             </p>

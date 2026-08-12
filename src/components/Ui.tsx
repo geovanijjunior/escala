@@ -38,19 +38,88 @@ export function Pill({ children, cor, bg }: { children: ReactNode; cor: string; 
 }
 
 /** KPI: rótulo micro, número dominante, contexto abaixo. */
+/**
+ * Um número do mês, com o contexto que o torna legível.
+ *
+ * `destaque` inverte o cartão para o azul da marca. É para o KPI acionável —
+ * aquele em que se clica, não aquele que se lê. Num grid de quatro cartões
+ * iguais, o que exige ação desaparece entre os que só informam; um deles em
+ * negativo resolve isso sem precisar de seta nem de cor de alerta, que aqui já
+ * significam outra coisa.
+ *
+ * `delta` é a variação contra o período anterior, ao lado do número e não
+ * embaixo: é leitura de relance, não de estudo.
+ */
 export function Stat({
-  label, valor, sub, cor, alerta,
-}: { label: string; valor: ReactNode; sub?: string; cor?: string; alerta?: boolean }) {
+  label, valor, sub, cor, alerta, delta, deltaCor, barra, destaque,
+}: {
+  label: string; valor: ReactNode; sub?: string; cor?: string; alerta?: boolean;
+  delta?: string; deltaCor?: string;
+  /** Proporção de 0 a 1. Desenha a barra fina sob o número. */
+  barra?: number;
+  destaque?: boolean;
+}) {
+  const tinta = destaque ? '#fff' : 'var(--text)';
+  const apoio = destaque ? 'rgba(255,255,255,.62)' : 'var(--muted)';
+
   return (
     <div
-      className="esc-card px-4 py-3.5"
-      style={alerta ? { borderLeft: `3px solid ${cor ?? 'var(--brand-700)'}` } : undefined}
+      className={destaque ? 'rounded-[14px] px-4 py-3.5' : 'esc-card px-4 py-3.5'}
+      style={{
+        ...(destaque ? { background: 'var(--brand-900)' } : {}),
+        ...(alerta && !destaque ? { borderLeft: `3px solid ${cor ?? 'var(--brand-700)'}` } : {}),
+      }}
     >
-      <div className="esc-rotulo mb-1.5 truncate">{label}</div>
-      <div className="text-[26px] leading-none font-semibold esc-num tracking-tight">{valor}</div>
-      {sub && <div className="text-[10.5px] mt-1.5 leading-tight" style={{ color: 'var(--muted)' }}>{sub}</div>}
+      <div
+        className="mb-1.5 truncate"
+        style={{
+          fontSize: 10, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase',
+          color: destaque ? 'rgba(255,255,255,.6)' : 'var(--faint)',
+        }}
+      >
+        {label}
+      </div>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span
+          className="text-[28px] leading-none font-bold esc-num"
+          style={{ color: tinta, letterSpacing: '-.03em' }}
+        >
+          {valor}
+        </span>
+        {delta && (
+          <span className="text-[11px] font-semibold esc-num" style={{ color: deltaCor ?? apoio }}>
+            {delta}
+          </span>
+        )}
+      </div>
+      {barra !== undefined && (
+        <div
+          className="mt-2 h-[5px] rounded-full overflow-hidden"
+          style={{ background: destaque ? 'rgba(255,255,255,.18)' : 'var(--line-soft)' }}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${Math.max(0, Math.min(1, barra)) * 100}%`,
+              background: destaque ? '#fff' : 'var(--accent)',
+            }}
+          />
+        </div>
+      )}
+      {sub && <div className="text-[11px] mt-1.5 leading-tight" style={{ color: apoio }}>{sub}</div>}
     </div>
   );
+}
+
+/**
+ * Rótulo que numera e nomeia uma faixa da tela.
+ *
+ * Uma pilha de cartões não diz por onde começar. Numerar as faixas dá ordem de
+ * leitura: 1 é como o mês está, 2 é onde ele aperta, 3 é o detalhe pessoa a
+ * pessoa. Quem chega sabendo o que procura pula direto para a faixa certa.
+ */
+export function Faixa({ n, children }: { n: number; children: ReactNode }) {
+  return <div className="esc-faixa mt-1" data-n={n}>{children}</div>;
 }
 
 /** Aparência de uma alocação: unidade física ou modalidade não-presencial. */

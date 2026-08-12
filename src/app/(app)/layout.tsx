@@ -5,6 +5,7 @@ import { listarNotificacoes } from '@/lib/data/escalas';
 import { Notificacoes } from '@/components/Notificacoes';
 import { createClient } from '@/lib/supabase/server';
 import { NavEscalas, type GrupoNav } from '@/components/NavEscalas';
+import { Marca } from '@/components/Marca';
 import { ROTULO_PAPEL } from '@/lib/supabase/types';
 import { sair } from '@/app/actions-sessao';
 
@@ -104,50 +105,81 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
           },
         ];
 
+  const iniciais = sessao.usuario.nome
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(p => p[0])
+    .join('')
+    .toUpperCase();
+
   return (
-    <div className="min-h-dvh">
-      <header
-        className="sticky top-0 z-40 text-white border-b border-white/10"
-        style={{ background: 'var(--brand-900)' }}
-      >
-        <div className="px-3 sm:px-4 h-12 flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <div className="w-7 h-7 rounded bg-white/10 border border-white/20 grid place-items-center text-[9px] font-bold">
-              ESC
-            </div>
-            <div className="leading-none hidden sm:block">
-              <div className="font-semibold text-[13px] tracking-tight">Escala</div>
-              <div className="text-[9.5px] text-white/50 mt-0.5 uppercase tracking-wider">{sessao.conta.nome}</div>
-            </div>
-          </Link>
+    <div className="min-h-dvh lg:flex">
+      <Suspense fallback={<div className="hidden lg:block w-[230px] shrink-0" style={{ background: 'var(--ink)' }} />}>
+        <NavEscalas
+          grupos={grupos}
+          marca={
+            <Link href="/" className="block text-white">
+              {/* O descritor é o nome da conta, e não "gestão de equipes": com
+                  duas abas abertas, o que distingue uma da outra é o hospital. */}
+              <Marca descritor={sessao.conta.nome} tamanho={34} />
+            </Link>
+          }
+        />
+      </Suspense>
 
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <Notificacoes
-              itens={notificacoes.itens}
-              naoLidas={notificacoes.naoLidas}
-              rota="/"
-            />
-            <div className="text-right leading-tight hidden sm:block">
-              <div className="text-[11.5px] font-semibold">{sessao.usuario.nome}</div>
-              <div className="text-[9.5px] text-white/50 uppercase tracking-wider">{ROTULO_PAPEL[sessao.papel]}</div>
+      <div className="flex-1 min-w-0">
+        {/* No celular o trilho não cabe, então a marca volta para uma barra
+            escura no topo. No desktop ela vive no trilho, e esta barra fica
+            branca — o contraste some do topo e sobra para o conteúdo. */}
+        <header
+          className="sticky top-0 z-40 border-b"
+          style={{ background: 'var(--brand-900)', borderColor: 'rgba(255,255,255,.10)' }}
+        >
+          <div className="px-3 sm:px-4 h-12 flex items-center gap-3 lg:hidden text-white">
+            <Link href="/" className="shrink-0">
+              <Marca descritor={sessao.conta.nome} tamanho={28} />
+            </Link>
+            <div className="ml-auto flex items-center gap-2">
+              <Notificacoes itens={notificacoes.itens} naoLidas={notificacoes.naoLidas} rota="/" />
+              <form action={sair}>
+                <button
+                  type="submit"
+                  className="text-[11px] font-semibold px-2 py-1 rounded-[9px] bg-white/10 border border-white/15 hover:bg-white/20"
+                >
+                  Sair
+                </button>
+              </form>
             </div>
-            <form action={sair}>
-              <button
-                type="submit"
-                className="text-[11px] font-semibold px-2 py-1 rounded-md bg-white/10 border border-white/15 hover:bg-white/20"
-              >
-                Sair
-              </button>
-            </form>
           </div>
-        </div>
-      </header>
 
-      <div className="px-3 sm:px-4 max-w-[1700px] mx-auto lg:flex lg:gap-1">
-        <Suspense fallback={<div className="hidden lg:block w-[212px] shrink-0" />}>
-          <NavEscalas grupos={grupos} />
-        </Suspense>
-        <main className="flex-1 min-w-0 py-4 lg:py-5 space-y-4">{children}</main>
+          <div
+            className="hidden lg:flex items-center gap-3 h-[60px] px-5"
+            style={{ background: 'var(--surface)' }}
+          >
+            <div className="ml-auto flex items-center gap-3">
+              <Notificacoes itens={notificacoes.itens} naoLidas={notificacoes.naoLidas} rota="/" escuro={false} />
+              <div className="text-right leading-tight">
+                <div className="text-[12px] font-semibold">{sessao.usuario.nome}</div>
+                <div className="text-[9.5px] uppercase tracking-[.12em]" style={{ color: 'var(--faint)' }}>
+                  {ROTULO_PAPEL[sessao.papel]}
+                </div>
+              </div>
+              <div
+                className="w-9 h-9 rounded-[11px] grid place-items-center text-[12px] font-bold"
+                style={{ background: 'var(--brand-100)', color: 'var(--brand-900)' }}
+                aria-hidden
+              >
+                {iniciais}
+              </div>
+              <form action={sair}>
+                <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Sair</button>
+              </form>
+            </div>
+          </div>
+        </header>
+
+        <main className="px-3 sm:px-5 max-w-[1560px] py-4 lg:py-5 space-y-4">{children}</main>
       </div>
     </div>
   );

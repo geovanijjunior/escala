@@ -7,7 +7,7 @@ import {
 import { diaSemana, diasNoMes, formatarCompetencia, iso } from '@/lib/domain/escalas/datas';
 import { STATUS_ABERTOS, TIPOS_OCORRENCIA, TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { competenciaDaBusca, texto, type Busca } from '@/lib/pagina';
-import { Aviso, BarraOcupacao, Bloco, ListaAvisos, Stat, Vazio } from '@/components/Ui';
+import { Aviso, BarraOcupacao, Bloco, Faixa, ListaAvisos, Stat, Vazio } from '@/components/Ui';
 import { SeletorMes } from '@/components/SeletorMes';
 
 export default async function IndicadoresPage({ searchParams }: { searchParams: Promise<Busca> }) {
@@ -101,7 +101,8 @@ export default async function IndicadoresPage({ searchParams }: { searchParams: 
         </Bloco>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Faixa n={1}>Saúde do mês</Faixa>
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
             <Stat
               label="Absenteísmo"
               valor={`${absenteismo.toFixed(1)}%`}
@@ -109,15 +110,35 @@ export default async function IndicadoresPage({ searchParams }: { searchParams: 
               cor="var(--rose)"
               alerta={absenteismo > 3}
             />
-            <Stat label="Atrasos" valor={atrasos.length} sub={`${minutosAtraso} minutos acumulados`} cor="var(--amber)" alerta={atrasos.length > 0} />
+            <Stat
+              label="Atrasos"
+              valor={atrasos.length}
+              delta={minutosAtraso > 0 ? `${minutosAtraso} min` : undefined}
+              deltaCor="var(--amber)"
+              sub={rankingAtrasos[0] ? `${rankingAtrasos[0].nome} é quem mais acumula` : 'Nenhum atraso no mês'}
+              cor="var(--amber)"
+              alerta={atrasos.length > 0}
+            />
             <Stat
               label="Aderência ao plano"
               valor={totalAderencia ? `${Math.round((aderentes / totalAderencia) * 100)}%` : '—'}
+              barra={totalAderencia ? aderentes / totalAderencia : 0}
               sub={`${aderentes} de ${totalAderencia} dentro da tolerância ±${ctx.config.toleranciaAderencia}`}
             />
-            <Stat label="Solicitações abertas" valor={abertas.length} sub={`${solicitacoes.length} no total do período`} />
+            {/* O quarto é o único acionável — os outros três se leem, este se
+                resolve. Invertido para não desaparecer entre os iguais. */}
+            <Link href={`/solicitacoes${abertas.length ? '' : ''}`} className="block">
+              <Stat
+                destaque
+                label="Decisões paradas"
+                valor={abertas.length}
+                delta={abertas.length ? 'esperando' : undefined}
+                sub={`${solicitacoes.length} solicitação(ões) no período`}
+              />
+            </Link>
           </div>
 
+          <Faixa n={2}>Onde a operação aperta</Faixa>
           <div className="grid gap-4 lg:grid-cols-2">
             <Bloco titulo="Ocupação média por unidade" desc="Média nos dias úteis do mês, sobre as posições operacionais.">
               <ul className="px-4 py-3 space-y-3">
@@ -204,6 +225,8 @@ export default async function IndicadoresPage({ searchParams }: { searchParams: 
           )}
 
           {ocorrencias.length > 0 && (
+            <>
+              <Faixa n={3}>O que aconteceu</Faixa>
             <Bloco titulo="Ocorrências do mês" desc="Lançamentos de ponto e intercorrências registrados pelo Planejamento e pelos gestores.">
               <div className="overflow-x-auto max-h-96">
                 <table className="esc-tabela">
@@ -230,6 +253,7 @@ export default async function IndicadoresPage({ searchParams }: { searchParams: 
                 </table>
               </div>
             </Bloco>
+            </>
           )}
         </>
       )}

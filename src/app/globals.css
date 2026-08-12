@@ -1,10 +1,12 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Identidade do Escala.
-   Tema único e deliberado: uma ferramenta de mesa, com tabelas
-   largas e muita informação por tela. Não há modo escuro — a
-   página pinta o próprio fundo e não herda o do hospedeiro.
+   Identidade do Jornada.
+   Tema único e deliberado: no desktop é uma ferramenta de mesa,
+   com tabelas largas e muita informação por tela; no celular é o
+   app de quem só quer saber onde trabalha hoje. Não há modo
+   escuro — a página pinta o próprio fundo e não herda o do
+   hospedeiro.
    ============================================================ */
 :root {
   --brand-900: #0B2D5B;
@@ -14,14 +16,30 @@
   --brand-100: #DCEAF8;
   --brand-50:  #F0F6FD;
 
-  --bg:        #F1F5F9;
+  /* Azul mais escuro que o da marca, só para o trilho lateral: o menu precisa
+     recuar para o fundo enquanto o cabeçalho, que é da marca, avança. */
+  --ink:         #0A1F3C;
+  /* Ação primária clara e links. Separado de `--brand-*` porque marca e ação
+     não são a mesma decisão: dá para mudar o azul institucional sem mexer no
+     que a interface usa para dizer "clique aqui". */
+  --accent:      #175CD3;
+  --accent-soft: #7FB0FF;
+
+  --bg:        #F7F9FC;
   --surface:   #FFFFFF;
   --surface-2: #F8FAFC;
   --text:      #0F172A;
-  --muted:     #64748B;
-  --faint:     #94A3B8;
-  --line:      #E2E8F0;
+  --muted:     #5A6D87;
+  --faint:     #7C8DA6;
+  --faint-2:   #A9B8CC;
+  --line:      #E5EAF1;
+  --line-soft: #EEF2F7;
   --line-2:    #CBD5E1;
+
+  /* Sombra em vez de borda dura é o que separa o cartão do fundo sem desenhar
+     uma caixa em volta de cada informação. */
+  --sombra-card: 0 2px 8px rgba(10, 31, 60, .06);
+  --sombra-acao: 0 6px 16px rgba(23, 92, 211, .28);
 
   /* Cor semântica é separada do acento: estado não se confunde com marca. */
   --amber:     #B45309;
@@ -48,8 +66,13 @@
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
   --color-line-2: var(--line-2);
-  --font-body: var(--font-inter);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-faint-2: var(--faint-2);
+  --font-body: var(--font-figtree);
   --font-mono: var(--font-plex-mono);
 }
 
@@ -90,8 +113,8 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
   .esc-card {
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 10px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    border-radius: 14px;
+    box-shadow: var(--sombra-card);
   }
 
   .esc-bloco-topo {
@@ -104,16 +127,42 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
     border-bottom: 1px solid var(--line);
   }
 
-  .esc-titulo { font-size: 13px; font-weight: 600; color: var(--text); }
-  .esc-desc { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.45; max-width: 78ch; }
+  .esc-titulo { font-size: 13.5px; font-weight: 700; color: var(--text); letter-spacing: -.01em; }
+  .esc-desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.45; max-width: 78ch; }
   .esc-rotulo {
     display: block;
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 600;
-    color: var(--muted);
+    color: var(--faint);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.12em;
     margin-bottom: 5px;
+  }
+
+  /* Faixa que numera e nomeia uma seção da tela. É o que transforma uma pilha
+     de cartões numa ordem de leitura: 1 é o estado, 2 é onde aperta, 3 é o
+     detalhe. */
+  .esc-faixa {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .esc-faixa::before {
+    content: attr(data-n);
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    background: var(--brand-900);
+    color: #fff;
+    font-size: 9px;
+    letter-spacing: 0;
   }
   .esc-ajuda { font-size: 11px; color: var(--muted); line-height: 1.5; }
 
@@ -141,7 +190,7 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
     justify-content: center;
     gap: 6px;
     padding: 7px 13px;
-    border-radius: 6px;
+    border-radius: 10px;
     font-size: 12.5px;
     font-weight: 600;
     letter-spacing: -0.005em;
@@ -163,12 +212,12 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
 
   .esc-btn-danger { background: var(--rose); }
   .esc-btn-sucesso { background: var(--green); }
-  .esc-btn-sm { padding: 5px 10px; font-size: 11.5px; }
+  .esc-btn-sm { padding: 5px 10px; font-size: 11.5px; border-radius: 9px; }
 
   .esc-input {
     width: 100%;
     padding: 7px 10px;
-    border-radius: 6px;
+    border-radius: 10px;
     border: 1px solid var(--line-2);
     background: var(--surface);
     color: var(--text);
@@ -176,7 +225,7 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
     outline: none;
     transition: border-color .15s, box-shadow .15s;
   }
-  .esc-input:focus { border-color: var(--brand-600); box-shadow: 0 0 0 3px rgba(36, 99, 181, .14); }
+  .esc-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(23, 92, 211, .14); }
   .esc-input:disabled { background: var(--bg); color: var(--faint); }
 
   .esc-badge {
@@ -184,9 +233,9 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
     align-items: center;
     gap: 4px;
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 10.5px;
-    font-weight: 600;
+    font-weight: 700;
     line-height: 16px;
     white-space: nowrap;
   }
@@ -216,7 +265,7 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
     border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
-  .esc-tabela td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .esc-tabela td { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
   .esc-tabela tbody tr:hover td { background: var(--brand-50); }
   .esc-tabela tbody tr:last-child td { border-bottom: 0; }
 
