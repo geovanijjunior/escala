@@ -1,0 +1,61 @@
+﻿nome;matricula;email;cargo;equipe;unidade base;turno;ciclo;entrada;jornada;home office;trabalho externo;sexta reduzida;admissao
+Adriana Bastos;2101;adriana.bastos@saolucas.com;Técnico I;TEC;MOR;D;;09:00;8;sim;sim;sim;04/04/2024
+Alexandre Pinho;2102;alexandre.pinho@saolucas.com;Especialista;ANA;PAU;D;;08:00;8;sim;sim;sim;16/07/2021
+Aline Camargo;2103;aline.camargo@saolucas.com;Técnico II;PLA;VLO;D;ímpar;07:00;12;nao;sim;nao;03/09/2022
+Amanda Rocha;2104;amanda.rocha@saolucas.com;Técnico III;INF;MOR;D;;07:00;7,5;sim;nao;sim;20/06/2019
+André Vasconcelos;2105;andre.vasconcelos@saolucas.com;Técnico I;TEC;PAU;D;;08:00;6;sim;nao;sim;24/11/2023
+Beatriz Continentino;2106;beatriz.continentino@saolucas.com;Analista Sr;ANA;VLO;D;;07:00;6;sim;nao;sim;20/07/2022
+Bruno Sampaio;2107;bruno.sampaio@saolucas.com;Técnico II;PLA;MOR;D;ímpar;07:00;12;nao;nao;nao;23/11/2021
+Camila Terra;2108;camila.terra@saolucas.com;Técnico I;INF;PAU;D;;09:00;8;sim;sim;sim;16/08/2024
+Carlos Bandeira;2109;carlos.bandeira@saolucas.com;Técnico II;TEC;VLO;D;;09:00;8;sim;sim;sim;21/02/2022
+Caroline Vieira;2110;caroline.vieira@saolucas.com;Analista Jr;ANA;MOR;D;;08:00;8;sim;nao;sim;22/08/2025
+César Malta;2111;cesar.malta@saolucas.com;Técnico III;PLA;PAU;D;ímpar;07:00;12;nao;sim;nao;23/02/2021
+Cristina Aguiar;2112;cristina.aguiar@saolucas.com;Técnico I;INF;VLO;D;;09:00;7,5;sim;nao;sim;25/05/2022
+Daniel Ferrero;2113;daniel.ferrero@saolucas.com;Técnico II;TEC;MOR;D;;08:00;8;sim;nao;nao;08/09/2021
+Débora Quintela;2114;debora.quintela@saolucas.com;Analista Jr;ANA;PAU;D;;07:00;7,5;sim;nao;nao;19/05/2023
+Diego Assunção;2115;diego.assuncao@saolucas.com;Técnico II;PLA;VLO;D;ímpar;09:00;12;nao;sim;nao;15/01/2024
+Eduarda Ramalho;2116;eduarda.ramalho@saolucas.com;Técnico III;INF;MOR;D;;07:00;6;sim;sim;sim;09/08/2021
+Elias Toledo;2117;elias.toledo@saolucas.com;Técnico II;TEC;PAU;D;;09:00;6;nao;nao;nao;02/10/2021
+Fabiana Cordeiro;2118;fabiana.cordeiro@saolucas.com;Especialista;ANA;VLO;D;;08:00;7,5;nao;sim;sim;02/11/2024
+Felipe Andrade;2119;felipe.andrade@saolucas.com;Técnico I;PLA;MOR;D;ímpar;08:00;12;nao;nao;nao;15/08/2021
+Fernanda Bulhões;2120;fernanda.bulhoes@saolucas.com;Técnico III;INF;PAU;D;;08:00;6;sim;nao;nao;22/06/2024
+Gabriel Peçanha;2121;gabriel.pecanha@saolucas.com;Técnico III;TEC;VLO;D;;08:00;7,5;sim;nao;sim;22/10/2025
+Giovana Trindade;2122;giovana.trindade@saolucas.com;Analista Jr;ANA;MOR;D;;08:00;7,5;sim;nao;sim;23/07/2019
+Guilherme Sá;2123;guilherme.sa@saolucas.com;Técnico III;PLA;PAU;D;ímpar;08:00;12;nao;nao;nao;07/04/2019
+Helena Portela;2124;helena.portela@saolucas.com;Técnico II;INF;VLO;D;;09:00;6;sim;nao;sim;18/03/2021
+Henrique Vilela;2125;henrique.vilela@saolucas.com;Técnico I;TEC;MOR;D;;08:00;8;sim;nao;sim;01/01/2023
+Isabela Fontes;2126;isabela.fontes@saolucas.com;Especialista;ANA;PAU;D;;09:00;7,5;sim;nao;sim;24/01/2023
+Ivan Drummond;2127;ivan.drummond@saolucas.com;Técnico I;PLA;VLO;D;ímpar;08:00;12;nao;sim;nao;12/09/2022
+Jéssica Marinho;2128;jessica.marinho@saolucas.com;Técnico I;INF;MOR;D;;07:00;8;sim;nao;sim;11/11/2019
+João Bittencourt;2129;joao.bittencourt@saolucas.com;Técnico I;TEC;PAU;D;;08:00;7,5;nao;sim;nao;08/06/2025
+Joana Rezende;2130;joana.rezende@saolucas.com;Especialista;ANA;VLO;D;;08:00;7,5;nao;nao;sim;22/08/2025
+Júlio Cavalcanti;2131;julio.cavalcanti@saolucas.com;Técnico I;PLA;MOR;D;ímpar;09:00;12;nao;nao;nao;23/04/2025
+Karina Estrela;2132;karina.estrela@saolucas.com;Técnico II;INF;PAU;D;;09:00;6;sim;sim;sim;22/05/2023
+Leandro Muniz;2133;leandro.muniz@saolucas.com;Técnico I;TEC;VLO;D;;09:00;8;nao;nao;sim;28/05/2023
+Letícia Barroso;2134;leticia.barroso@saolucas.com;Analista Jr;ANA;MOR;D;;08:00;7,5;sim;nao;sim;20/11/2019
+Lucas Verissimo;2135;lucas.verissimo@saolucas.com;Técnico I;PLA;PAU;D;ímpar;09:00;12;nao;nao;nao;28/07/2019
+Luciana Prates;2136;luciana.prates@saolucas.com;Técnico III;INF;VLO;D;;07:00;6;sim;nao;sim;04/12/2021
+Marcelo Tavares;2137;marcelo.tavares@saolucas.com;Técnico I;TEC;MOR;D;;09:00;6;sim;sim;sim;05/04/2019
+Mariana Espindola;2138;mariana.espindola@saolucas.com;Especialista;ANA;PAU;D;;07:00;6;sim;sim;nao;09/01/2021
+Mateus Galvão;2139;mateus.galvao@saolucas.com;Técnico I;PLA;VLO;D;ímpar;09:00;12;nao;sim;nao;05/04/2025
+Michele Nogueira;2140;michele.nogueira@saolucas.com;Técnico I;INF;MOR;D;;08:00;6;nao;sim;nao;06/03/2023
+Natália Siqueira;2141;natalia.siqueira@saolucas.com;Técnico II;TEC;PAU;D;;09:00;6;sim;nao;sim;12/11/2022
+Nelson Bragança;2142;nelson.braganca@saolucas.com;Analista Sr;ANA;VLO;D;;07:00;7,5;nao;nao;nao;13/06/2021
+Patrícia Lopes;2143;patricia.lopes@saolucas.com;Técnico I;PLA;MOR;D;ímpar;09:00;12;nao;nao;nao;15/10/2025
+Paulo Rangel;2144;paulo.rangel@saolucas.com;Técnico I;INF;PAU;D;;08:00;8;nao;nao;sim;08/11/2022
+Priscila Amaral;2145;priscila.amaral@saolucas.com;Técnico II;TEC;VLO;D;;07:00;8;sim;nao;sim;15/09/2023
+Rafael Guimarães;2146;rafael.guimaraes@saolucas.com;Analista Jr;ANA;MOR;D;;08:00;7,5;nao;nao;sim;28/08/2021
+Raquel Serpa;2147;raquel.serpa@saolucas.com;Técnico II;PLA;PAU;D;ímpar;07:00;12;nao;nao;nao;01/05/2021
+Renato Coutinho;2148;renato.coutinho@saolucas.com;Técnico II;INF;VLO;D;;07:00;8;sim;nao;nao;28/05/2024
+Roberta Almeida;2149;roberta.almeida@saolucas.com;Técnico III;TEC;MOR;D;;07:00;8;sim;nao;sim;27/07/2024
+Rodrigo Peixoto;2150;rodrigo.peixoto@saolucas.com;Especialista;ANA;PAU;D;;08:00;6;nao;sim;nao;25/01/2019
+Samara Freitas;2151;samara.freitas@saolucas.com;Técnico I;PLA;VLO;D;ímpar;08:00;12;nao;sim;nao;27/08/2023
+Sérgio Bezerra;2152;sergio.bezerra@saolucas.com;Técnico III;INF;MOR;D;;09:00;6;sim;sim;nao;20/06/2022
+Simone Valadares;2153;simone.valadares@saolucas.com;Técnico II;TEC;PAU;D;;09:00;6;sim;sim;sim;13/04/2023
+Tatiana Meireles;2154;tatiana.meireles@saolucas.com;Analista Pl;ANA;VLO;D;;09:00;6;sim;sim;sim;21/11/2022
+Thiago Bulhosa;2155;thiago.bulhosa@saolucas.com;Técnico I;PLA;MOR;D;ímpar;08:00;12;nao;nao;nao;24/10/2021
+Vanessa Corrêa;2156;vanessa.correa@saolucas.com;Técnico III;INF;PAU;D;;08:00;7,5;sim;nao;nao;05/10/2024
+Victor Hugo Salles;2157;victor.salles@saolucas.com;Técnico I;TEC;VLO;D;;07:00;7,5;nao;sim;nao;20/04/2024
+Viviane Duarte;2158;viviane.duarte@saolucas.com;Analista Pl;ANA;MOR;D;;08:00;7,5;sim;sim;nao;19/11/2021
+Wagner Antunes;2159;wagner.antunes@saolucas.com;Técnico III;PLA;PAU;D;ímpar;09:00;12;nao;sim;nao;11/07/2022
+Yara Mendonça;2160;yara.mendonca@saolucas.com;Técnico III;INF;VLO;D;;07:00;6;nao;sim;nao;13/01/2019

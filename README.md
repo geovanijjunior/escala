@@ -100,7 +100,7 @@ RODADAS=50000 ./scripts/testar.sh propriedades
 
 | Bateria | O que cobre |
 |---|---|
-| `npm test` | 57 asserções de casos concretos do motor |
+| `npm test` | 57 asserções do motor e 38 do leitor de planilha |
 | `npm run test:propriedades` | 15 invariantes × milhares de meses aleatórios |
 | `supabase/tests/rls.sql` | quem enxerga o quê, com testes negativos — inclui mural, anexos, avisos e caixa de saída |
 | `supabase/tests/integridade.sql` | restrições, cascatas e vínculo entre contas |
@@ -270,7 +270,13 @@ terceiro e escrita na escala por quem não é Planejamento.
   do mês continua com o do mês anterior, marcado como herdado. Férias e
   ausências ficam de fora — são eventos datados, vindos de solicitação
   aprovada, e repeti-las marcaria de férias quem já voltou.
-- **Anexo do mural mora no banco, em `bytea`, com teto de 2 MB.** É uma troca
+- **A importação de planilha confere antes de gravar.** `lerPlanilha` é função
+  pura — texto do arquivo e cadastros entram, o que seria gravado e os erros de
+  cada linha saem —, o que permite testá-la com trinta arquivos malformados sem
+  subir banco, e é o que torna viável mostrar o resultado antes de confirmar.
+  A matrícula é a identidade: reimportar o mesmo arquivo atualiza em vez de
+  duplicar, então corrigir uma linha e mandar tudo de novo é seguro.
+- **Anexo do mural mora no banco, em `bytea`, com teto de 5 MB.** É uma troca
   deliberada contra o Storage: o mural recebe foto de aviso e PDF de uma ou
   duas páginas, e guardar no banco dispensa bucket, políticas de storage e URL
   assinada — o anexo herda exatamente o recorte do comunicado, sem um segundo
@@ -281,9 +287,9 @@ terceiro e escrita na escala por quem não é Planejamento.
 ## O que ainda não existe
 
 Notificações por e-mail ou push: o sino no cabeçalho avisa dentro do sistema, mas
-nada é disparado para fora dele. Importação de colaboradores por planilha e exportação em PDF também não
-foram implementadas — a exportação disponível é CSV (separador `;` e BOM UTF-8,
-que é o que o Excel em português abre sem embaralhar acento).
+nada é disparado para fora dele. Exportação em PDF também não foi implementada — a
+exportação disponível é CSV (separador `;` e BOM UTF-8, que é o que o Excel em
+português abre sem embaralhar acento).
 
 ## Colocando no ar
 

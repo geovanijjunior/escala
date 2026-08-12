@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx src/lib/domain/escalas/motor.teste.ts",
+    "test": "tsx src/lib/domain/escalas/motor.teste.ts && tsx src/lib/domain/escalas/importacao.teste.ts",
     "test:propriedades": "tsx src/lib/domain/escalas/motor.propriedades.ts",
     "test:tudo": "./scripts/testar.sh",
     "manual:pdf": "node scripts/manual-pdf.mjs",

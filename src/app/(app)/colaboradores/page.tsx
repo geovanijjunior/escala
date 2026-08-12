@@ -11,6 +11,7 @@ import { Aviso, Badge, Bloco, Pill, Vazio } from '@/components/Ui';
 import { Volta } from '@/components/Volta';
 import { FiltrosAuto } from '@/components/FiltrosAuto';
 import { SituacaoColaborador } from '@/components/SituacaoColaborador';
+import { ImportarColaboradores } from '@/components/ImportarColaboradores';
 import type { Colaborador } from '@/lib/domain/escalas/tipos';
 
 const SITUACAO = {
@@ -50,6 +51,7 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
 
   const editandoId = Number(texto(busca, 'id')) || null;
   const novo = texto(busca, 'novo') === '1';
+  const importar = texto(busca, 'importar') === '1';
   const edicao = editandoId ? colaboradores.find(c => c.id === editandoId) ?? null : null;
 
   return (
@@ -61,9 +63,14 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
             Cadastro base da escala: equipe, regime, jornada, elegibilidades e vínculo com o usuário do sistema.
           </p>
         </div>
-        <Link href={`/colaboradores${comFiltros(busca, { novo: '1', id: null })}`} className="esc-btn esc-btn-sm">
-          Novo colaborador
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href={`/colaboradores${comFiltros(busca, { importar: '1', novo: null, id: null })}`} className="esc-btn esc-btn-outline esc-btn-sm">
+            Importar planilha
+          </Link>
+          <Link href={`/colaboradores${comFiltros(busca, { novo: '1', importar: null, id: null })}`} className="esc-btn esc-btn-sm">
+            Novo colaborador
+          </Link>
+        </div>
       </div>
 
       <Aviso erro={texto(busca, 'erro') || undefined} ok={texto(busca, 'ok') || undefined} />
@@ -78,6 +85,23 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
         </Bloco>
       ) : (
         <>
+          {importar && (
+            <Bloco
+              titulo="Importar colaboradores de uma planilha"
+              desc="Escolha o arquivo, confira o que vai acontecer e só então grave."
+              acoes={
+                <Link
+                  href={`/colaboradores${comFiltros(busca, { importar: null })}`}
+                  className="esc-btn esc-btn-ghost esc-btn-sm"
+                >
+                  Fechar
+                </Link>
+              }
+            >
+              <ImportarColaboradores />
+            </Bloco>
+          )}
+
           {(novo || edicao) && (
             <Formulario
               colaborador={edicao}
