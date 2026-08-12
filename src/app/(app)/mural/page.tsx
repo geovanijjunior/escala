@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { getSessao, podeAprovar, ehPlanejamento } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
 import { listarEquipes } from '@/lib/data/escalas';
@@ -35,6 +36,9 @@ const tamanho = (b: number) => {
 export default async function MuralPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
+  // O Administrador da Área cuida de cadastro, não de escala. As telas de
+  // operação ficam fora do alcance dele mesmo quando a RLS deixaria ler.
+  if (sessao.papel === 'admin_local') redirect('/');
   const supabase = await createClient();
 
   // A policy já recorta: o colaborador vê o que é da equipe dele, o gestor vê o

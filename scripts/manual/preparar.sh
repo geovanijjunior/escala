@@ -13,12 +13,20 @@
 #
 # Variáveis: PGHOST (padrão /tmp), PGPORT (padrão 5433), PGUSER (padrão postgres).
 #
-# O cluster precisa aceitar conexão local sem senha, porque o dev server roda
-# com um usuário do sistema diferente de `postgres`. Numa instalação Debian
-# recém-criada isso não vale — o socket vem com `peer`, e o app falha com
-# "Peer authentication failed for user postgres" que não parece o que é. Em
-# `/etc/postgresql/<versão>/main/pg_hba.conf`, as duas linhas `local all` devem
-# estar como `trust`. É um cluster de teste; não faça isso em outro lugar.
+# Duas coisas precisam estar ajustadas no cluster, e as duas se perdem quando o
+# ambiente é recriado a partir da imagem — o que faz o erro parecer do app.
+#
+# 1. `pg_hba.conf`: as duas linhas `local all` devem estar como `trust`. O dev
+#    server roda com um usuário do sistema diferente de `postgres`, e o padrão
+#    Debian é `peer` — o app falha com "Peer authentication failed for user
+#    postgres", que não parece o que é. É um cluster de teste; não faça isso em
+#    outro lugar.
+#
+# 2. `postgresql.conf`: os scripts esperam `/tmp:5433`. O padrão da distribuição
+#    é `/var/run/postgresql:5432`, e aí tudo morre em ECONNREFUSED. Ajuste o
+#    cluster com `port = 5433` e
+#    `unix_socket_directories = '/var/run/postgresql,/tmp'`, ou aponte
+#    PGHOST/PGPORT para onde ele estiver — todos os scripts honram as duas.
 set -euo pipefail
 
 raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -66,11 +74,17 @@ preparar() {
   # é uma foto do momento, não uma regra permanente. Toda migration que cria
   # tabela exige repetir isto — foi assim que o mural apareceu vazio na
   # primeira execução depois da 0011.
+  #
+  # O grant de função é o análogo do `grant execute ... to authenticated` da
+  # 0015: aquela migration revoga `resumo_areas()` de `public`, e sem esta linha
+  # o console de áreas viria vazio contra o shim — com cara de "nenhuma área
+  # cadastrada", não de permissão faltando.
   psql_ -d "$banco" \
     -c "grant usage on schema public, auth to app_user" \
     -c "grant select, insert, update, delete on all tables in schema public to app_user" \
     -c "grant select on auth.users to app_user" \
-    -c "grant usage, select on all sequences in schema public to app_user"
+    -c "grant usage, select on all sequences in schema public to app_user" \
+    -c "grant execute on all functions in schema public to app_user"
 
   if [ "$banco" != "rlstest" ]; then
     PGDATABASE="$banco" npx tsx "$raiz/scripts/manual/semear.ts"

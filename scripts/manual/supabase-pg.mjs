@@ -305,9 +305,73 @@ function usuarioAtual() {
   }
 }
 
+/**
+ * `rpc()`, só para funções sem argumento que devolvem tabela.
+ *
+ * É o que `resumo_areas()` é, e a chamada roda com o mesmo `role` e o mesmo
+ * `auth.uid()` das consultas normais — sem isso a função `security definer`
+ * seria chamada como superusuário e o `where eh_admin_geral()` de dentro dela
+ * passaria para qualquer um, escondendo justamente a trava que ela existe para
+ * ter. Argumento nomeado não é suportado de propósito: melhor quebrar alto do
+ * que ignorar em silêncio.
+ */
+async function chamarRpc(nome, args, admin) {
+  if (args && Object.keys(args).length) {
+    throw new Error(`rpc("${nome}") com argumentos não é suportado pelo shim`);
+  }
+  const conexao = await pool.connect();
+  try {
+    await conexao.query('begin');
+    await conexao.query(`set local role ${admin ? 'postgres' : 'app_user'}`);
+    await conexao.query(`select set_config('request.jwt.claim.sub', $1, true)`, [usuarioAtual().id]);
+    const { rows } = await conexao.query(`select * from ${cita(nome)}()`);
+    await conexao.query('commit');
+    return { data: rows, error: null };
+  } catch (e) {
+    await conexao.query('rollback').catch(() => {});
+    console.error('\n[supabase-pg] rpc falhou:\n ', nome, '\n ', e.message, '\n');
+    return { data: null, error: { message: e.message, code: e.code } };
+  } finally {
+    conexao.release();
+  }
+}
+
+/**
+ * Cria o usuário de verdade em `auth.users`, para o trigger disparar.
+ *
+ * Antes isto devolvia o usuário logado e não escrevia nada, o que bastava
+ * enquanto ninguém dependia do resultado. Com a cadeia de cadastro (geral cria
+ * o administrador da área, o administrador cria o Planejamento) o perfil criado
+ * pelo trigger passou a ser o efeito que a tela mostra — e um stub silencioso
+ * faria a varredura aprovar uma tela que na verdade não cadastrou ninguém.
+ *
+ * Roda como `postgres` porque é o equivalente do GoTrue, que escreve no schema
+ * `auth` fora de qualquer RLS.
+ */
+async function criarUsuarioAuth({ email, user_metadata }) {
+  const conexao = await pool.connect();
+  try {
+    const { rows: existe } = await conexao.query('select id from auth.users where email = $1', [email]);
+    if (existe.length) {
+      return { data: null, error: { code: 'email_exists', message: 'Já existe um usuário com este e-mail.' } };
+    }
+    const { rows } = await conexao.query(
+      'insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id, email',
+      [email, JSON.stringify(user_metadata ?? {})],
+    );
+    return { data: { user: rows[0] }, error: null };
+  } catch (e) {
+    console.error('\n[supabase-pg] createUser falhou:\n ', e.message, '\n');
+    return { data: null, error: { message: e.message, code: e.code } };
+  } finally {
+    conexao.release();
+  }
+}
+
 function cliente(admin = false) {
   return {
     from: t => new Consulta(t, admin),
+    rpc: (nome, args) => chamarRpc(nome, args, admin),
     auth: {
       getUser: async () => ({ data: { user: usuarioAtual() }, error: null }),
       getSession: async () => ({ data: { session: { user: usuarioAtual() } }, error: null }),
@@ -315,7 +379,10 @@ function cliente(admin = false) {
       signUp: async () => ({ data: { user: usuarioAtual(), session: {} }, error: null }),
       signOut: async () => ({ error: null }),
       admin: {
-        createUser: async () => ({ data: { user: usuarioAtual() }, error: null }),
+        createUser: criarUsuarioAuth,
+        // Banir de verdade exigiria sessão e token, que este shim não tem. A
+        // coluna `perfis.bloqueado`, que a tela lê, é escrita pela própria
+        // action logo depois — então a varredura ainda verifica o efeito.
         updateUserById: async () => ({ data: { user: usuarioAtual() }, error: null }),
       },
     },

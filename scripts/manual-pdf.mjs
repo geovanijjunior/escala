@@ -26,7 +26,12 @@ try {
 }
 
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const navegador = await chromium.launch();
+// `CHROMIUM_EXECUTAVEL` aponta um Chromium já instalado. Em CI e em containers
+// prontos ele existe, mas quase nunca na build exata que o Playwright espera —
+// e o erro que sai daí pede um download que não é necessário. Mesma variável de
+// scripts/manual/navegador.mjs.
+const executavel = process.env.CHROMIUM_EXECUTAVEL;
+const navegador = await chromium.launch(executavel ? { executablePath: executavel } : {});
 // colorScheme claro à força: quem gera num sistema em tema escuro receberia um
 // PDF de fundo preto, que não é o que se manda para a impressora.
 const pagina = await navegador.newPage({ colorScheme: 'light' });

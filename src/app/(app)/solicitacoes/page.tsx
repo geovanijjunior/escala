@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getSessao } from '@/lib/sessao';
 import {
@@ -18,6 +19,9 @@ const ROTULO_ABA = { abertas: 'Abertas', fila: 'Lista de espera', historico: 'Hi
 export default async function SolicitacoesPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
+  // O Administrador da Área cuida de cadastro, não de escala. As telas de
+  // operação ficam fora do alcance dele mesmo quando a RLS deixaria ler.
+  if (sessao.papel === 'admin_local') redirect('/');
 
   const [todas, unidades, colaboradores] = await Promise.all([
     listarSolicitacoes(),

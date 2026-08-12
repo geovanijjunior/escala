@@ -12,6 +12,8 @@
     --linha:      #DDE4EE;
     --linha-forte:#C3CFDF;
 
+    --geral:        #4A2A78;
+    --local:        #1B4D8F;
     --planejamento: #0B2D5B;
     --gestor:       #0A6360;
     --colaborador:  #8A4A12;
@@ -41,6 +43,8 @@
       --linha:      #26324A;
       --linha-forte:#3A4761;
       --capa: #0A1729;
+      --geral:        #BFA7E8;
+      --local:        #8FB6E4;
       --planejamento: #9DC0EC;
       --gestor:       #63C6BE;
       --colaborador:  #DDA35F;
@@ -64,6 +68,8 @@
     --linha:      #26324A;
     --linha-forte:#3A4761;
     --capa: #0A1729;
+    --geral:        #BFA7E8;
+    --local:        #8FB6E4;
     --planejamento: #9DC0EC;
     --gestor:       #63C6BE;
     --colaborador:  #DDA35F;
@@ -228,6 +234,8 @@
   .papel ul { margin: 0; padding-left: 17px; font-size: 13.5px; display: grid; gap: 4px; }
 
   .fita { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 650; }
+  .fita.geral { background: var(--linha); color: var(--geral); }
+  .fita.local { background: var(--azul-suave); color: var(--local); }
   .fita.planejamento { background: var(--azul-suave); color: var(--planejamento); }
   .fita.gestor { background: var(--ok-bg); color: var(--gestor); }
   .fita.colaborador { background: var(--atencao-bg); color: var(--colaborador); }
@@ -437,10 +445,11 @@
     <h2>Neste manual</h2>
     <ol>
       <li><a href="#visao">O que o sistema faz</a></li>
-      <li><a href="#papeis">Os três papéis</a></li>
+      <li><a href="#papeis">Os cinco papéis</a></li>
       <li><a href="#tela">A tela por dentro</a></li>
       <li><a href="#ciclo">O ciclo do mês</a></li>
       <li class="grupo">Cadastros</li>
+      <li><a href="#areas">Áreas</a></li>
       <li><a href="#colaboradores">Colaboradores</a></li>
       <li><a href="#usuarios">Usuários e acesso</a></li>
       <li><a href="#parametros">Parâmetros</a></li>
@@ -456,6 +465,7 @@
       <li class="grupo">Guias por papel</li>
       <li><a href="#colaborador">Guia do colaborador</a></li>
       <li><a href="#gestor">Guia do gestor</a></li>
+      <li><a href="#admin-area">Guia do administrador da área</a></li>
       <li class="grupo">Referência</li>
       <li><a href="#motor">Como o motor decide</a></li>
       <li><a href="#problemas">Quando algo dá errado</a></li>
@@ -504,14 +514,41 @@
     </section>
 
     <section id="papeis">
-      <h2>Os três papéis</h2>
+      <h2>Os cinco papéis</h2>
       <p>
         Cada pessoa tem exatamente um papel, e é ele que decide o que ela vê e o que pode
         fazer. Não é filtro de tela: o próprio banco de dados recusa a leitura fora do papel,
         então nem por fora da interface alguém alcança o que não lhe cabe.
       </p>
+      <p>
+        Os papéis formam uma corrente de cadastro, e cada elo só cria o próximo: o
+        Administrador Geral cria a área e o Administrador da Área; o Administrador da Área
+        cria o Planejamento; o Planejamento cria gestores e colaboradores. Ninguém pula um
+        elo — nem pela tela, nem por fora dela.
+      </p>
 
       <div class="papeis">
+        <div class="papel" style="--cor: var(--geral)">
+          <h3>Administrador Geral</h3>
+          <p>Enxerga as áreas, não o que há dentro</p>
+          <ul>
+            <li>Cadastra as áreas do sistema</li>
+            <li>Nomeia o Administrador de cada área</li>
+            <li>Desativa uma área sem apagar o histórico</li>
+            <li>Vê quantas pessoas cada área tem e se o mês foi publicado</li>
+            <li>Não vê colaborador, escala nem solicitação de área nenhuma</li>
+          </ul>
+        </div>
+        <div class="papel" style="--cor: var(--local)">
+          <h3>Administrador da Área</h3>
+          <p>Responde por uma área</p>
+          <ul>
+            <li>Cadastra o Planejamento da área</li>
+            <li>Cuida de colaboradores, equipes, unidades e parâmetros</li>
+            <li>Acompanha os indicadores da área</li>
+            <li>Não monta plano, não gera escala, não decide solicitação</li>
+          </ul>
+        </div>
         <div class="papel" style="--cor: var(--planejamento)">
           <h3>Planejamento</h3>
           <p>Enxerga a conta inteira</p>
@@ -562,10 +599,11 @@
 
       <h3>Barra do topo</h3>
       <p>
-        À esquerda, o nome da conta. À direita, o <strong>sino de notificações</strong> com a
+        À esquerda, o nome da área. À direita, o <strong>sino de notificações</strong> com a
         contagem de itens não lidos, o seu nome com o papel embaixo e o botão <strong>Sair</strong>.
-        O sino aparece em todas as páginas e é o mesmo para os três papéis — o que muda é o
-        que cada um recebe.
+        O sino aparece em todas as páginas de dentro de uma área e é o mesmo para todos — o
+        que muda é o que cada um recebe. O console de áreas não tem sino: aviso é coisa de
+        operação, e ali não se opera nada.
       </p>
 
       <h3>Menu lateral</h3>
@@ -582,8 +620,12 @@
         que você o abriu, e zera quando você abre.
       </p>
       <p>
-        O gestor vê Indicadores, Escala, Ocupação, Aprovações e Mural; o colaborador vê três
-        itens: <em>Minha escala</em>, <em>Minhas solicitações</em> e <em>Mural</em>.
+        O menu acima é o do Planejamento. O gestor vê Indicadores, Escala, Ocupação, Aprovações
+        e Mural. O Administrador da Área vê Indicadores e os três Cadastros — nada de Planos,
+        Gerar ou Calendário, porque ele configura a área e não opera o mês. O colaborador não
+        tem menu lateral no celular: tem a barra de quatro abas no rodapé — <em>Hoje</em>,
+        <em>Escala</em>, <em>Pedidos</em> e <em>Mural</em>. E o Administrador Geral tem um item
+        só, <em>Áreas</em>, porque é a única tela dele.
       </p>
 
       <h3>Seletor de mês</h3>
@@ -663,8 +705,76 @@
       </div>
     </section>
 
+    <section id="areas">
+      <h2>Áreas <span class="fita geral">Administrador Geral</span></h2>
+      <p class="entrada">
+        Uma área é uma instância isolada do Jornada: colaboradores, escalas, solicitações e
+        comunicados próprios. Duas áreas na mesma instalação não se enxergam.
+      </p>
+
+      <p>
+        O console de áreas é a única tela do Administrador Geral, e ele não tem nenhuma
+        outra. Ali ele cadastra a área, nomeia quem responde por ela, acompanha o tamanho de
+        cada uma e desativa a que saiu do ar. O que acontece dentro — quem está escalado,
+        quem pediu férias, o que foi publicado no mural — não passa por essa tela.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/areas.png" alt="Console de áreas: quatro indicadores no topo (áreas ativas, colaboradores, sem administrador, mês não publicado) e, abaixo, um cartão por área com o nome, a situação, as contagens e os administradores.">
+        <figcaption>
+          <b>Áreas</b> — a faixa de cima resume o sistema; os dois indicadores da direita são
+          alertas: área sem administrador é área que ninguém consegue configurar, e área ativa
+          sem escala publicada no mês é operação que pode estar parada. Cada cartão traz as
+          contagens da área e quem responde por ela.
+        </figcaption>
+      </figure>
+
+      <h3>Criar uma área</h3>
+      <p>
+        A área e o administrador dela são cadastrados no mesmo passo, e isso é deliberado:
+        uma área sem administrador é uma instância que ninguém consegue abrir. Se a criação
+        do login falhar, a área recém-criada é desfeita — melhor não existir do que existir
+        órfã. A senha temporária aparece uma única vez, para ser entregue à pessoa; ela não
+        fica gravada em lugar nenhum.
+      </p>
+
+      <figure class="tela">
+        <img src="imagens/area-nova.png" alt="Formulário de nova área com quatro campos numa linha — nome da área, administrador, e-mail e senha temporária — e, abaixo, a descrição dos três primeiros papéis da hierarquia.">
+        <figcaption>
+          <b>Nova área</b> — a senha temporária pode ficar em branco: o sistema gera uma, sem
+          caracteres ambíguos, e a mostra uma vez só depois de criar.
+        </figcaption>
+      </figure>
+
+      <h3>Os números, sem os dados</h3>
+      <p>
+        Cada área mostra quantos colaboradores ativos tem, quantos usuários, e em que mês a
+        última escala foi publicada. São contagens, calculadas por uma função do banco que
+        devolve só números. A alternativa — abrir uma exceção de leitura nas tabelas de
+        colaboradores e de gerações — seria uma exceção aberta para contar, que é também uma
+        exceção aberta para ler.
+      </p>
+
+      <h3>Desativar, nunca apagar</h3>
+      <p>
+        Não existe botão de excluir área. Apagar levaria junto, em cascata, a escala inteira
+        de uma operação — inclusive o histórico de meses encerrados, que é registro
+        trabalhista. Desativar fecha a porta: quem estava dentro é desconectado na próxima
+        página que abrir, e novos logins são recusados com a explicação. Tudo o que aconteceu
+        continua guardado, e reativar devolve a área ao ar como estava.
+      </p>
+
+      <div class="porque">
+        <strong>Por que o papel mais poderoso é o que menos enxerga.</strong> O perfil do
+        Administrador Geral não pertence a área nenhuma, e toda política de acesso do sistema
+        compara a área da linha com a área de quem consulta. Sem área, essa comparação nunca
+        dá verdadeiro — então o padrão dele é não ver nada, e cada permissão precisa ser
+        concedida uma a uma. Um papel com esse alcance tem de falhar para o lado fechado.
+      </div>
+    </section>
+
     <section id="colaboradores">
-      <h2>Colaboradores <span class="fita planejamento">Planejamento</span></h2>
+      <h2>Colaboradores <span class="fita planejamento">Planejamento</span> <span class="fita local">Administrador da Área</span></h2>
       <p class="entrada">
         É o cadastro que alimenta todo o resto: sem colaborador ativo, não há escala.
       </p>
@@ -752,7 +862,7 @@
     </section>
 
     <section id="usuarios">
-      <h2>Usuários e acesso <span class="fita planejamento">Planejamento</span></h2>
+      <h2>Usuários e acesso <span class="fita planejamento">Planejamento</span> <span class="fita local">Administrador da Área</span></h2>
       <p>
         <em>Colaborador</em> e <em>usuário</em> são coisas diferentes. O colaborador é quem
         entra na escala; o usuário é quem faz login. A maioria das pessoas é as duas coisas,
@@ -782,7 +892,7 @@
     </section>
 
     <section id="parametros">
-      <h2>Parâmetros <span class="fita planejamento">Planejamento</span></h2>
+      <h2>Parâmetros <span class="fita planejamento">Planejamento</span> <span class="fita local">Administrador da Área</span></h2>
       <p class="entrada">
         São as regras da casa. Você mexe pouco aqui — mas quase toda surpresa na geração se
         explica por algo desta tela.
@@ -1429,7 +1539,8 @@
     <section id="solicitacoes">
       <h2>Solicitações</h2>
       <p class="entrada">
-        Todo pedido segue o mesmo caminho, e o caminho é visível para os três papéis.
+        Todo pedido segue o mesmo caminho, e o caminho é visível para quem pede, para o
+        Planejamento e para o gestor.
       </p>
 
       <h3>O fluxo</h3>
@@ -1833,6 +1944,44 @@
         e a escala em rascunho, antes de publicada, também. Se a escala da sua equipe precisa
         mudar de forma estrutural — alguém que deveria estar sempre na outra unidade, uma cota
         apertada demais —, o caminho é falar com o Planejamento, não ajustar dia a dia.
+      </p>
+    </section>
+
+    <section id="admin-area">
+      <h2>Guia do administrador da área <span class="fita local">Administrador da Área</span></h2>
+      <p class="entrada">
+        Você monta a área. Quem opera o mês dentro dela é o Planejamento que você cadastra.
+      </p>
+
+      <h3>Primeiro dia</h3>
+      <ol class="passos">
+        <li>Em <strong>Usuários</strong>, crie o acesso do Planejamento e entregue a senha
+          temporária. É o único cadastro que não pode esperar: sem Planejamento, ninguém gera
+          escala.</li>
+        <li>Em <strong>Parâmetros</strong>, cadastre as unidades com capacidade e cor, as
+          equipes com regime e turno, os postos internos e os feriados do ano.</li>
+        <li>Em <strong>Colaboradores</strong>, cadastre as pessoas — uma a uma ou pela
+          importação por planilha — e vincule cada uma ao login dela.</li>
+      </ol>
+
+      <h3>O que não passa por você</h3>
+      <p>
+        Plano do mês, geração, publicação, calendário e decisão de solicitação são do
+        Planejamento e do gestor. As telas nem aparecem no seu menu, e digitar o endereço na
+        barra devolve você aos Indicadores — não é um detalhe de interface: as ações de
+        escrita também recusam o seu papel, então nem por fora da tela dá.
+      </p>
+      <p>
+        <strong>Indicadores</strong> você vê, e é de propósito: é como confere se a área que
+        você configurou está de pé — se o mês foi publicado, se há decisão parada, se o
+        absenteísmo saiu do lugar. Ver não é operar.
+      </p>
+
+      <h3>O que só o Administrador Geral faz</h3>
+      <p>
+        Criar e desativar áreas, e nomear ou bloquear administradores de área — inclusive
+        você. Renomear a sua própria área você pode; desativá-la, não, e isso evita o acidente
+        de trancar a organização inteira do lado de fora.
       </p>
     </section>
 

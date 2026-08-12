@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getSessao } from '@/lib/sessao';
+import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
 import { getConfig, listarEquipes, listarFeriados, listarLogs, listarUnidades } from '@/lib/data/escalas';
 import { DIAS_ABREV, dowDeIso, formatarData } from '@/lib/domain/escalas/datas';
@@ -18,7 +18,7 @@ const UTEIS = [1, 2, 3, 4, 5];
 export default async function ParametrosPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
-  if (sessao.papel !== 'planejamento') redirect('/');
+  if (!podeCadastrar(sessao.papel)) redirect('/');
 
   const supabase = await createClient();
   const [unidades, equipes, config, feriados, logs, capRes, perfisRes, cotaRes, postoRes] = await Promise.all([

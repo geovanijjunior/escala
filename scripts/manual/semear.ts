@@ -24,10 +24,15 @@ const db = new pg.Pool({
 });
 
 const CONTA = '11111111-1111-1111-1111-111111111111';
+// A segunda área existe para a varredura ter o que NÃO ver: com uma só, todo
+// teste de isolamento passa por falta de dado alheio, não por causa da RLS.
+const AREA2 = '22222222-2222-2222-2222-222222222222';
 const ANA    = '00000000-0000-0000-0000-000000000001'; // planejamento
 const RICARDO = '00000000-0000-0000-0000-000000000002'; // gestor
 const FELIPE  = '00000000-0000-0000-0000-000000000003'; // colaborador
 const CARLA   = '00000000-0000-0000-0000-000000000004'; // colaborador (parceira de troca)
+const MARCOS  = '00000000-0000-0000-0000-000000000005'; // administrador da área
+const HELENA  = '00000000-0000-0000-0000-000000000009'; // administradora geral (sem área)
 
 const COMP = '2026-11-01';
 const ANO = 2026, MES = 10; // novembro
@@ -84,18 +89,29 @@ async function main() {
   await db.query('truncate contas cascade');
   await db.query('delete from auth.users');
 
-  await db.query(`insert into contas (id, nome) values ($1, 'Hospital São Lucas — Suporte TI')`, [CONTA]);
+  await db.query(`insert into contas (id, nome) values
+    ($1, 'Hospital São Lucas — Suporte TI'),
+    ($2, 'Clínica Alvorada — Enfermagem')`, [CONTA, AREA2]);
 
   // O gatilho on_auth_user_created cria o perfil a partir do metadata — é o mesmo
   // caminho do convite real, então basta inserir o usuário com conta_id e papel.
-  const usuario = (id: string, nome: string, email: string, papel: string) =>
+  // `conta_id` nulo é o Administrador Geral: o trigger o cria sem área nenhuma.
+  const usuario = (id: string, nome: string, email: string, papel: string, conta: string | null = CONTA) =>
     db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1,$2,$3::jsonb)`,
-      [id, email, JSON.stringify({ conta_id: CONTA, nome, papel })]);
+      [id, email, JSON.stringify({ conta_id: conta, nome, papel })]);
 
+  await usuario(HELENA, 'Helena Prado', 'helena.prado@jornada.app', 'admin_geral', null);
+  await usuario(MARCOS, 'Marcos Vieira', 'marcos.vieira@saolucas.com', 'admin_local');
   await usuario(ANA, 'Ana Ribeiro', 'ana.ribeiro@saolucas.com', 'planejamento');
   await usuario(RICARDO, 'Ricardo Matos', 'ricardo.matos@saolucas.com', 'gestor');
   await usuario(FELIPE, 'Felipe Souza', 'felipe.souza@saolucas.com', 'colaborador');
   await usuario(CARLA, 'Carla Nunes', 'carla.nunes@saolucas.com', 'colaborador');
+
+  // A segunda área nasce com administradora e nada mais: é assim que uma área
+  // recém-criada aparece no console do Geral, e é o estado que o indicador
+  // "mês não publicado" precisa ter para não ficar sempre zerado.
+  await usuario('00000000-0000-0000-0000-00000000000a', 'Beatriz Lima',
+    'beatriz.lima@alvorada.com', 'admin_local', AREA2);
 
   await db.query(`insert into config (conta_id, ciclo_ancora, tolerancia_aderencia, cobertura_minima)
     values ($1, '2026-01-01', 3, 1)`, [CONTA]);

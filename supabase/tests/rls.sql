@@ -32,6 +32,10 @@ grant usage on schema public, auth to app_user;
 grant select, insert, update, delete on all tables in schema public to app_user;
 grant select on auth.users to app_user;
 grant usage on all sequences in schema public to app_user;
+-- `resumo_areas()` é revogada de `public` pela 0015. Sem este grant a suíte
+-- veria "permission denied" onde deveria ver "0 linhas", que são coisas bem
+-- diferentes: uma é o grant faltando, a outra é a trava funcionando.
+grant execute on all functions in schema public to app_user;
 
 -- ───────────────── massa de teste ─────────────────
 -- Zera antes de semear, para a suíte poder rodar quantas vezes for preciso.
@@ -44,21 +48,44 @@ insert into contas (id, nome) values
   ('11111111-1111-1111-1111-111111111111', 'Hospital A'),
   ('22222222-2222-2222-2222-222222222222', 'Hospital B');
 
+-- O trigger `on_auth_user_created` cria uma CONTA para todo usuário que chega
+-- sem `conta_id` nos metadados. Aqui os perfis são inseridos à mão, então o
+-- trigger só produziria contas órfãs — invisíveis para as contagens antigas,
+-- mas contadas pelas do Administrador Geral, que é quem enxerga `contas`.
+-- Antes disso o teste do console de áreas via sete áreas onde há duas.
+alter table auth.users disable trigger on_auth_user_created;
+
 insert into auth.users (id, email) values
   ('aaaaaaa1-0000-0000-0000-000000000001', 'plan@a.com'),
   ('aaaaaaa1-0000-0000-0000-000000000002', 'gestor@a.com'),
   ('aaaaaaa1-0000-0000-0000-000000000003', 'colab@a.com'),
   ('aaaaaaa1-0000-0000-0000-000000000004', 'colab2@a.com'),
-  ('bbbbbbb1-0000-0000-0000-000000000001', 'plan@b.com');
+  ('aaaaaaa1-0000-0000-0000-000000000005', 'admin@a.com'),
+  ('bbbbbbb1-0000-0000-0000-000000000001', 'plan@b.com'),
+  ('bbbbbbb1-0000-0000-0000-000000000002', 'admin@b.com'),
+  ('ccccccc1-0000-0000-0000-000000000001', 'geral@jornada.com'),
+  -- Logins sem perfil, para os testes de cadastro mais abaixo. `perfis.id`
+  -- referencia `auth.users`, e criar perfil é o que aqueles testes fazem — sem
+  -- o login pronto, o que falharia seria a chave estrangeira, e um teste
+  -- negativo passaria pelo motivo errado.
+  ('aaaaaaa1-0000-0000-0000-000000000007', 'plan2@a.com'),
+  ('aaaaaaa1-0000-0000-0000-000000000008', 'admin2@a.com'),
+  ('ccccccc1-0000-0000-0000-000000000008', 'plan@c.com'),
+  ('ccccccc1-0000-0000-0000-000000000009', 'admin@c.com');
 
--- O trigger on_auth_user_created criaria contas novas; aqui inserimos os perfis direto.
+alter table auth.users enable trigger on_auth_user_created;
+
 delete from perfis;
 insert into perfis (id, conta_id, nome, email, papel) values
   ('aaaaaaa1-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Planejadora A', 'plan@a.com', 'planejamento'),
   ('aaaaaaa1-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Gestor A',      'gestor@a.com','gestor'),
   ('aaaaaaa1-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Colab A',       'colab@a.com', 'colaborador'),
   ('aaaaaaa1-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'Colab A2',      'colab2@a.com','colaborador'),
-  ('bbbbbbb1-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Planejador B',  'plan@b.com',  'planejamento');
+  ('aaaaaaa1-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111', 'Admin A',       'admin@a.com', 'admin_local'),
+  ('bbbbbbb1-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Planejador B',  'plan@b.com',  'planejamento'),
+  ('bbbbbbb1-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', 'Admin B',       'admin@b.com', 'admin_local'),
+  -- Sem conta: é isso que mantém o Administrador Geral fora dos dados.
+  ('ccccccc1-0000-0000-0000-000000000001', null,                                   'Admin Geral',   'geral@jornada.com', 'admin_geral');
 
 insert into unidades (id, conta_id, codigo, nome, sigla, capacidade_total, capacidade_reservadas) overriding system value values
   (1, '11111111-1111-1111-1111-111111111111', 'MOR', 'Morumbi', 'MOR', 10, 1),
@@ -411,6 +438,172 @@ declare n int; begin
     raise exception 'FALHA DE SEGURANCA: conta B leu % alteracao(oes) da conta A', n;
   end if;
   raise notice 'ok: conta B nao ve o mural nem a caixa de saida da conta A';
+end $$;
+
+-- ═══════════ Administrador Geral e Administrador da Área ═══════════
+-- O ponto de todo este bloco: o papel mais poderoso do sistema é também o que
+-- menos enxerga. Ele administra instâncias; quem administra pessoas é o
+-- administrador de cada área.
+
+\echo '\n=== Administrador Geral enxerga as duas áreas ==='
+set request.jwt.claim.sub = 'ccccccc1-0000-0000-0000-000000000001';
+do $$
+declare n int; begin
+  select count(*) into n from contas;
+  if n <> 2 then raise exception 'FALHOU: deveria ver 2 areas, viu %', n; end if;
+  raise notice 'ok: as duas areas';
+end $$;
+
+\echo '=== Administrador Geral NÃO enxerga nada de dentro das áreas ==='
+do $$
+declare n int; begin
+  select count(*) into n from colaboradores;
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: geral leu % colaborador(es)', n; end if;
+  select count(*) into n from alocacoes;
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: geral leu % alocacao(oes)', n; end if;
+  select count(*) into n from solicitacoes;
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: geral leu % solicitacao(oes)', n; end if;
+  select count(*) into n from comunicados;
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: geral leu % comunicado(s)', n; end if;
+  select count(*) into n from geracoes;
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: geral leu % geracao(oes)', n; end if;
+  select count(*) into n from logs;
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: geral leu % log(s) de area', n; end if;
+  raise notice 'ok: conta_id nulo nega toda policy do dominio';
+end $$;
+
+\echo '=== …e em perfis só enxerga os administradores de área, mais ele mesmo ==='
+do $$
+declare n int; begin
+  select count(*) into n from perfis;
+  if n <> 3 then raise exception 'FALHOU: deveria ver 3 perfis (2 admins + ele), viu %', n; end if;
+  select count(*) into n from perfis where papel in ('planejamento', 'gestor', 'colaborador');
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: geral leu % perfil(is) de dentro da area', n; end if;
+  raise notice 'ok: so os administradores locais';
+end $$;
+
+\echo '=== resumo_areas() dá os números das duas áreas, sem os dados ==='
+do $$
+declare r record; begin
+  select count(*) as areas, sum(colaboradores) as colabs into r from resumo_areas();
+  if r.areas <> 2 then raise exception 'FALHOU: resumo deveria trazer 2 areas, trouxe %', r.areas; end if;
+  -- 3 na conta A (um deles desligado não existe nesta massa) e 1 na conta B.
+  if r.colabs <> 4 then raise exception 'FALHOU: resumo deveria somar 4 colaboradores, somou %', r.colabs; end if;
+  raise notice 'ok: contagem sem leitura';
+end $$;
+
+\echo '=== Administrador Geral cria área e nomeia o administrador dela ==='
+insert into contas (id, nome) values ('33333333-3333-3333-3333-333333333333', 'Hospital C');
+insert into perfis (id, conta_id, nome, email, papel) values
+  ('ccccccc1-0000-0000-0000-000000000009', '33333333-3333-3333-3333-333333333333',
+   'Admin C', 'admin@c.com', 'admin_local');
+select count(*) as areas_apos_criar from contas;
+
+\echo '=== …mas NÃO cria Planejamento direto (a corrente tem elos, deve falhar) ==='
+do $$ begin
+  insert into perfis (id, conta_id, nome, email, papel) values
+    ('ccccccc1-0000-0000-0000-000000000008', '33333333-3333-3333-3333-333333333333',
+     'Plan C', 'plan@c.com', 'planejamento');
+  raise exception 'FALHA DE SEGURANCA: geral pulou o administrador da area';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Administrador da Área A: mesmo alcance de leitura do Planejamento ==='
+set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000005';
+do $$
+declare n int; begin
+  select count(*) into n from colaboradores;
+  if n <> 3 then raise exception 'FALHOU: deveria ver os 3 da area A, viu %', n; end if;
+  select count(*) into n from contas;
+  if n <> 1 then raise exception 'FALHA DE SEGURANCA: admin local viu % area(s)', n; end if;
+  raise notice 'ok: enxerga a propria area e so ela';
+end $$;
+
+\echo '=== Administrador da Área cria o Planejamento ==='
+insert into perfis (id, conta_id, nome, email, papel) values
+  ('aaaaaaa1-0000-0000-0000-000000000007', '11111111-1111-1111-1111-111111111111',
+   'Planejadora A2', 'plan2@a.com', 'planejamento');
+select count(*) as perfis_da_area_a from perfis;
+
+\echo '=== …mas NÃO nomeia outro Administrador da Área (deve falhar) ==='
+do $$ begin
+  insert into perfis (id, conta_id, nome, email, papel) values
+    ('aaaaaaa1-0000-0000-0000-000000000008', '11111111-1111-1111-1111-111111111111',
+     'Admin A2', 'admin2@a.com', 'admin_local');
+  raise exception 'FALHA DE SEGURANCA: area nomeou o proprio administrador';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== …e NÃO cria área (deve falhar) ==='
+do $$ begin
+  insert into contas (nome) values ('Area pirata');
+  raise exception 'FALHA DE SEGURANCA: admin local criou area';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Renomeia a própria área, mas NÃO a desativa (deve falhar) ==='
+update contas set nome = 'Hospital A (renomeado)' where id = conta_id();
+do $$ begin
+  update contas set ativa = false where id = conta_id();
+  raise exception 'FALHA DE SEGURANCA: area se desativou sozinha';
+exception when insufficient_privilege then
+  raise notice 'ok: ativa congelada para quem nao e o Geral';
+end $$;
+
+\echo '=== Ninguém apaga área — nem o Administrador Geral (deve afetar 0 linhas) ==='
+delete from contas where id = conta_id();
+set request.jwt.claim.sub = 'ccccccc1-0000-0000-0000-000000000001';
+delete from contas where id = '33333333-3333-3333-3333-333333333333';
+do $$
+declare n int; begin
+  select count(*) into n from contas;
+  if n <> 3 then raise exception 'FALHA DE SEGURANCA: area apagada, sobraram %', n; end if;
+  raise notice 'ok: sem policy de delete, o historico da area nao se perde';
+end $$;
+
+\echo '=== resumo_areas() não devolve nada para quem não é o Geral ==='
+set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000001';
+do $$
+declare n int; begin
+  select count(*) into n from resumo_areas();
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: Planejamento leu o tamanho de % area(s)', n;
+  end if;
+  raise notice 'ok: security definer barra quem chama';
+end $$;
+
+\echo '=== Planejamento NÃO promove ninguém a Administrador da Área (deve falhar) ==='
+do $$ begin
+  update perfis set papel = 'admin_local' where id = 'aaaaaaa1-0000-0000-0000-000000000002';
+  raise exception 'FALHA DE SEGURANCA: Planejamento nomeou administrador de area';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Planejamento NÃO enxerga o Administrador Geral nem cria área (deve falhar) ==='
+do $$
+declare n int; begin
+  select count(*) into n from perfis where papel = 'admin_geral';
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: area enxergou o Administrador Geral'; end if;
+  raise notice 'ok: o geral e invisivel de dentro da area';
+end $$;
+do $$ begin
+  insert into contas (nome) values ('Area pirata 2');
+  raise exception 'FALHA DE SEGURANCA: Planejamento criou area';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Colaborador NÃO se promove a Administrador da Área (deve falhar) ==='
+set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000003';
+do $$ begin
+  update perfis set papel = 'admin_local' where id = auth.uid();
+  raise exception 'FALHA DE SEGURANCA: escalonamento para admin_local permitido';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
 end $$;
 
 reset role;

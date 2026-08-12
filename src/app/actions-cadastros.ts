@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getSessao, exigirPlanejamento } from '@/lib/sessao';
+import { getSessao, exigirCadastrador } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { CARGOS, MOTIVOS_INATIVACAO } from '@/lib/domain/escalas/constantes';
 import { DIAS_ABREV } from '@/lib/domain/escalas/datas';
@@ -36,7 +36,7 @@ function inteiro(fd: FormData, campo: string): number | null {
 
 export async function salvarColaborador(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, COLABS);
+  exigirCadastrador(sessao.papel, COLABS);
 
   const id = Number(formData.get('id') ?? 0);
   const nome = texto(formData, 'nome');
@@ -134,7 +134,7 @@ export async function salvarColaborador(formData: FormData) {
 
 export async function salvarUnidade(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const id = Number(formData.get('id') ?? 0);
   const nome = texto(formData, 'nome');
@@ -182,7 +182,7 @@ export async function salvarUnidade(formData: FormData) {
  */
 export async function salvarCapacidade(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const unidadeId = Number(formData.get('unidadeId'));
   // Vários dias de uma vez: "segunda e sexta tenho 2 reservadas" é um pedido só,
@@ -243,7 +243,7 @@ export async function salvarCapacidade(formData: FormData) {
 /** Remove uma exceção de capacidade: o dia volta a valer a capacidade padrão da unidade. */
 export async function removerCapacidade(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const id = Number(formData.get('id'));
   if (!id) voltarComErro(PARAMS, formData, 'Exceção inválida.');
@@ -259,7 +259,7 @@ export async function removerCapacidade(formData: FormData) {
 
 export async function salvarEquipe(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const id = Number(formData.get('id') ?? 0);
   const nome = texto(formData, 'nome');
@@ -289,7 +289,7 @@ export async function salvarEquipe(formData: FormData) {
 
 export async function salvarFeriado(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const data = texto(formData, 'data');
   const nome = texto(formData, 'nome');
@@ -309,7 +309,7 @@ export async function salvarFeriado(formData: FormData) {
 
 export async function removerFeriado(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
   const data = texto(formData, 'data');
   const supabase = await createClient();
   await supabase.from('feriados').delete().eq('data', data);
@@ -320,7 +320,7 @@ export async function removerFeriado(formData: FormData) {
 
 export async function salvarParametros(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const cicloAncora = texto(formData, 'cicloAncora');
   const tolerancia = inteiro(formData, 'tolerancia');
@@ -362,7 +362,7 @@ export async function salvarParametros(formData: FormData) {
  */
 export async function salvarCotaEquipe(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const unidadeId = Number(formData.get('unidadeId'));
   const equipeId = Number(formData.get('equipeId'));
@@ -409,7 +409,7 @@ export async function salvarCotaEquipe(formData: FormData) {
 /** Remove a cota: a equipe volta a ser limitada só pela capacidade da unidade. */
 export async function removerCotaEquipe(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const id = Number(formData.get('id'));
   if (!id) voltarComErro(PARAMS, formData, 'Cota inválida.');
@@ -434,7 +434,7 @@ export async function removerCotaEquipe(formData: FormData) {
  */
 export async function salvarPosto(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const id = Number(formData.get('id') ?? 0);
   const unidadeId = Number(formData.get('unidadeId'));
@@ -465,7 +465,7 @@ export async function salvarPosto(formData: FormData) {
 
 export async function removerPosto(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, PARAMS);
+  exigirCadastrador(sessao.papel, PARAMS);
 
   const id = Number(formData.get('id'));
   if (!id) voltarComErro(PARAMS, formData, 'Posto inválido.');

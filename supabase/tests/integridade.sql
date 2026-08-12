@@ -99,9 +99,22 @@ select espera_recusa('ausência do tipo AUSENCIA sem grupo e motivo',
   $$insert into ausencias (conta_id, colaborador_id, tipo, inicio, dias)
     values ('11111111-1111-1111-1111-111111111111', 1, 'AUSENCIA', '2026-11-01', 2)$$);
 
-select espera_recusa('troca de plantão sem parceiro',
-  $$insert into solicitacoes (conta_id, colaborador_id, tipo, data)
-    values ('11111111-1111-1111-1111-111111111111', 1, 'TROCA_HORARIO', '2026-11-10')$$);
+-- Troca de plantão SEM parceiro é aceita, e é isso que se verifica aqui.
+--
+-- Até a 0010 havia um check exigindo o parceiro na abertura, e este teste
+-- cobrava a recusa. A 0010 derrubou a regra de propósito: quem pede a troca nem
+-- sempre sabe com quem ela vai ser feita — é o Planejamento que encontra o par
+-- ao encaixar na escala, e o nome é registrado depois, na ocorrência. O teste
+-- ficou para trás e passou a falhar em qualquer banco corretamente migrado,
+-- cobrando uma regra que o sistema não tem mais.
+do $$
+declare n int; begin
+  insert into solicitacoes (conta_id, colaborador_id, tipo, data)
+    values ('11111111-1111-1111-1111-111111111111', 1, 'TROCA_HORARIO', '2026-11-10');
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FALHOU: troca de plantao sem parceiro deveria ser aceita'; end if;
+  raise notice 'ok: troca de plantao sem parceiro aceita (o par vem na ocorrencia)';
+end $$;
 
 select espera_recusa('troca de plantão consigo mesmo',
   $$insert into solicitacoes (conta_id, colaborador_id, tipo, data, parceiro_id)

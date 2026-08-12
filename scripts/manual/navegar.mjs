@@ -1,5 +1,5 @@
 /**
- * Percorre o sistema inteiro clicando em tudo, nos três papéis.
+ * Percorre o sistema inteiro clicando em tudo, nos cinco papéis.
  *
  * `varrer.mjs` abre uma lista fixa de rotas; `acoes.mjs` executa as escritas
  * conhecidas. Fica um vão entre os dois: o link ou a aba que ninguém pensou em
@@ -19,7 +19,7 @@
  *   node scripts/manual/navegar.mjs
  *   BASE=http://localhost:3100 node scripts/manual/navegar.mjs
  */
-import { chromium } from 'playwright';
+import { abrirNavegador } from './navegador.mjs';
 import { writeFileSync } from 'node:fs';
 
 const BASE = process.env.BASE || 'http://localhost:3000';
@@ -27,9 +27,32 @@ const COMP = 'competencia=2026-11-01';
 const LIMITE = Number(process.env.LIMITE || 200);
 
 const PAPEIS = {
+  admin_geral:  { id: '00000000-0000-0000-0000-000000000009', raizes: ['/areas'] },
+  admin_local:  { id: '00000000-0000-0000-0000-000000000005', raizes: [`/?${COMP}`, '/usuarios', '/colaboradores', '/parametros'] },
   planejamento: { id: '00000000-0000-0000-0000-000000000001', raizes: [`/?${COMP}`, `/planos?${COMP}`, `/gerar?${COMP}`, `/calendario?${COMP}`, '/colaboradores', '/usuarios', '/parametros', '/solicitacoes', '/mural'] },
   gestor:       { id: '00000000-0000-0000-0000-000000000002', raizes: [`/?${COMP}`, `/calendario?${COMP}`, `/ocupacao?${COMP}`, '/solicitacoes', '/mural'] },
   colaborador:  { id: '00000000-0000-0000-0000-000000000003', raizes: [`/minha-escala?${COMP}`, '/solicitacoes', '/mural'] },
+};
+
+/**
+ * Rotas que cada papel NÃO deve conseguir abrir, com o destino esperado.
+ *
+ * A varredura comum só reclama de status ruim e de queda no login — uma tela
+ * que abre para quem não deveria abrir passa por ela em silêncio, porque
+ * responde 200 e renderiza bem. Estes são os desvios que a hierarquia promete,
+ * e uma promessa dessas precisa de teste que falhe quando ela for quebrada:
+ * quem esquecer o `redirect` numa página nova vai ouvir daqui.
+ */
+const PROIBIDAS = {
+  admin_geral:  [['/', '/areas'], ['/calendario', '/areas'], ['/usuarios', '/areas'], ['/hoje', '/areas']],
+  admin_local:  [['/planos', '/'], ['/gerar', '/'], ['/calendario', '/'], ['/solicitacoes', '/'],
+                 ['/mural', '/'], ['/ocupacao', '/'], ['/areas', '/']],
+  planejamento: [['/areas', '/'], ['/hoje', '/']],
+  gestor:       [['/planos', '/'], ['/gerar', '/'], ['/usuarios', '/'], ['/parametros', '/'],
+                 ['/colaboradores', '/'], ['/areas', '/'], ['/hoje', '/']],
+  colaborador:  [['/', '/hoje'], ['/planos', '/hoje'], ['/usuarios', '/hoje'],
+                 ['/calendario', '/minha-escala'], ['/ocupacao', '/minha-escala'],
+                 ['/parametros', '/hoje'], ['/areas', '/hoje']],
 };
 
 /**
@@ -43,7 +66,7 @@ function forma(url) {
   for (const [k, v] of u.searchParams) {
     // Mudam O QUE a página mostra, não QUAL página é: um dia qualquer do
     // calendário exercita o mesmo código que outro.
-    if (['dia', 'colab', 'id', 'competencia', 'q', 'equipe', 'modalidade', 'turno'].includes(k)) {
+    if (['dia', 'colab', 'id', 'competencia', 'q', 'equipe', 'unidade', 'modalidade', 'turno'].includes(k)) {
       q.set(k, v ? '_' : '');
     // Estado de mensagem, não de navegação. Sem descartar, cada redirecionamento
     // com `?ok=1` vira um destino novo e a fila não fecha nunca.
@@ -60,7 +83,7 @@ function forma(url) {
 const problemas = [];
 const relatorio = [];
 
-const navegador = await chromium.launch({ args: ['--lang=pt-BR'], env: { ...process.env, LANG: 'pt_BR.UTF-8' } });
+const navegador = await abrirNavegador({ args: ['--lang=pt-BR'], env: { ...process.env, LANG: 'pt_BR.UTF-8' } });
 
 for (const [papel, cfg] of Object.entries(PAPEIS)) {
   writeFileSync('/tmp/foto-usuario.json', JSON.stringify({ id: cfg.id, email: `${papel}@x` }));
@@ -71,7 +94,33 @@ for (const [papel, cfg] of Object.entries(PAPEIS)) {
   p.on('pageerror', e => errosJs.push(e.message));
   // O `console.error` do servidor não chega aqui, mas o do cliente sim — e é
   // onde um erro de hidratação aparece.
-  p.on('console', m => { if (m.type() === 'error') errosJs.push(`console: ${m.text().slice(0, 160)}`); });
+  //
+  // Duas famílias de ruído são descartadas, e só estas duas. A primeira é o
+  // /favicon.ico que o navegador pede sozinho quando a resposta não é HTML —
+  // o anexo do mural, por exemplo, que devolve PDF: não há `<head>` onde
+  // declarar o ícone, então o 404 é do navegador, não do sistema. A segunda é
+  // o socket de recarga do dev server, que morre a cada navegação e grita
+  // ERR_INCOMPLETE_CHUNKED_ENCODING. Deixar as duas passando treina quem lê o
+  // relatório a ignorá-lo inteiro, que é como um erro de verdade se esconde.
+  const RUIDO = [/favicon\.ico/, /webpack-hmr/, /ERR_INCOMPLETE_CHUNKED_ENCODING/];
+  // "Failed to load resource: 404" não diz qual recurso. A mesma falha é
+  // registrada abaixo, pelo `response`, com o endereço junto — que é o que
+  // permite consertá-la. Manter as duas só duplicaria a linha inútil.
+  const SEM_ENDERECO = /Failed to load resource/;
+  p.on('console', m => {
+    if (m.type() !== 'error') return;
+    const texto = m.text();
+    if (RUIDO.some(r => r.test(texto)) || SEM_ENDERECO.test(texto)) return;
+    errosJs.push(`console: ${texto.slice(0, 160)}`);
+  });
+  // O texto de um 404 de recurso não diz QUAL recurso — "Failed to load
+  // resource" e mais nada. Sem isto, o filtro acima não teria como distinguir
+  // o favicon de um arquivo do sistema faltando, então o URL vem daqui.
+  p.on('response', res => {
+    if (res.status() < 400) return;
+    if (RUIDO.some(r => r.test(res.url()))) return;
+    errosJs.push(`${res.status()} em ${res.url().replace(BASE, '')}`);
+  });
 
   const fila = [...cfg.raizes];
   const vistos = new Set();
@@ -148,7 +197,30 @@ for (const [papel, cfg] of Object.entries(PAPEIS)) {
     }
   }
 
-  relatorio.push(`  ${papel.padEnd(13)} ${abertas} página(s) abertas, ${vistos.size} forma(s) distintas`);
+  // Depois de varrer o que ele pode, confere o que ele não pode.
+  //
+  // Esperar `networkidle` e ainda assim insistir no endereço: um `redirect()`
+  // chamado DENTRO da página, e não no layout, acontece depois que o Next já
+  // despachou o começo do HTML — o status fica 200 e o desvio vira navegação do
+  // lado do cliente. Ler a URL cedo demais mostra a rota de origem e faz toda
+  // trava passar por quebrada. Foi assim que este teste nasceu com 19 falsos
+  // positivos, inclusive em desvios que existem desde o primeiro dia.
+  let barradas = 0;
+  for (const [rota, destino] of PROIBIDAS[papel] ?? []) {
+    await p.goto(BASE + rota, { waitUntil: 'networkidle' }).catch(() => {});
+    let chegou = new URL(p.url()).pathname;
+    for (let i = 0; i < 20 && chegou !== destino; i++) {
+      await p.waitForTimeout(150);
+      chegou = new URL(p.url()).pathname;
+    }
+    if (chegou === destino) barradas++;
+    else problemas.push(`${papel} abriu ${rota} (parou em ${chegou}, esperado ${destino})`);
+  }
+
+  relatorio.push(
+    `  ${papel.padEnd(13)} ${abertas} página(s) abertas, ${vistos.size} forma(s) distintas` +
+    `, ${barradas}/${(PROIBIDAS[papel] ?? []).length} rota(s) barrada(s)`,
+  );
   await ctx.close();
 }
 

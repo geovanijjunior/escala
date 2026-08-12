@@ -15,9 +15,10 @@ telas sutilmente erradas.
 | Arquivo | O que é |
 | --- | --- |
 | `preparar.sh` | Levanta os bancos de teste do zero: migrations, grants e massa |
+| `navegador.mjs` | Abre o Chromium; honra `CHROMIUM_EXECUTAVEL` quando o ambiente já tem um |
 | `auth-stub.sql` | O mínimo do schema `auth` do Supabase, para rodar contra Postgres nu |
 | `supabase-pg.mjs` | Cliente Supabase falso sobre o Postgres local |
-| `semear.ts` | Massa de exemplo: Hospital São Lucas, 15 pessoas, novembro de 2026 |
+| `semear.ts` | Massa de exemplo: duas áreas, cinco papéis, 15 pessoas, novembro de 2026 |
 | `fotografar.mjs` | Roteiro de captura, papel por papel |
 | `varrer.mjs` | Abre toda tela em todo papel e acusa erro de HTTP, de JS ou de consulta |
 | `navegar.mjs` | Descobre os destinos navegando: segue todo link, abre toda gaveta |
@@ -56,9 +57,17 @@ Os três roteiros abaixo rodam contra o mesmo dev server das fotos e existem
 porque a tela de solicitações ficou vazia em produção sem ninguém perceber.
 
 ```bash
-node scripts/manual/varrer.mjs   # 19 telas × 3 papéis, lista fixa
+node scripts/manual/varrer.mjs   # 20 telas × 5 papéis, lista fixa
 node scripts/manual/navegar.mjs  # segue todo link a partir das raízes de cada papel
-node scripts/manual/acoes.mjs    # 48 ações de escrita, cada uma conferida no banco
+node scripts/manual/acoes.mjs    # as ações de escrita, cada uma conferida no banco
+```
+
+Num ambiente que já traz o Chromium instalado — CI, container pronto — o
+Playwright costuma querer outra build e morre pedindo `npx playwright install`.
+Aponte o binário existente em vez de baixar:
+
+```bash
+CHROMIUM_EXECUTAVEL=/opt/pw-browsers/chromium node scripts/manual/navegar.mjs
 ```
 
 Rode os três em DOIS bancos, um em cada nível de migration — é isso que pega o
@@ -76,6 +85,13 @@ seguintes. É esse descompasso que existe no mundo real.
 `varrer.mjs` confere a URL final, não só o status: um redirecionamento para
 `/login` devolve 200, e a primeira versão da varredura passou inteira sem ter
 aberto uma única tela do sistema.
+
+`navegar.mjs` também testa o contrário — a lista `PROIBIDAS` diz, para cada
+papel, quais rotas ele NÃO deve abrir e onde deve parar. Cuidado ao mexer nela:
+um `redirect()` chamado dentro da página (e não no layout) acontece depois que o
+Next já despachou o começo do HTML, então o status fica 200 e o desvio vira
+navegação do lado do cliente. Ler a URL cedo demais acusa como quebrada uma
+trava que funciona.
 
 ## `varrer.mjs` e `navegar.mjs` não são a mesma coisa
 
@@ -113,6 +129,17 @@ tamanho, e não por render: o Chromium responde a um PDF baixando o arquivo, e
   o RLS não valeria nada, e as fotos do papel "colaborador" mostrariam a
   empresa inteira.
 
+- **`rpc()` só aceita função sem argumento**, e roda com o mesmo `role` e
+  `auth.uid()` das consultas normais. É o que o console de áreas usa
+  (`resumo_areas()`), e a função é `security definer`: chamada como
+  superusuário, o `where eh_admin_geral()` de dentro dela passaria para qualquer
+  um e a trava sumiria sem aviso.
+- **`auth.admin.createUser` grava de verdade em `auth.users`**, para o trigger
+  `on_auth_user_created` disparar. Antes era um stub que devolvia o usuário
+  logado e não escrevia nada — o que bastava até a cadeia de cadastro (o Geral
+  cria o administrador da área, o administrador cria o Planejamento) passar a
+  depender do perfil que o trigger cria. Um stub silencioso faria a varredura
+  aprovar uma tela que não cadastrou ninguém.
 - **`_sql()` do shim é memoizado**: montar tem efeito colateral (cada `$n`
   empilha em `valores`), e o método é chamado duas vezes — na execução e no log
   de erro. Sem cache, a segunda chamada deslocava os índices e a linha era

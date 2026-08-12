@@ -23,7 +23,11 @@ export async function entrar(formData: FormData) {
     redirect('/login?erro=' + encodeURIComponent(msg));
   }
 
-  const { data: perfil } = await supabase.from('perfis').select('bloqueado').eq('id', data.user.id).single();
+  const { data: perfil } = await supabase
+    .from('perfis')
+    .select('bloqueado, papel')
+    .eq('id', data.user.id)
+    .single();
   if (!perfil) {
     await supabase.auth.signOut();
     redirect('/login?erro=' + encodeURIComponent('Seu usuário não está vinculado a nenhuma organização.'));
@@ -31,6 +35,20 @@ export async function entrar(formData: FormData) {
   if (perfil.bloqueado) {
     await supabase.auth.signOut();
     redirect('/login?erro=' + encodeURIComponent('Seu acesso está bloqueado. Fale com o Planejamento.'));
+  }
+
+  // O Administrador Geral não pertence a área nenhuma, e "/" é o console de uma
+  // área. Mandá-lo direto para o dele evita um salto pelo login.
+  if (perfil.papel === 'admin_geral') redirect('/areas');
+
+  // Área desativada fecha a porta para todo mundo que está dentro dela,
+  // inclusive o administrador local. Barrar aqui, e não só nas telas, impede a
+  // sessão de nascer — sem isto o login daria certo e a pessoa só descobriria o
+  // problema ao ser devolvida ao login pela tela seguinte, sem explicação.
+  const { data: conta } = await supabase.from('contas').select('ativa').maybeSingle();
+  if (conta && conta.ativa === false) {
+    await supabase.auth.signOut();
+    redirect('/login?erro=' + encodeURIComponent('Esta área está desativada. Fale com o administrador do sistema.'));
   }
 
   redirect('/');

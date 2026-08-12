@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getSessao } from '@/lib/sessao';
+import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
 import { ROTULO_PAPEL } from '@/lib/supabase/types';
 import { convidarUsuario, mudarPapel, alternarBloqueio } from '@/app/actions-usuarios';
@@ -18,7 +18,7 @@ export default async function UsuariosPage({
   searchParams: Promise<{ erro?: string; ok?: string; criado?: string; senha?: string }>;
 }) {
   const sessao = await getSessao();
-  if (sessao.papel !== 'planejamento') redirect('/');
+  if (!podeCadastrar(sessao.papel)) redirect('/');
 
   const { erro, ok, criado, senha } = await searchParams;
   const supabase = await createClient();
@@ -89,7 +89,12 @@ export default async function UsuariosPage({
                     <div className="text-[10.5px] font-mono" style={{ color: 'var(--muted)' }}>{u.email}</div>
                   </td>
                   <td>
-                    {u.id === sessao.usuario.id ? (
+                    {/* Quem responde pela área é nomeado pelo Administrador
+                        Geral. Sem esta exceção o papel dele apareceria numa
+                        lista que não o contém — o <select> cairia na primeira
+                        opção e um "Salvar" distraído tentaria rebaixá-lo. A
+                        ação recusaria, mas o convite não deveria existir. */}
+                    {u.id === sessao.usuario.id || u.papel === 'admin_local' ? (
                       <Badge cor="var(--brand-700)" bg="var(--brand-100)">{ROTULO_PAPEL[u.papel]}</Badge>
                     ) : (
                       <form action={mudarPapel} className="flex items-center gap-1.5">
@@ -107,7 +112,8 @@ export default async function UsuariosPage({
                       : <Pill cor="var(--green)" bg="var(--green-bg)">Ativo</Pill>}
                   </td>
                   <td className="text-right">
-                    {u.id !== sessao.usuario.id && (
+                    {u.id !== sessao.usuario.id
+                      && !(u.papel === 'admin_local' && sessao.papel !== 'admin_local') && (
                       <form action={alternarBloqueio} className="inline">
                         <input type="hidden" name="usuarioId" value={u.id} />
                         <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">

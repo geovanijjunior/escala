@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { rotaComErro } from '@/lib/volta';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getSessao, exigirPlanejamento } from '@/lib/sessao';
+import { getSessao, exigirCadastrador } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { mensagemErroAuth } from '@/lib/erros-auth';
 import { voltar } from '@/lib/volta';
@@ -17,6 +17,15 @@ function erro(msg: string): never {
   redirect(rotaComErro(VOLTA, msg));
 }
 
+/**
+ * Os papéis que se concedem de dentro da área.
+ *
+ * `admin_local` não está aqui: quem responde pela área é nomeado pelo
+ * Administrador Geral, e deixar a própria área promover um administrador
+ * transformaria o Planejamento em administrador com um clique. A RLS
+ * (`perfis_insert`/`perfis_update`) recusa o mesmo, então esconder da lista é
+ * conveniência, não a trava.
+ */
 const PAPEIS: PapelEscalas[] = ['planejamento', 'gestor', 'colaborador'];
 
 /** Sem ambiguidade visual: nada de O/0, I/l/1. */
@@ -37,7 +46,7 @@ function senhaTemporaria(): string {
  */
 export async function convidarUsuario(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, VOLTA);
+  exigirCadastrador(sessao.papel, VOLTA);
 
   const nome = String(formData.get('nome') ?? '').trim();
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
@@ -67,19 +76,27 @@ export async function convidarUsuario(formData: FormData) {
 
 export async function mudarPapel(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, VOLTA);
+  exigirCadastrador(sessao.papel, VOLTA);
 
   const usuarioId = String(formData.get('usuarioId') ?? '');
   const papelBruto = String(formData.get('papel') ?? '');
   if (!(PAPEIS as string[]).includes(papelBruto)) erro('Papel inválido.');
 
-  // Rebaixar a si mesmo deixaria a organização sem ninguém que possa configurá-la.
-  if (usuarioId === sessao.usuario.id && papelBruto !== 'planejamento') {
-    erro('Você não pode remover o próprio acesso de Planejamento. Peça a outra pessoa com esse papel.');
+  // Trocar o próprio papel só tem um destino possível: para baixo. E rebaixar
+  // a si mesmo pode deixar a área sem ninguém capaz de configurá-la — o
+  // Administrador da Área, se virasse Planejamento, precisaria do Administrador
+  // Geral para voltar atrás.
+  if (usuarioId === sessao.usuario.id) {
+    erro('Você não pode alterar o próprio papel. Peça a outra pessoa com acesso de administração.');
   }
 
   const supabase = await createClient();
-  const { data: alvo } = await supabase.from('perfis').select('nome').eq('id', usuarioId).single();
+  const { data: alvo } = await supabase.from('perfis').select('nome, papel').eq('id', usuarioId).single();
+
+  // O Planejamento não rebaixa quem responde pela área.
+  if (alvo?.papel === 'admin_local') {
+    erro('O Administrador da Área é definido pelo Administrador Geral.');
+  }
   await supabase.from('perfis').update({ papel: papelBruto }).eq('id', usuarioId);
 
   await registrarLog(sessao, 'Papel alterado', `${alvo?.nome ?? usuarioId} → ${papelBruto}`);
@@ -97,14 +114,19 @@ export async function mudarPapel(formData: FormData) {
  */
 export async function alternarBloqueio(formData: FormData) {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, VOLTA);
+  exigirCadastrador(sessao.papel, VOLTA);
 
   const usuarioId = String(formData.get('usuarioId') ?? '');
   if (usuarioId === sessao.usuario.id) erro('Você não pode bloquear o próprio acesso.');
 
   const supabase = await createClient();
-  const { data: alvo } = await supabase.from('perfis').select('nome, bloqueado').eq('id', usuarioId).single();
+  const { data: alvo } = await supabase.from('perfis').select('nome, papel, bloqueado').eq('id', usuarioId).single();
   if (!alvo) erro('Usuário não encontrado.');
+
+  // Sem isto, o Planejamento tranca do lado de fora quem responde pela área.
+  if (alvo.papel === 'admin_local' && sessao.papel !== 'admin_local') {
+    erro('Só o Administrador Geral bloqueia o Administrador da Área.');
+  }
 
   const bloqueado = !alvo.bloqueado;
   const admin = createAdminClient();

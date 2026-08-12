@@ -1,13 +1,16 @@
 /** Abre toda tela, em todo papel, e reporta erro de consulta e de render. */
-import { chromium } from 'playwright';
+import { abrirNavegador } from './navegador.mjs';
 import { writeFileSync } from 'node:fs';
 const COMP = 'competencia=2026-11-01';
 const PAPEIS = {
+  admin_geral:  '00000000-0000-0000-0000-000000000009',
+  admin_local:  '00000000-0000-0000-0000-000000000005',
   planejamento: '00000000-0000-0000-0000-000000000001',
   gestor:       '00000000-0000-0000-0000-000000000002',
   colaborador:  '00000000-0000-0000-0000-000000000003',
 };
 const ROTAS = [
+  '/areas',
   `/?${COMP}`, '/colaboradores', '/colaboradores?id=2', '/usuarios',
   '/parametros?aba=unidades', '/parametros?aba=equipes', '/parametros?aba=feriados',
   '/parametros?aba=motor', '/parametros?aba=auditoria',
@@ -18,7 +21,7 @@ const ROTAS = [
   '/mural',
 ];
 const BASE = process.env.BASE || 'http://localhost:3000';
-const b = await chromium.launch();
+const b = await abrirNavegador();
 let problemas = 0;
 for (const [papel, id] of Object.entries(PAPEIS)) {
   writeFileSync('/tmp/foto-usuario.json', JSON.stringify({ id, email: `${papel}@x` }));

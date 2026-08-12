@@ -12,6 +12,9 @@ import { sair } from '@/app/actions-sessao';
 
 /** Quantas decisões estão paradas esperando este usuário. */
 async function contarPendencias(papel: string, usuarioId: string): Promise<number> {
+  // O Administrador da Área não decide solicitação — nada fica parado nele.
+  if (papel === 'admin_local') return 0;
+
   const supabase = await createClient();
   if (papel === 'planejamento') {
     const { count } = await supabase
@@ -75,6 +78,22 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
             { href: '/mural', label: 'Mural', badge: muralNovo },
           ],
         }]
+      : sessao.papel === 'admin_local'
+      ? [
+          // Sem Planos, Gerar, Calendário nem Solicitações: quem responde pela
+          // área monta a área, não o mês. Os indicadores ficam porque são
+          // leitura — é como ele confere se a operação que ele configurou está
+          // de pé, sem tocar em nada dela.
+          { secao: 'Área', itens: [{ href: '/', label: 'Indicadores' }] },
+          {
+            secao: 'Cadastros',
+            itens: [
+              { href: '/usuarios', label: 'Usuários' },
+              { href: '/colaboradores', label: 'Colaboradores' },
+              { href: '/parametros', label: 'Parâmetros' },
+            ],
+          },
+        ]
       : sessao.papel === 'gestor'
       ? [{
           secao: 'Minha equipe',

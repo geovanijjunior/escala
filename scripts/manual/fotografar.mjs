@@ -8,17 +8,23 @@
  * O papel da pessoa logada é trocado escrevendo em /tmp/foto-usuario.json, que
  * o shim relê a cada consulta. Assim as três visões saem sem reiniciar o app.
  */
-import { chromium } from 'playwright';
+import { abrirNavegador } from './navegador.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import pg from 'pg';
 
-const db = new pg.Pool({ host: '/tmp', port: 5433, user: 'postgres', database: 'manual' });
+const db = new pg.Pool({
+  host: process.env.PGHOST || '/tmp',
+  port: Number(process.env.PGPORT || 5433),
+  user: process.env.PGUSER || 'postgres',
+  database: process.env.PGDATABASE || 'manual',
+});
 
 const BASE = process.env.BASE || 'http://localhost:3000';
 const SAIDA = process.env.SAIDA || 'docs/imagens';
 const COMP = 'competencia=2026-11-01';
 
 const PAPEIS = {
+  helena:  { id: '00000000-0000-0000-0000-000000000009', email: 'helena.prado@jornada.app' },
   ana:     { id: '00000000-0000-0000-0000-000000000001', email: 'ana.ribeiro@saolucas.com' },
   ricardo: { id: '00000000-0000-0000-0000-000000000002', email: 'ricardo.matos@saolucas.com' },
   felipe:  { id: '00000000-0000-0000-0000-000000000003', email: 'felipe.souza@saolucas.com' },
@@ -51,16 +57,30 @@ async function foto(pagina, nome, url, { recorte, antes, inteira = true, janela 
 
 const roteiro = [];
 
+// ── Administrador Geral (Helena) — administra áreas, não escalas ─────
+// Vem primeiro porque é o começo da corrente: sem área e sem administrador
+// local, nada do que aparece nas fotos seguintes existiria.
+roteiro.push(['helena', async p => {
+  await foto(p, 'areas', '/areas');
+  await foto(p, 'area-nova', '/areas', {
+    recorte: 'section:has(button:text("Criar área"))',
+  });
+}]);
+
 // ── Planejamento (Ana) — é quem opera o sistema inteiro ──────────────
 roteiro.push(['ana', async p => {
   await foto(p, 'inicio', `/?${COMP}`);
 
   // O painel do sino é `position: absolute`, então a caixa do `<details>` não o
   // contém — fotografar o `<details>` renderia só o ícone. O alvo é o painel.
+  //
+  // `:visible` porque o cabeçalho existe duas vezes no DOM desde que o console
+  // ganhou versão de celular: sem o filtro, `.first()` pega o sino da barra
+  // móvel, que está escondido em 1440px, e a foto morre em timeout.
   await foto(p, 'notificacoes', `/?${COMP}`, {
-    recorte: 'header details[open] > div',
+    recorte: 'header details[open] > div:visible',
     antes: async pg => {
-      await pg.locator('summary[aria-label^="Notifica"]').first().click();
+      await pg.locator('summary[aria-label^="Notifica"]:visible').first().click();
       await pg.waitForTimeout(250);
     },
   });
@@ -203,7 +223,7 @@ roteiro.push(['felipe', async p => {
 // do NAVEGADOR, não o `locale` do contexto: sem isto o Chromium desenha
 // mm/dd/yyyy e 08:00 AM, e o manual mostraria data e hora no formato errado.
 // `--lang` sozinho não basta — o LANG do processo é o que decide.
-const navegador = await chromium.launch({
+const navegador = await abrirNavegador({
   args: ['--lang=pt-BR'],
   env: { ...process.env, LANG: 'pt_BR.UTF-8', LANGUAGE: 'pt_BR' },
 });

@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getSessao } from '@/lib/sessao';
 import {
@@ -16,6 +17,9 @@ import { NovaSolicitacao } from '@/components/NovaSolicitacao';
 export default async function MinhaEscalaPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
+  // O Administrador da Área cuida de cadastro, não de escala. As telas de
+  // operação ficam fora do alcance dele mesmo quando a RLS deixaria ler.
+  if (sessao.papel === 'admin_local') redirect('/');
   const competencia = competenciaDaBusca(busca);
 
   if (!sessao.colaboradorId) {

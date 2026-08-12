@@ -23,6 +23,9 @@ executa() {
 quer tipos        && executa 'Tipos'        npx tsc --noEmit
 quer lint         && executa 'Lint'         npm run --silent lint
 quer motor        && executa 'Motor'        npx tsx src/lib/domain/escalas/motor.teste.ts
+# Estava de fora: `npm test` roda os dois, mas a bateria completa — que é a que
+# se roda antes de commitar — só rodava o motor.
+quer importacao   && executa 'Importação'   npx tsx src/lib/domain/escalas/importacao.teste.ts
 quer propriedades && executa 'Propriedades' npx tsx src/lib/domain/escalas/motor.propriedades.ts
 quer build        && executa 'Build'        npm run --silent build
 

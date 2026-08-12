@@ -11,6 +11,9 @@ import { ExportarCsv } from '@/components/ExportarCsv';
 export default async function OcupacaoPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
+  // O Administrador da Área cuida de cadastro, não de escala. As telas de
+  // operação ficam fora do alcance dele mesmo quando a RLS deixaria ler.
+  if (sessao.papel === 'admin_local') redirect('/');
 
   // A RLS entrega a este colaborador só as próprias alocações, então a tela
   // mostraria toda unidade em 0/16 — número errado apresentado como fato.

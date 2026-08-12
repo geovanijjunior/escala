@@ -5,7 +5,7 @@
  * banco. Só olhar a tela deixaria passar a ação que redireciona feliz sem ter
  * escrito nada.
  */
-import { chromium } from 'playwright';
+import { abrirNavegador } from './navegador.mjs';
 import { writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import pg from 'pg';
@@ -18,15 +18,25 @@ execFileSync('npx', ['tsx', 'scripts/manual/semear.ts'], {
   env: { ...process.env, PGDATABASE: process.env.PGDATABASE || 'manual' },
 });
 
-const db = new pg.Pool({ host: '/tmp', port: 5433, user: 'postgres', database: process.env.PGDATABASE || 'manual' });
+// Mesmos padrões do shim, e pelas mesmas variáveis: o cluster de teste pode
+// estar no socket padrão da distribuição em vez de `/tmp:5433`, e um endereço
+// cravado aqui faria a suíte morrer em ECONNREFUSED com cara de app quebrado.
+const db = new pg.Pool({
+  host: process.env.PGHOST || '/tmp',
+  port: Number(process.env.PGPORT || 5433),
+  user: process.env.PGUSER || 'postgres',
+  database: process.env.PGDATABASE || 'manual',
+});
 const BASE = process.env.BASE || 'http://localhost:3000';
 const COMP = 'competencia=2026-11-01';
 const como = id => writeFileSync('/tmp/foto-usuario.json', JSON.stringify({ id, email: 'x@x' }));
 const ANA = '00000000-0000-0000-0000-000000000001';
 const RICARDO = '00000000-0000-0000-0000-000000000002';
 const FELIPE = '00000000-0000-0000-0000-000000000003';
+const MARCOS = '00000000-0000-0000-0000-000000000005'; // administrador da área
+const HELENA = '00000000-0000-0000-0000-000000000009'; // administradora geral
 
-const b = await chromium.launch({ args: ['--lang=pt-BR'], env: { ...process.env, LANG: 'pt_BR.UTF-8' } });
+const b = await abrirNavegador({ args: ['--lang=pt-BR'], env: { ...process.env, LANG: 'pt_BR.UTF-8' } });
 const ctx = await b.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'pt-BR' });
 const p = await ctx.newPage();
 let falhas = 0;
@@ -232,9 +242,15 @@ await acao('regeração parcial', `/gerar?${COMP}`, async p => {
 
 // ── Solicitações ──────────────────────────────────────────────
 // Cada decisão consome o cartão em triagem, então cada uma abre o seu.
+//
+// A área sai do perfil de Ana, e não de `from contas` — desde que a massa tem
+// duas áreas, o produto cartesiano gerava também um pedido na área errada,
+// apontando para um colaborador que não é dela. O banco recusava pela chave
+// composta, e a suíte inteira morria num erro que parecia do app.
 await db.query(`insert into solicitacoes (conta_id, colaborador_id, tipo, data, detalhe, status)
-  select c.id, 3, 'TROCA_UNIDADE', '2026-11-19', 'Pedido de teste ' || g, 'TRIAGEM'
-  from contas c, generate_series(1, 2) g`);
+  select p.conta_id, 3, 'TROCA_UNIDADE', '2026-11-19', 'Pedido de teste ' || g, 'TRIAGEM'
+  from perfis p, generate_series(1, 2) g
+  where p.id = $1`, [ANA]);
 
 await acao('decidir: encaminhar', '/solicitacoes', async p => {
   await p.locator('button:text("Encaminhar ao gestor")').first().click();
@@ -265,8 +281,8 @@ await acao('decidir: recusar', '/solicitacoes', async p => {
 // Uma solicitação de férias esperando o gestor, com um colega já de férias no
 // mesmo período: é o contexto que a tela precisa mostrar antes da decisão.
 await db.query(`insert into solicitacoes (conta_id, colaborador_id, tipo, data, data_fim, detalhe, status, opcao_ferias)
-  select c.id, 3, 'FERIAS', '2026-12-01', '2026-12-30', 'Férias de fim de ano', 'GESTOR', '30'
-  from contas c`);
+  select p.conta_id, 3, 'FERIAS', '2026-12-01', '2026-12-30', 'Férias de fim de ano', 'GESTOR', '30'
+  from perfis p where p.id = $1`, [ANA]);
 
 como(RICARDO);
 {
@@ -545,6 +561,92 @@ como(ANA);
   await acao('removerComunicado', '/mural', async p => {
     await p.locator('button:text("Remover")').first().click();
   }, 'select count(*) c from comunicados', antes - 1);
+}
+
+// ── Console de áreas ──────────────────────────────────────────
+como(HELENA);
+{
+  const nova = `Área de Teste ${Date.now().toString().slice(-6)}`;
+  await acao('criarArea', '/areas', async p => {
+    // O formulário de criação é o último da página; os de cima são o de
+    // renomear e o de somar administrador de cada área já existente.
+    const f = p.locator('form').last();
+    await f.locator('input[name="nome"]').fill(nova);
+    await f.locator('input[name="adminNome"]').fill('Teste Admin');
+    await f.locator('input[name="adminEmail"]').fill(`admin.${Date.now()}@teste.com`);
+    await f.locator('button[type="submit"]').click();
+  }, 'select count(*) c from contas');
+
+  // A área nasce COM administrador: se o login falhasse, a criação seria
+  // desfeita, e conferir só a conta deixaria passar exatamente esse caso.
+  const orfas = await conta(`
+    select count(*) c from contas c
+    where not exists (select 1 from perfis p where p.conta_id = c.id and p.papel = 'admin_local')`);
+  if (orfas > 0) {
+    falhas++;
+    console.log(`  FALHOU área nasce com administrador      ${orfas} área(s) sem administrador`);
+  } else console.log('  ok     área nasce com administrador      nenhuma órfã');
+
+  await acao('adicionarAdminLocal', '/areas', async p => {
+    await p.locator('summary:has-text("Administrar esta área")').first().click();
+    const f = p.locator('form:has(input[name="adminEmail"])').first();
+    await f.locator('input[name="adminNome"]').fill('Segundo Admin');
+    await f.locator('input[name="adminEmail"]').fill(`segundo.${Date.now()}@teste.com`);
+    await f.locator('button[type="submit"]').click();
+  }, "select count(*) c from perfis where papel = 'admin_local'");
+
+  await acao('alternarArea (desativar)', '/areas', async p => {
+    await p.locator('button:text("Desativar")').first().click();
+  }, 'select count(*) c from contas where ativa = false');
+
+  // Desativar tem de valer para quem já está dentro, e não só para logins
+  // novos: uma aba aberta continuaria operando a escala de uma área fora do ar.
+  {
+    const [{ id: areaOff }] = (await db.query('select id from contas where ativa = false limit 1')).rows;
+    const [{ id: dentro }] = (await db.query(
+      "select id from perfis where conta_id = $1 order by papel limit 1", [areaOff])).rows;
+    como(dentro);
+    await p.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+    const parou = new URL(p.url()).pathname;
+    if (parou !== '/login') {
+      falhas++;
+      console.log(`  FALHOU área desativada barra quem entra  parou em ${parou}`);
+    } else console.log('  ok     área desativada barra quem entra  devolvido ao login');
+    como(HELENA);
+  }
+
+  await acao('alternarArea (reativar)', '/areas', async p => {
+    await p.locator('button:text("Reativar")').first().click();
+  }, 'select count(*) c from contas where ativa = false', 0);
+
+  await acao('renomearArea', '/areas', async p => {
+    await p.locator('summary:has-text("Administrar esta área")').first().click();
+    const f = p.locator('form:has(button:text("Renomear"))').first();
+    await f.locator('input[name="nome"]').fill('Área Renomeada');
+    await f.locator('button:text("Renomear")').click();
+  }, "select count(*) c from contas where nome = 'Área Renomeada'", 1);
+}
+
+// ── Administrador da Área ─────────────────────────────────────
+como(MARCOS);
+{
+  await acao('admin da área cria Planejamento', '/usuarios', async p => {
+    const f = p.locator('form:has(select[name="papel"]):has(input[name="email"])').last();
+    await f.locator('input[name="nome"]').fill('Planejadora Nova');
+    await f.locator('input[name="email"]').fill(`plan.${Date.now()}@saolucas.com`);
+    await f.locator('select[name="papel"]').selectOption('planejamento');
+    await f.locator('button[type="submit"]').click();
+  }, "select count(*) c from perfis where papel = 'planejamento'");
+
+  // Aba explícita: `equipes` também tem um campo `codigo`, e cair na aba errada
+  // faria o teste preencher outro formulário e culpar a tela certa.
+  await acao('admin da área cadastra unidade', '/parametros?aba=unidades', async p => {
+    const f = p.locator('form:has(input[name="codigo"])').first();
+    await f.locator('input[name="codigo"]').fill(`U${Date.now().toString().slice(-4)}`);
+    await f.locator('input[name="nome"]').fill('Unidade da Área');
+    await f.locator('input[name="sigla"]').fill('UDA');
+    await f.locator('button[type="submit"]').click();
+  }, 'select count(*) c from unidades');
 }
 
 await b.close();

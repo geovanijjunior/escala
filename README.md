@@ -51,18 +51,59 @@ persistido: recarregar a página devolve tudo ao estado inicial.
 Ele não reproduz o isolamento entre contas nem o recorte por papel via RLS (sem
 banco, isso vira filtro de tela), nem o histórico de versões de geração.
 
-## Papéis
+## Áreas e papéis
+
+Uma **área** é uma instância isolada do sistema: colaboradores, escalas,
+solicitações e comunicados próprios, invisíveis para as outras áreas. No banco
+ela é a tabela `contas` — o nome mudou na interface, o isolamento é o mesmo de
+sempre.
 
 Um perfil tem exatamente um papel, e ele é a única dimensão de permissão:
 
 | Papel | Vê | Pode |
 |---|---|---|
-| **Planejamento** | Toda a conta | Configurar parâmetros, editar planos, gerar/publicar/encerrar a escala, fazer a triagem das solicitações, travar alocações, publicar comunicados para qualquer público |
+| **Administrador Geral** | As áreas, e nada dentro delas | Cadastrar áreas, nomear e bloquear o Administrador de cada uma, desativar e reativar uma área, ler as contagens de cada área (pessoas, usuários, mês publicado) |
+| **Administrador da Área** | Toda a área | Cadastrar o Planejamento e os demais usuários, manter colaboradores, equipes, unidades, postos, feriados e parâmetros, acompanhar os indicadores |
+| **Planejamento** | Toda a área | Tudo do Administrador da Área, mais: editar planos, gerar/publicar/encerrar a escala, fazer a triagem das solicitações, travar alocações, publicar comunicados para qualquer público |
 | **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, decidir sozinho o que a triagem encaminhou (aprovar, enfileirar ou recusar), lançar ocorrências, ajustar a escala já publicada, publicar comunicados para a equipe |
 | **Colaborador** | Só a si mesmo | Consultar a própria escala publicada, abrir solicitações, aceitar/recusar convites de troca, ler o mural |
 
-Quem cria a organização entra como Planejamento. Os demais são criados na tela
-de **Usuários**, com o papel definido ali.
+O cadastro é uma corrente, e cada elo só cria o próximo: Administrador Geral →
+Administrador da Área → Planejamento → gestores e colaboradores. A regra vive na
+RLS, não na tela — esconder o botão não impede um POST.
+
+Duas assimetrias merecem nota. O **Administrador Geral não tem área**: o
+`conta_id` do perfil dele é nulo, e como toda policy do domínio compara
+`conta_id = conta_id()`, a comparação resulta em nulo, que em RLS nega. O papel
+com mais alcance é o que menos enxerga, e cada permissão dele foi concedida uma
+a uma. E o **Administrador da Área não opera a escala**: ele tem o mesmo alcance
+de leitura do Planejamento — precisa poder auditar a própria área —, mas as
+telas de plano, geração, calendário e solicitações ficam fora do alcance dele, e
+as Server Actions correspondentes recusam o papel.
+
+Quem cria uma organização pela tela de cadastro continua entrando como
+Planejamento dela; é o caminho de quem experimenta o sistema. Numa instalação
+com Administrador Geral, o caminho normal é ele criar a área.
+
+### Criar o primeiro Administrador Geral
+
+Não há tela para isso — seria uma tela que qualquer um poderia usar antes do
+primeiro cadastro. No SQL Editor do Supabase, com o e-mail de um usuário que já
+existe em **Authentication → Users**:
+
+```sql
+update perfis set papel = 'admin_geral', conta_id = null
+where email = 'voce@exemplo.com';
+```
+
+Ou, criando o usuário já no papel, em **Authentication → Users → Add user**,
+com este *User Metadata*:
+
+```json
+{ "nome": "Seu Nome", "papel": "admin_geral" }
+```
+
+O trigger `handle_novo_usuario` reconhece o papel e cria o perfil sem área.
 
 ## Como o motor decide
 
@@ -169,8 +210,9 @@ organização com você como Planejamento.
 
 ## Modelo de dados
 
-Cada organização é uma **conta**. `perfis` pertencem a uma conta e têm um
-`papel`. Todas as tabelas do domínio — `unidades`, `equipes`, `colaboradores`,
+Cada área é uma linha em **`contas`**. `perfis` pertencem a uma conta e têm um
+`papel` — exceto o Administrador Geral, cujo `conta_id` é nulo justamente para
+que nenhuma policy do domínio o alcance. Todas as tabelas do domínio — `unidades`, `equipes`, `colaboradores`,
 `planos`, `ausencias`, `geracoes`, `alocacoes`, `pins`, `solicitacoes`,
 `cotas_equipe`, `postos`, `ocorrencias`, `avisos`, `comunicados`,
 `comunicado_anexos`, `alteracoes_pendentes`, `logs` — são isoladas por `conta_id`
@@ -187,9 +229,12 @@ Para verificar, com um Postgres local já migrado:
 psql -d escala -f supabase/tests/rls.sql
 ```
 
-Os três blocos `do $$ ... $$` são testes negativos: lançam exceção se a operação
-**passar**. Cobrem escalonamento de privilégio, adulteração de solicitação por
-terceiro e escrita na escala por quem não é Planejamento.
+Os blocos `do $$ ... $$` são testes negativos: lançam exceção se a operação
+**passar**. Cobrem escalonamento de privilégio (inclusive para os dois papéis de
+administração), adulteração de solicitação por terceiro, escrita na escala por
+quem não é Planejamento, e a corrente de cadastro — o Administrador Geral não
+cria Planejamento direto, a área não nomeia o próprio administrador, e nenhum
+dos dois enxerga o que não lhe cabe.
 
 ## Decisões que valem conhecer
 
@@ -320,6 +365,7 @@ português abre sem embaralhar acento).
    | 12º | `0012_alteracoes_pendentes.sql` | caixa de saída das alterações em escala publicada |
    | 13º | `0013_anexo_5mb_e_caixa_de_saida.sql` | anexo até 5 MB e correção do recorte da caixa de saída |
    | 14º | `0014_notificacoes_lidas.sql` | leitura por item no sino e última visita ao mural |
+   | 15º | `0015_areas_e_administradores.sql` | áreas, Administrador Geral e Administrador da Área |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

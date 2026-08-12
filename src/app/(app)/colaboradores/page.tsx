@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getSessao } from '@/lib/sessao';
+import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
 import { listarColaboradores, listarEquipes, listarUnidades } from '@/lib/data/escalas';
 import { formatarData, somaHoras } from '@/lib/domain/escalas/datas';
@@ -23,7 +23,7 @@ const SITUACAO = {
 export default async function ColaboradoresPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
-  if (sessao.papel !== 'planejamento') redirect('/');
+  if (!podeCadastrar(sessao.papel)) redirect('/');
 
   const supabase = await createClient();
   const [colaboradores, equipes, unidades, perfisRes] = await Promise.all([

@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getSessao, ehPlanejamento, podeEditarEscala } from '@/lib/sessao';
 import {
@@ -24,6 +25,14 @@ import { DetalheDoDia } from '@/components/DetalheDoDia';
 export default async function CalendarioPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
   const sessao = await getSessao();
+  // O Administrador da Área cuida de cadastro, não de escala. As telas de
+  // operação ficam fora do alcance dele mesmo quando a RLS deixaria ler.
+  if (sessao.papel === 'admin_local') redirect('/');
+  // O colaborador tem a própria tela de mês. Aqui a RLS já lhe entregava só as
+  // próprias alocações — ou seja, um calendário de equipe com uma pessoa só, e
+  // uma contagem de ocupação que pareceria a da unidade sem ser. É o mesmo
+  // desvio que /ocupacao já fazia, e que faltava aqui.
+  if (sessao.papel === 'colaborador') redirect('/minha-escala');
   const competencia = competenciaDaBusca(busca);
   const planeja = ehPlanejamento(sessao.papel);
 
@@ -136,7 +145,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
           />
         </Bloco>
 
-        {sessao.papel !== 'colaborador' && ausenciasComoAlocacoes.length > 0 && (
+        {ausenciasComoAlocacoes.length > 0 && (
           <Bloco
             titulo="Férias e ausências já aprovadas"
             desc="Valem independentemente da escala e a geração vai respeitá-las."
@@ -368,7 +377,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
           // escala que ninguém viu. Em rascunho o dia ainda é hipótese: o que
           // se faz ali é mover a alocação, não lançar o atraso de um turno que
           // pode nem existir na versão publicada.
-          podeLancarOcorrencia={sessao.papel !== 'colaborador' && geracao.status !== 'rascunho'}
+          podeLancarOcorrencia={geracao.status !== 'rascunho'}
           fecharHref={`/calendario${comFiltros(busca, { dia: null })}`}
           volta="/calendario"
         />

@@ -4,7 +4,20 @@ export type Ciclo = 'IMPAR' | 'PAR';
 export type StatusColaborador = 'ativo' | 'afastado' | 'desligado';
 export type ModoHomeOffice = 'FIXO' | 'COTA';
 export type StatusGeracao = 'rascunho' | 'publicada' | 'encerrada';
-export type PapelEscalas = 'planejamento' | 'gestor' | 'colaborador';
+/**
+ * Os cinco papéis, em ordem decrescente de alcance.
+ *
+ * `admin_geral` responde pelo sistema: cria as áreas e o administrador de cada
+ * uma, e deliberadamente NÃO enxerga o que acontece dentro delas. `admin_local`
+ * responde por uma área: cria o Planejamento e cuida dos cadastros de base, mas
+ * não monta plano nem gera escala. Do Planejamento para baixo nada mudou.
+ */
+export type PapelEscalas =
+  | 'admin_geral'
+  | 'admin_local'
+  | 'planejamento'
+  | 'gestor'
+  | 'colaborador';
 
 /** Categorias de alocação de um dia. UNIDADE é a única que exige `unidadeId`. */
 export type Modalidade =

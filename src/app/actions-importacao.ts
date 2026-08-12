@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { getSessao, exigirPlanejamento } from '@/lib/sessao';
+import { getSessao, exigirCadastrador } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { listarEquipes, listarUnidades } from '@/lib/data/escalas';
 import { lerPlanilha, type LinhaImportada } from '@/lib/domain/escalas/importacao';
@@ -97,7 +97,7 @@ export async function conferirPlanilha(conteudo: string): Promise<Relatorio> {
  */
 export async function importarPlanilha(conteudo: string): Promise<Relatorio> {
   const sessao = await getSessao();
-  exigirPlanejamento(sessao.papel, '/colaboradores');
+  exigirCadastrador(sessao.papel, '/colaboradores');
 
   const relatorio = await analisar(conteudo);
   if (relatorio.erros.length) return relatorio;
