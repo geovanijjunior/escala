@@ -1,15 +1,21 @@
 'use client';
 
-import { useState } from 'react';
-import { TIPOS_ANEXO, LIMITE_BYTES } from '@/lib/anexos';
+import { useRef, useState } from 'react';
+import { TIPOS_ANEXO, LIMITE_BYTES, LIMITE_ROTULO } from '@/lib/anexos';
+
+const tamanho = (b: number) => {
+  if (b >= 1048576) return `${(b / 1048576).toFixed(1)} MB`;
+  if (b >= 1024) return `${Math.round(b / 1024)} KB`;
+  return `${b} B`;
+};
 
 /**
  * Campos do comunicado.
  *
  * Cliente por causa de duas dependências entre campos: a equipe só faz sentido
  * quando o público é "colaboradores", e o tamanho dos anexos precisa ser
- * conferido antes do envio — descobrir que o arquivo passou de 2 MB depois de
- * subir 8 MB e perder o texto digitado é o pior jeito de aprender o limite.
+ * conferido antes do envio — descobrir que o arquivo passou do limite depois de
+ * subir 20 MB e perder o texto digitado é o pior jeito de aprender o teto.
  */
 export function FormComunicado({
   podeEscolherPublico, equipes,
@@ -18,14 +24,10 @@ export function FormComunicado({
   equipes: { id: number; nome: string }[];
 }) {
   const [publico, setPublico] = useState<'colaboradores' | 'gestores'>('colaboradores');
-  const [erroAnexo, setErroAnexo] = useState('');
+  const [arquivos, setArquivos] = useState<File[]>([]);
+  const campo = useRef<HTMLInputElement>(null);
 
-  const conferirTamanho = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const grandes = [...(e.target.files ?? [])].filter(f => f.size > LIMITE_BYTES);
-    setErroAnexo(grandes.length
-      ? `${grandes.map(f => f.name).join(', ')}: passa de 2 MB. Reduza antes de enviar.`
-      : '');
-  };
+  const grandes = arquivos.filter(f => f.size > LIMITE_BYTES);
 
   return (
     <div className="space-y-3">
@@ -70,32 +72,83 @@ export function FormComunicado({
         <textarea name="corpo" required rows={4} className="esc-input" placeholder="O texto que a equipe vai ler." />
       </label>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="esc-rotulo">Anexos (imagem ou PDF)</span>
-          <input
-            type="file"
-            name="anexos"
-            multiple
-            accept={TIPOS_ANEXO.join(',')}
-            onChange={conferirTamanho}
-            className="esc-input py-1.5"
-          />
-          <span className="esc-ajuda mt-1 block">
-            Até 2 MB por arquivo. PNG, JPEG, WEBP, GIF ou PDF.
-          </span>
-          {erroAnexo && (
-            <span className="text-[11.5px] mt-1 block" style={{ color: 'var(--rose)' }}>{erroAnexo}</span>
-          )}
-        </label>
+      <div>
+        <span className="esc-rotulo">Anexos (imagem ou PDF)</span>
 
-        <label className="flex items-center gap-2 text-[12.5px] pt-6">
-          <input type="checkbox" name="fixado" />
-          Fixar no topo do mural
-        </label>
+        {/* O `<input type=file>` cru desenha um botão do sistema operacional,
+            em inglês e fora do estilo de todo o resto. Aqui ele fica escondido
+            e quem aparece é um botão de verdade, com a lista do que já foi
+            escolhido — que o controle nativo também não mostra além do
+            "2 arquivos". */}
+        <input
+          ref={campo}
+          type="file"
+          name="anexos"
+          multiple
+          accept={TIPOS_ANEXO.join(',')}
+          onChange={e => setArquivos([...(e.target.files ?? [])])}
+          className="sr-only"
+        />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => campo.current?.click()}
+            className="esc-btn esc-btn-outline esc-btn-sm"
+          >
+            {arquivos.length ? 'Trocar arquivos' : 'Escolher arquivos'}
+          </button>
+          <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>
+            {arquivos.length === 0
+              ? `Nenhum arquivo escolhido · até ${LIMITE_ROTULO} por arquivo`
+              : `${arquivos.length} arquivo(s)`}
+          </span>
+          {arquivos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (campo.current) campo.current.value = '';
+                setArquivos([]);
+              }}
+              className="esc-btn esc-btn-ghost esc-btn-sm"
+            >
+              Remover
+            </button>
+          )}
+        </div>
+
+        {arquivos.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {arquivos.map(f => {
+              const grande = f.size > LIMITE_BYTES;
+              return (
+                <li
+                  key={f.name}
+                  className="text-[11.5px] flex flex-wrap items-baseline gap-x-2"
+                  style={{ color: grande ? 'var(--rose)' : 'var(--text)' }}
+                >
+                  <span className="font-medium">{f.name}</span>
+                  <span className="esc-num">{tamanho(f.size)}</span>
+                  {grande && <span>passa de {LIMITE_ROTULO} — reduza ou remova</span>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <span className="esc-ajuda mt-1 block">
+          Até {LIMITE_ROTULO} por arquivo. PNG, JPEG, WEBP, GIF ou PDF.
+        </span>
       </div>
 
-      <button type="submit" className="esc-btn" disabled={!!erroAnexo}>Publicar comunicado</button>
+      <label className="flex items-center gap-2 text-[12.5px]">
+        <input type="checkbox" name="fixado" />
+        Fixar no topo do mural
+      </label>
+
+      <button type="submit" className="esc-btn" disabled={grandes.length > 0}>
+        Publicar comunicado
+      </button>
     </div>
   );
 }

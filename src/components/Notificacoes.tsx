@@ -55,20 +55,21 @@ export function Notificacoes({
 
         {itens.length === 0 ? (
           <p className="px-3 py-6 text-[12px] text-center" style={{ color: 'var(--muted)' }}>
-            Nada de novo por aqui.
+            Tudo lido. O que você já abriu sai daqui.
           </p>
         ) : (
           <ul className="max-h-[60vh] overflow-y-auto divide-y" style={{ borderColor: 'var(--line)' }}>
             {itens.map(n => (
               <li key={n.id}>
-                {/* Form, e não link: abrir o aviso precisa marcar o sino como
-                    lido no mesmo passo, senão o contador nunca baixa. */}
+                {/* Form, e não link: abrir o aviso precisa marcá-lo como lido
+                    no mesmo passo, senão ele continua na lista depois de
+                    aberto e o contador nunca baixa. */}
                 <form action={abrirNotificacao}>
                   <input type="hidden" name="rota" value={n.rota} />
+                  <input type="hidden" name="chave" value={n.id} />
                   <button
                     type="submit"
                     className="block w-full text-left px-3 py-2.5 hover:bg-[var(--surface-2)]"
-                    style={n.naoLida ? { background: 'var(--brand-50)' } : undefined}
                   >
                     <div className="flex items-baseline gap-2">
                       <span className="text-[12.5px] font-semibold">{n.etapa}</span>

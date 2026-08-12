@@ -576,10 +576,14 @@
         <li><strong>Cadastros</strong> — Colaboradores, Usuários, Parâmetros.</li>
       </ul>
       <p>
-        Ao lado de <strong>Solicitações</strong> aparece um contador quando há pedidos
-        esperando por você. O gestor vê Indicadores, Escala, Ocupação, Aprovações e Mural; o
-        colaborador vê três itens: <em>Minha escala</em>, <em>Minhas solicitações</em> e
-        <em>Mural</em>.
+        Dois itens do menu trazem contador. <strong>Solicitações</strong> mostra quantos pedidos
+        esperam decisão sua — é um número que não baixa por você ter olhado, só por você ter
+        decidido. <strong>Mural</strong> mostra quantos comunicados chegaram desde a última vez
+        que você o abriu, e zera quando você abre.
+      </p>
+      <p>
+        O gestor vê Indicadores, Escala, Ocupação, Aprovações e Mural; o colaborador vê três
+        itens: <em>Minha escala</em>, <em>Minhas solicitações</em> e <em>Mural</em>.
       </p>
 
       <h3>Seletor de mês</h3>
@@ -1554,12 +1558,21 @@
       </figure>
 
       <p>
-        O número vermelho conta as não lidas. <strong>Clicar num aviso</strong> abre o destino
-        dele e zera o contador no mesmo passo — antes era preciso lembrar de marcar depois, e o
-        número ficava parado mesmo depois de tudo lido. <strong>Marcar como lidas</strong>
-        continua ali para zerar sem abrir nada. A lista não é apagada em nenhum dos dois casos, e
-        você nunca recebe notificação de uma ação sua.
+        <strong>O sino mostra só o que falta ler.</strong> Clicar num aviso abre o destino dele e
+        tira <em>aquele item</em> da lista; os outros continuam ali esperando. O número ao lado do
+        sino é o tamanho da lista — os dois nunca discordam.
       </p>
+      <p>
+        <strong>Marcar como lidas</strong> esvazia tudo de uma vez, para quando não há o que ler
+        item a item. Você nunca recebe notificação de uma ação sua.
+      </p>
+      <div class="porque">
+        <strong>Por que o item some.</strong> Antes o sino guardava tudo e apenas destacava o
+        novo, e abrir um aviso zerava o contador inteiro — o que na prática marcava como lido
+        cinco avisos que ninguém tinha aberto. Um sino que acumula histórico deixa de responder à
+        única pergunta que um sino responde: tem coisa nova? O histórico completo continua onde
+        sempre esteve, na própria solicitação e no log de auditoria.
+      </div>
     </section>
 
     <section id="mural">
@@ -1611,7 +1624,7 @@
         <div><dt>Para quem</dt><dd>Colaboradores ou gestores. Só o Planejamento escolhe.</dd></div>
         <div><dt>Equipe</dt><dd>Restringe o comunicado a uma equipe. Em branco, vale para todos os colaboradores.</dd></div>
         <div><dt>Comunicado</dt><dd>Obrigatório. O texto preserva as quebras de linha.</dd></div>
-        <div><dt>Anexos</dt><dd>Imagem (PNG, JPEG, WEBP, GIF) ou PDF, até 2 MB por arquivo. Pode anexar mais de um.</dd></div>
+        <div><dt>Anexos</dt><dd>Imagem (PNG, JPEG, WEBP, GIF) ou PDF, até 5 MB por arquivo. <em>Escolher arquivos</em> abre o seletor; os escolhidos ficam listados com o tamanho de cada um, antes do envio.</dd></div>
         <div><dt>Fixar no topo</dt><dd>Mantém o comunicado acima dos demais, independentemente da data.</dd></div>
       </dl>
       <p>
@@ -1621,10 +1634,11 @@
       </p>
       <div class="aviso atencao">
         <p>
-          <strong>O limite de 2 MB é por arquivo e é conferido duas vezes</strong>, no navegador
-          e no servidor. Se o arquivo passa do limite, o botão de publicar fica desabilitado
-          antes do envio — em vez de você subir 8 MB para descobrir no fim e perder o texto
-          digitado. Para um documento maior, publique o resumo e aponte onde ele está.
+          <strong>O limite de 5 MB é por arquivo e é conferido três vezes</strong>: no
+          navegador, no servidor e no próprio banco. Se um arquivo passa do limite, ele aparece
+          em vermelho na lista e o botão de publicar fica desabilitado — em vez de você subir
+          20 MB para descobrir no fim e perder o texto digitado. Para um documento maior,
+          publique o resumo e aponte onde ele está.
         </p>
       </div>
 

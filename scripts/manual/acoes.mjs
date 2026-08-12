@@ -473,6 +473,71 @@ await acao('descartar sem avisar', `/calendario?${COMP}`, async p => {
   await p.locator('button:text("Não avisar")').click();
 }, "select count(*) c from alteracoes_pendentes", 0);
 
+// ── Sino e contadores ─────────────────────────────────────────
+// O sino passou a mostrar só o que falta ler, e abrir um item tira ELE da
+// lista. A regressão que isto guarda: abrir um aviso esvaziar a lista inteira,
+// que era o efeito de marcar tudo com um carimbo só.
+como(FELIPE);
+{
+  const abrirSino = async () => {
+    await p.goto(`${BASE}/minha-escala?${COMP}`, { waitUntil: 'networkidle' });
+    const sino = p.locator('header details summary').first();
+    const badge = (await sino.innerText()).trim().replace(/\s+/g, '');
+    await sino.click();
+    await p.waitForTimeout(250);
+    // Só os itens: o botão "Marcar como lidas" também é um submit dentro do
+    // painel, e contá-lo fazia a lista parecer ter um item a mais que o sino.
+    return { badge, itens: await p.locator('header details li form button[type=submit]').count() };
+  };
+
+  const antes = await abrirSino();
+  if (antes.itens < 2) {
+    falhas++;
+    console.log(`  FALHOU sino com o que ler                 ${antes.itens} item(ns); o cenário precisa de 2+`);
+  } else {
+    await p.locator('header details li form button[type=submit]').first().click();
+    await p.waitForLoadState('networkidle');
+    const depois = await abrirSino();
+    if (depois.itens !== antes.itens - 1) {
+      falhas++;
+      console.log(`  FALHOU abrir tira só o item aberto       ${antes.itens} → ${depois.itens}, esperado ${antes.itens - 1}`);
+    } else {
+      console.log(`  ok     abrir tira só o item aberto       ${antes.itens} → ${depois.itens}`);
+    }
+    if (depois.badge !== String(depois.itens)) {
+      falhas++;
+      console.log(`  FALHOU contador bate com a lista         sino="${depois.badge}", lista=${depois.itens}`);
+    } else console.log('  ok     contador bate com a lista');
+  }
+}
+
+// O contador do mural conta o que chegou desde a última visita, e zera quando
+// a pessoa abre — sem depender do sino, que é outra caixa.
+{
+  const badgeMural = async () => {
+    await p.goto(`${BASE}/minha-escala?${COMP}`, { waitUntil: 'networkidle' });
+    // O link do menu carrega a competência na query, então casar a href exata
+    // não funciona.
+    const item = p.locator('a[href^="/mural"]').first();
+    const t = await item.innerText().catch(() => 'Mural');
+    return Number(t.replace(/[^0-9]/g, '') || 0);
+  };
+
+  await db.query("update perfis set mural_visto_em = '1970-01-01Z' where id = $1", [FELIPE]);
+  const comNovidade = await badgeMural();
+  await p.goto(`${BASE}/mural`, { waitUntil: 'networkidle' });
+  await p.waitForTimeout(400);
+  const depoisDeVer = await badgeMural();
+
+  if (comNovidade === 0) {
+    falhas++;
+    console.log('  FALHOU contador do mural                 não contou comunicado novo');
+  } else if (depoisDeVer !== 0) {
+    falhas++;
+    console.log(`  FALHOU mural zera ao ser aberto          ${comNovidade} → ${depoisDeVer}`);
+  } else console.log(`  ok     contador do mural                 ${comNovidade} → 0 ao abrir`);
+}
+
 // ── Remoção ───────────────────────────────────────────────────
 como(ANA);
 {

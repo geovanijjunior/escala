@@ -22,10 +22,10 @@ de quem o programa: implantação passo a passo, a rotina de cada mês, o que ca
 papel enxerga, as doze regras do motor e o que fazer quando algo dá errado. Abre
 no navegador com dois cliques.
 
-Para distribuir em papel ou anexo, [`docs/manual.pdf`](docs/manual.pdf) (13
-páginas, A4). Ele sai do **mesmo arquivo** que a versão web — o que difere entre
-tela e papel é só o bloco `@media print` do próprio manual, então não há uma
-segunda cópia do texto para sair de sincronia.
+Para distribuir em papel ou anexo, [`docs/manual.pdf`](docs/manual.pdf), em A4.
+Ele sai do **mesmo arquivo** que a versão web — o que difere entre tela e papel
+é só o bloco `@media print` do próprio manual, então não há uma segunda cópia do
+texto para sair de sincronia.
 
 Regenerar depois de editar o HTML: abra o arquivo no navegador e imprima em PDF
 (`Ctrl+P`), ou use o script, que faz a mesma coisa sem abrir janela:
@@ -101,8 +101,8 @@ RODADAS=50000 ./scripts/testar.sh propriedades
 | Bateria | O que cobre |
 |---|---|
 | `npm test` | 57 asserções de casos concretos do motor |
-| `npm run test:propriedades` | 14 invariantes × milhares de meses aleatórios |
-| `supabase/tests/rls.sql` | quem enxerga o quê, com testes negativos |
+| `npm run test:propriedades` | 15 invariantes × milhares de meses aleatórios |
+| `supabase/tests/rls.sql` | quem enxerga o quê, com testes negativos — inclui mural, anexos, avisos e caixa de saída |
 | `supabase/tests/integridade.sql` | restrições, cascatas e vínculo entre contas |
 
 As **propriedades** são o que pega o que ninguém imaginou. Em vez de conferir um
@@ -172,8 +172,9 @@ organização com você como Planejamento.
 Cada organização é uma **conta**. `perfis` pertencem a uma conta e têm um
 `papel`. Todas as tabelas do domínio — `unidades`, `equipes`, `colaboradores`,
 `planos`, `ausencias`, `geracoes`, `alocacoes`, `pins`, `solicitacoes`,
-`cotas_equipe`, `postos`, `ocorrencias`, `logs` — são isoladas por `conta_id` via Row
-Level Security.
+`cotas_equipe`, `postos`, `ocorrencias`, `avisos`, `comunicados`,
+`comunicado_anexos`, `alteracoes_pendentes`, `logs` — são isoladas por `conta_id`
+via Row Level Security.
 
 O recorte por papel também é do banco, não da tela: o gestor lê apenas
 colaboradores das equipes que gerencia, o colaborador lê apenas a própria linha,
@@ -233,6 +234,11 @@ terceiro e escrita na escala por quem não é Planejamento.
 - **Aprovar uma solicitação altera a escala**: troca de unidade, troca de
   plantão, folga e férias gravam a trava e ajustam a alocação do dia — e a trava
   sobrevive à próxima regeração.
+- **O sino mostra só o não lido, e a leitura é por item.** `notificacoes_lidas`
+  guarda a chave de cada item aberto; `perfis.notificacoes_vistas_em` continua
+  existindo para o "marcar todas", que é um corte em massa e não merece N
+  linhas. As duas formas compõem. O carimbo sozinho não servia mais: com o sino
+  mostrando apenas o que falta ler, abrir UM aviso esvaziava a lista inteira.
 - **O sino tem duas fontes, e só uma delas é uma tabela de avisos.** O
   andamento das solicitações é derivado de `solicitacao_eventos`, que já
   registra cada passo com autor e horário: quem deve receber o quê está
@@ -306,6 +312,8 @@ que é o que o Excel em português abre sem embaralhar acento).
    | 10º | `0010_ocorrencias_e_ferias.sql` | motivo de inativação, opções de férias, campos por tipo de ocorrência |
    | 11º | `0011_mural_e_avisos.sql` | avisos do sino, mural de comunicados e anexos |
    | 12º | `0012_alteracoes_pendentes.sql` | caixa de saída das alterações em escala publicada |
+   | 13º | `0013_anexo_5mb_e_caixa_de_saida.sql` | anexo até 5 MB e correção do recorte da caixa de saída |
+   | 14º | `0014_notificacoes_lidas.sql` | leitura por item no sino e última visita ao mural |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

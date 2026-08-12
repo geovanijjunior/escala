@@ -36,10 +36,27 @@ async function contarPendencias(papel: string, usuarioId: string): Promise<numbe
   return count ?? 0;
 }
 
+/**
+ * Comunicados publicados desde a última vez que a pessoa abriu o mural.
+ *
+ * A RLS já recorta o mural por papel e por equipe, então a contagem não repete
+ * esse filtro — repetir seria a chance de os dois discordarem, e o menu
+ * anunciar um comunicado que a tela não mostra.
+ */
+async function contarMuralNovo(muralVistoEm: string): Promise<number> {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from('comunicados')
+    .select('id', { count: 'exact', head: true })
+    .gt('criado_em', muralVistoEm);
+  return count ?? 0;
+}
+
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const sessao = await getSessao();
-  const [pendentes, notificacoes] = await Promise.all([
+  const [pendentes, muralNovo, notificacoes] = await Promise.all([
     contarPendencias(sessao.papel, sessao.usuario.id),
+    contarMuralNovo(sessao.usuario.mural_visto_em),
     listarNotificacoes(sessao.usuario.id, sessao.usuario.notificacoes_vistas_em),
   ]);
 
@@ -50,7 +67,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
           itens: [
             { href: '/minha-escala', label: 'Minha escala' },
             { href: '/solicitacoes', label: 'Minhas solicitações', badge: pendentes },
-            { href: '/mural', label: 'Mural' },
+            { href: '/mural', label: 'Mural', badge: muralNovo },
           ],
         }]
       : sessao.papel === 'gestor'
@@ -61,7 +78,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
             { href: '/calendario', label: 'Escala' },
             { href: '/ocupacao', label: 'Ocupação' },
             { href: '/solicitacoes', label: 'Aprovações', badge: pendentes },
-            { href: '/mural', label: 'Mural' },
+            { href: '/mural', label: 'Mural', badge: muralNovo },
           ],
         }]
       : [
@@ -73,7 +90,7 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
               { href: '/calendario', label: 'Calendário' },
               { href: '/ocupacao', label: 'Ocupação' },
               { href: '/solicitacoes', label: 'Solicitações', badge: pendentes },
-              { href: '/mural', label: 'Mural' },
+              { href: '/mural', label: 'Mural', badge: muralNovo },
             ],
           },
           { secao: 'Análise', itens: [{ href: '/', label: 'Indicadores' }] },

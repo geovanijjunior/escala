@@ -17,6 +17,8 @@ export interface PerfilUsuario {
   bloqueado: boolean;
   /** Instante da última vez que a pessoa abriu o sino de notificações. */
   notificacoes_vistas_em: string;
+  /** Última vez que a pessoa abriu o mural, para o menu contar o que chegou depois. */
+  mural_visto_em: string;
   criado_em: string;
 }
 

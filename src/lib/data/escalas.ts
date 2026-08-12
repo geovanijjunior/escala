@@ -509,6 +509,18 @@ export interface Notificacao {
  * Eventos causados pela própria pessoa ficam de fora — ninguém precisa ser
  * avisado do que acabou de fazer.
  */
+/**
+ * O que ainda falta a pessoa ler no sino.
+ *
+ * Só o não lido. Um sino que mantém na lista o que já foi aberto vira um
+ * histórico que ninguém pediu, e o número ao lado dele deixa de significar
+ * "tem coisa nova" — que é a única pergunta que um sino responde.
+ *
+ * "Lido" tem duas formas, e as duas contam: a leitura item a item
+ * (`notificacoes_lidas`, gravada ao abrir um aviso) e o corte em massa
+ * (`perfis.notificacoes_vistas_em`, gravado por "Marcar como lidas"). Manter as
+ * duas evita inserir uma linha por item toda vez que alguém zera o sino inteiro.
+ */
 export async function listarNotificacoes(
   usuarioId: string,
   vistasEm: string,
@@ -546,6 +558,10 @@ export async function listarNotificacoes(
   const eventos = (conferir('listarNotificacoes/eventos', eventosRes) ?? []) as unknown as LinhaEvento[];
   const avisos = (conferir('listarNotificacoes/avisos', avisosRes) ?? []) as unknown as LinhaAviso[];
 
+  const lidas = new Set(((conferir('listarNotificacoes/lidas', await supabase
+    .from('notificacoes_lidas')
+    .select('chave')) ?? []) as { chave: string }[]).map(l => l.chave));
+
   const ids = [...new Set(eventos.map(e => e.solicitacoes?.colaborador_id).filter((n): n is number => !!n))];
   const pessoas = ids.length
     ? conferir('listarNotificacoes/colaboradores', await supabase
@@ -580,10 +596,15 @@ export async function listarNotificacoes(
   }));
 
   const itens = [...deEventos, ...deAvisos]
+    .filter(i => i.naoLida && !lidas.has(i.id))
     .sort((x, y) => y.em.localeCompare(x.em))
     .slice(0, limite);
 
-  return { itens, naoLidas: itens.filter(i => i.naoLida).length };
+  // Todos os itens da lista são, por construção, não lidos — o contador é o
+  // tamanho dela. Ele não pode divergir do que a pessoa vê ao abrir o painel:
+  // sino marcando 3 sobre uma lista de 1 foi exatamente a queixa que trouxe
+  // esta mudança.
+  return { itens, naoLidas: itens.length };
 }
 
 /** Uma ausência de outra pessoa que cai dentro do período pedido. */

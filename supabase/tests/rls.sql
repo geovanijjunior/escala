@@ -104,6 +104,33 @@ insert into solicitacoes (id, conta_id, colaborador_id, tipo, data, detalhe, par
   overriding system value values
   (1, '11111111-1111-1111-1111-111111111111', 1, 'TROCA_HORARIO', '2026-08-05', 'troca', 2, 'PENDENTE', 'AGUARDA_PARCEIRO');
 
+-- Mural: os três públicos que existem, para o recorte poder errar de três
+-- formas diferentes e ser pego em cada uma.
+insert into comunicados (id, conta_id, titulo, corpo, publico, equipe_id, autor_id, autor_nome)
+  overriding system value values
+  (1, '11111111-1111-1111-1111-111111111111', 'Para todos', '', 'colaboradores', null,
+     'aaaaaaa1-0000-0000-0000-000000000001', 'Planejadora A'),
+  (2, '11111111-1111-1111-1111-111111111111', 'Da equipe 1', '', 'colaboradores', 1,
+     'aaaaaaa1-0000-0000-0000-000000000002', 'Gestor A'),
+  (3, '11111111-1111-1111-1111-111111111111', 'Só gestores', '', 'gestores', null,
+     'aaaaaaa1-0000-0000-0000-000000000001', 'Planejadora A'),
+  (4, '11111111-1111-1111-1111-111111111111', 'Da equipe 2', '', 'colaboradores', 2,
+     'aaaaaaa1-0000-0000-0000-000000000001', 'Planejadora A');
+
+insert into comunicado_anexos (conta_id, comunicado_id, nome, tipo, tamanho, conteudo) values
+  ('11111111-1111-1111-1111-111111111111', 3, 'so-gestores.pdf', 'application/pdf', 4, '\\x25504446');
+
+-- Aviso é o único item do domínio com destinatário nomeado: quem não é o
+-- destinatário não pode lê-lo, nem sendo Planejamento.
+insert into avisos (conta_id, perfil_id, titulo, detalhe, rota, por_nome) values
+  ('11111111-1111-1111-1111-111111111111', 'aaaaaaa1-0000-0000-0000-000000000003',
+   'Escala alterada', 'para o Colab A', '/calendario', 'Planejadora A'),
+  ('11111111-1111-1111-1111-111111111111', 'aaaaaaa1-0000-0000-0000-000000000004',
+   'Escala alterada', 'para o Colab A2', '/calendario', 'Planejadora A');
+
+insert into alteracoes_pendentes (conta_id, geracao_id, colaborador_id, data, de, para, por_nome) values
+  ('11111111-1111-1111-1111-111111111111', 1, 1, '2026-08-03', 'Morumbi', 'Home Office', 'Planejadora A');
+
 set role app_user;
 
 \echo '\n=== Planejamento A: enxerga os 3 colaboradores da conta A ==='
@@ -228,6 +255,162 @@ do $$ begin
   raise exception 'FALHA DE SEGURANCA: colaborador criou posto';
 exception when insufficient_privilege then
   raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+-- ───────────────── mural e avisos ─────────────────
+
+\echo '=== Colaborador A: vê o mural de todos e o da equipe dele, não o dos gestores ==='
+set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000003';
+do $$
+declare n int; begin
+  select count(*) into n from comunicados;
+  -- 'Para todos' e 'Da equipe 1'. Nunca 'Só gestores' nem 'Da equipe 2'.
+  if n <> 2 then
+    raise exception 'FALHA DE SEGURANCA: colaborador viu % comunicado(s), esperado 2', n;
+  end if;
+  if exists (select 1 from comunicados where publico = 'gestores') then
+    raise exception 'FALHA DE SEGURANCA: colaborador leu o mural dos gestores';
+  end if;
+  if exists (select 1 from comunicados where equipe_id = 2) then
+    raise exception 'FALHA DE SEGURANCA: colaborador leu o mural de outra equipe';
+  end if;
+  raise notice 'ok: mural recortado para o colaborador';
+end $$;
+
+\echo '=== O anexo herda o recorte do comunicado ==='
+do $$
+declare n int; begin
+  select count(*) into n from comunicado_anexos;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: colaborador baixou % anexo(s) do mural dos gestores', n;
+  end if;
+  raise notice 'ok: anexo invisivel para quem nao ve o comunicado';
+end $$;
+
+\echo '=== Colaborador NÃO pode publicar comunicado (deve falhar) ==='
+do $$ begin
+  insert into comunicados (conta_id, titulo, corpo, publico, autor_id, autor_nome)
+  values ('11111111-1111-1111-1111-111111111111', 'Invadido', '', 'colaboradores',
+          auth.uid(), 'Colab A');
+  raise exception 'FALHA DE SEGURANCA: colaborador publicou no mural';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Gestor A: lê o mural dos gestores e o da equipe dele ==='
+set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000002';
+do $$
+declare n int; begin
+  select count(*) into n from comunicados where publico = 'gestores';
+  if n <> 1 then
+    raise exception 'FALHOU: gestor deveria ler 1 comunicado de gestores, leu %', n;
+  end if;
+  if not exists (select 1 from comunicados where equipe_id = 1) then
+    raise exception 'FALHA: gestor nao leu o comunicado da propria equipe';
+  end if;
+  if exists (select 1 from comunicados where equipe_id = 2) then
+    raise exception 'FALHA DE SEGURANCA: gestor leu o mural de equipe que nao gerencia';
+  end if;
+  raise notice 'ok: mural recortado para o gestor';
+end $$;
+
+\echo '=== Gestor NÃO pode publicar para os gestores (deve falhar) ==='
+do $$ begin
+  insert into comunicados (conta_id, titulo, corpo, publico, autor_id, autor_nome)
+  values ('11111111-1111-1111-1111-111111111111', 'Subindo de nivel', '', 'gestores',
+          auth.uid(), 'Gestor A');
+  raise exception 'FALHA DE SEGURANCA: gestor publicou para os gestores';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Gestor NÃO pode publicar para equipe que não gerencia (deve falhar) ==='
+do $$ begin
+  insert into comunicados (conta_id, titulo, corpo, publico, equipe_id, autor_id, autor_nome)
+  values ('11111111-1111-1111-1111-111111111111', 'Equipe alheia', '', 'colaboradores', 2,
+          auth.uid(), 'Gestor A');
+  raise exception 'FALHA DE SEGURANCA: gestor publicou para equipe alheia';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Gestor NÃO pode remover comunicado de outra pessoa (deve afetar 0 linhas) ==='
+delete from comunicados where id = 1;
+do $$ begin
+  if not exists (select 1 from comunicados where id = 1) then
+    raise exception 'FALHA DE SEGURANCA: gestor removeu comunicado da Planejadora';
+  end if;
+  raise notice 'ok: remocao restrita ao autor e ao Planejamento';
+end $$;
+
+\echo '=== Aviso não é lido por quem não é o destinatário — nem pelo gestor ==='
+do $$
+declare n int; begin
+  select count(*) into n from avisos;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: gestor leu % aviso(s) endereçado(s) a outra pessoa', n;
+  end if;
+  raise notice 'ok: aviso invisivel para o gestor';
+end $$;
+
+\echo '=== Nem pelo Planejamento ==='
+set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000001';
+do $$
+declare n int; begin
+  select count(*) into n from avisos;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: Planejamento leu % aviso(s) alheio(s)', n;
+  end if;
+  raise notice 'ok: aviso invisivel para o Planejamento';
+end $$;
+
+\echo '=== Mas o destinatário lê o dele ==='
+set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000003';
+do $$
+declare n int; begin
+  select count(*) into n from avisos;
+  if n <> 1 then
+    raise exception 'FALHOU: destinatario deveria ver 1 aviso, viu %', n;
+  end if;
+  raise notice 'ok: aviso e do destinatario e de mais ninguem';
+end $$;
+
+\echo '=== Colaborador NÃO enxerga a caixa de saída de alterações (deve ser 0) ==='
+do $$
+declare n int; begin
+  select count(*) into n from alteracoes_pendentes;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: colaborador viu % alteracao(oes) nao comunicada(s)', n;
+  end if;
+  raise notice 'ok: caixa de saida invisivel para o colaborador';
+end $$;
+
+\echo '=== Colaborador NÃO pode inserir alteração pendente (deve falhar) ==='
+do $$ begin
+  insert into alteracoes_pendentes (conta_id, geracao_id, colaborador_id, data, de, para, por_nome)
+  values ('11111111-1111-1111-1111-111111111111', 1, 1, '2026-08-04', 'x', 'y', 'Colab A');
+  raise exception 'FALHA DE SEGURANCA: colaborador escreveu na caixa de saida';
+exception when insufficient_privilege then
+  raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+\echo '=== Conta B não enxerga nada do mural da conta A ==='
+set request.jwt.claim.sub = 'bbbbbbb1-0000-0000-0000-000000000001';
+do $$
+declare n int; begin
+  select count(*) into n from comunicados;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: conta B leu % comunicado(s) da conta A', n;
+  end if;
+  select count(*) into n from comunicado_anexos;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: conta B leu % anexo(s) da conta A', n;
+  end if;
+  select count(*) into n from alteracoes_pendentes;
+  if n <> 0 then
+    raise exception 'FALHA DE SEGURANCA: conta B leu % alteracao(oes) da conta A', n;
+  end if;
+  raise notice 'ok: conta B nao ve o mural nem a caixa de saida da conta A';
 end $$;
 
 reset role;

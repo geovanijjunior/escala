@@ -14,10 +14,13 @@ telas sutilmente erradas.
 
 | Arquivo | O que é |
 | --- | --- |
+| `preparar.sh` | Levanta os bancos de teste do zero: migrations, grants e massa |
+| `auth-stub.sql` | O mínimo do schema `auth` do Supabase, para rodar contra Postgres nu |
 | `supabase-pg.mjs` | Cliente Supabase falso sobre o Postgres local |
 | `semear.ts` | Massa de exemplo: Hospital São Lucas, 15 pessoas, novembro de 2026 |
 | `fotografar.mjs` | Roteiro de captura, papel por papel |
 | `varrer.mjs` | Abre toda tela em todo papel e acusa erro de HTTP, de JS ou de consulta |
+| `navegar.mjs` | Descobre os destinos navegando: segue todo link, abre toda gaveta |
 | `acoes.mjs` | Executa cada ação de escrita e confere que ela gravou no banco |
 
 ## Receita
@@ -25,56 +28,69 @@ telas sutilmente erradas.
 Requer Postgres 16 local e Playwright (`npm i -D playwright`).
 
 ```bash
-# 1. Banco com todas as migrations
-createdb manual
-psql -d manual -f /caminho/auth-stub.sql          # cria auth.users e auth.uid()
-for f in supabase/migrations/*.sql; do psql -d manual -v ON_ERROR_STOP=1 -f "$f"; done
+# 1. Bancos: migrations, papel app_user, grants e massa
+scripts/manual/preparar.sh
 
-# Papel sem BYPASSRLS, para as policies realmente valerem nas fotos
-psql -d manual -c "create role app_user nologin" \
-  -c "grant usage on schema public, auth to app_user" \
-  -c "grant select, insert, update, delete on all tables in schema public to app_user" \
-  -c "grant select on auth.users to app_user" \
-  -c "grant usage on all sequences in schema public to app_user"
-
-# 2. Massa
-PGDATABASE=manual npx tsx scripts/manual/semear.ts
-
-# 3. Apontar o app para o shim — TEMPORÁRIO, desfazer no fim
+# 2. Apontar o app para o shim — TEMPORÁRIO, desfazer no fim
 #    src/lib/supabase/server.ts  -> export { createClient } from '../../../scripts/manual/supabase-pg.mjs';
 #    src/lib/supabase/admin.ts   -> export { createAdminClient } from '../../../scripts/manual/supabase-pg.mjs';
 #    src/lib/supabase/proxy.ts   -> updateSession devolve NextResponse.next({ request })
 PGDATABASE=manual npm run dev
 
-# 4. Fotografar e desfazer a troca
+# 3. Fotografar e desfazer a troca
 node scripts/manual/fotografar.mjs
-git checkout -- src/lib/supabase/
+git checkout -- src/lib/supabase/server.ts src/lib/supabase/admin.ts src/lib/supabase/proxy.ts
 
-# 5. PDF
+# 4. PDF
 node scripts/manual-pdf.mjs
 ```
 
+Desfazer arquivo por arquivo, e não `git checkout -- src/lib/supabase/`: a pasta
+também contém `types.ts`, que não faz parte da troca. Reverter a pasta inteira
+apaga alterações legítimas feitas no meio do caminho — e o erro só aparece no
+`tsc`, minutos depois, parecendo outra coisa.
+
 ## Suíte de regressão
 
-Os dois roteiros abaixo rodam contra o mesmo dev server das fotos e existem
+Os três roteiros abaixo rodam contra o mesmo dev server das fotos e existem
 porque a tela de solicitações ficou vazia em produção sem ninguém perceber.
 
 ```bash
-node scripts/manual/varrer.mjs   # 18 telas × 3 papéis
-node scripts/manual/acoes.mjs    # 36 ações de escrita, cada uma conferida no banco
+node scripts/manual/varrer.mjs   # 19 telas × 3 papéis, lista fixa
+node scripts/manual/navegar.mjs  # segue todo link a partir das raízes de cada papel
+node scripts/manual/acoes.mjs    # 48 ações de escrita, cada uma conferida no banco
 ```
 
-Rode os dois em DOIS bancos, um em cada nível de migration — é isso que pega o
+Rode os três em DOIS bancos, um em cada nível de migration — é isso que pega o
 descompasso entre o código e o esquema que a instalação realmente tem:
 
 ```bash
-createdb manual_0008   # migrations 0001..0008
-createdb manual        # migrations 0001..0009
+scripts/manual/preparar.sh    # monta manual, manual_0008 e rlstest
 ```
+
+`manual_0008` **pula a 0009 e roda todo o resto**. Não é o banco parado na
+oitava migration: é a instalação que, por qualquer razão, não aplicou a que
+trocou as chaves estrangeiras por compostas, e que continua recebendo as
+seguintes. É esse descompasso que existe no mundo real.
 
 `varrer.mjs` confere a URL final, não só o status: um redirecionamento para
 `/login` devolve 200, e a primeira versão da varredura passou inteira sem ter
 aberto uma única tela do sistema.
+
+## `varrer.mjs` e `navegar.mjs` não são a mesma coisa
+
+`varrer.mjs` abre uma **lista fixa** de rotas. É rápido e determinístico, e é o
+que se roda para saber se as telas conhecidas continuam de pé.
+
+`navegar.mjs` **descobre** os destinos: parte de uma raiz por papel, colhe os
+links da página, abre cada um e repete até a fila esvaziar, acionando também os
+controles que só renderizam depois de um clique (abas, `<details>`, a gaveta de
+ajuste). Ele encontra a tela que ninguém lembrou de pôr na lista fixa — que é
+exatamente a que fica meses sem ser exercitada.
+
+Rotas que não devolvem HTML (o anexo do mural) são conferidas por status e
+tamanho, e não por render: o Chromium responde a um PDF baixando o arquivo, e
+`page.goto` lança "Download is starting", que não é erro do sistema.
 
 ## Detalhes que custaram tempo
 

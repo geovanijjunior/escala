@@ -7,7 +7,7 @@ import { registrarLog } from '@/lib/log';
 import { avisarComunicado } from '@/lib/avisos';
 import { rotaComErro } from '@/lib/volta';
 import { mensagemErroBanco } from '@/lib/erros-banco';
-import { TIPOS_ANEXO, LIMITE_BYTES } from '@/lib/anexos';
+import { TIPOS_ANEXO, LIMITE_BYTES, LIMITE_ROTULO } from '@/lib/anexos';
 import { redirect } from 'next/navigation';
 
 const VOLTA = '/mural';
@@ -71,7 +71,7 @@ export async function publicarComunicado(formData: FormData) {
       erro(`"${arquivo.name}" não é imagem nem PDF. Aceitos: PNG, JPEG, WEBP, GIF e PDF.`);
     }
     if (arquivo.size > LIMITE_BYTES) {
-      erro(`"${arquivo.name}" tem ${(arquivo.size / 1048576).toFixed(1)} MB — o limite por arquivo é 2 MB.`);
+      erro(`"${arquivo.name}" tem ${(arquivo.size / 1048576).toFixed(1)} MB — o limite por arquivo é ${LIMITE_ROTULO}.`);
     }
     const bytes = Buffer.from(await arquivo.arrayBuffer());
     const { error: erroAnexo } = await supabase.from('comunicado_anexos').insert({

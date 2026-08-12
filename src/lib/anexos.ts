@@ -10,10 +10,16 @@
 export const TIPOS_ANEXO = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'];
 
 /**
- * Teto de 2 MB por arquivo.
+ * Teto de 5 MB por arquivo.
  *
  * O anexo vive no banco, não no Storage — ver o comentário da migration 0011.
- * O teto é o que mantém essa escolha honesta: foto de aviso e PDF de uma ou
- * duas páginas cabem; um manual escaneado de 40 MB, não.
+ * O teto é o que mantém essa escolha honesta: foto de aviso, circular assinada
+ * e PDF escaneado de algumas páginas cabem; um manual de 40 MB, não.
+ *
+ * O mesmo número está no CHECK da tabela (migration 0013). Mudar aqui sem mudar
+ * lá troca uma mensagem clara por um erro de restrição do Postgres.
  */
-export const LIMITE_BYTES = 2 * 1024 * 1024;
+export const LIMITE_BYTES = 5 * 1024 * 1024;
+
+/** O teto em texto, para as mensagens não repetirem a conta. */
+export const LIMITE_ROTULO = `${LIMITE_BYTES / 1024 / 1024} MB`;

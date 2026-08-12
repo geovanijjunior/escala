@@ -49,6 +49,29 @@ export default async function MuralPage({ searchParams }: { searchParams: Promis
   if (error) console.error('[escala] mural:', error.message);
   const comunicados = (data ?? []) as unknown as LinhaComunicado[];
 
+  /**
+   * Abrir o mural é vê-lo: o contador do menu zera a partir da próxima
+   * navegação.
+   *
+   * A escrita acontece durante a renderização, o que normalmente é coisa a se
+   * evitar — o App Router pode buscar uma rota antes de o usuário clicar, e o
+   * contador zeraria sozinho. Aqui não acontece: esta rota é dinâmica, e o
+   * prefetch de rota dinâmica não chega a renderizar a página.
+   *
+   * Sem `revalidatePath`, de propósito. O menu desta requisição continua
+   * mostrando o número com que a pessoa chegou — que é o certo, porque ela
+   * ainda não leu nada quando a página começou a montar.
+   */
+  if (comunicados.length > 0) {
+    const maisNovo = comunicados.reduce(
+      (acc, c) => (c.criado_em > acc ? c.criado_em : acc),
+      sessao.usuario.mural_visto_em,
+    );
+    if (maisNovo > sessao.usuario.mural_visto_em) {
+      await supabase.from('perfis').update({ mural_visto_em: maisNovo }).eq('id', sessao.usuario.id);
+    }
+  }
+
   const publica = podeAprovar(sessao.papel);
   const planeja = ehPlanejamento(sessao.papel);
 
