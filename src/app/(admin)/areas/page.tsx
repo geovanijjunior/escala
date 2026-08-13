@@ -1,5 +1,5 @@
 import { getSessaoGeral } from '@/lib/sessao';
-import { listarAreas } from '@/lib/data/areas';
+import { listarAreas, rotuloPapel } from '@/lib/data/areas';
 import { competenciaDe, formatarCompetencia } from '@/lib/domain/escalas/datas';
 import { Aviso, Bloco, Faixa, Pill, Stat, Vazio } from '@/components/Ui';
 import {
@@ -9,14 +9,19 @@ import {
 /**
  * O console do Administrador Geral.
  *
- * Ele administra instâncias, não operações: cria a área, nomeia quem responde
- * por ela e a tira do ar quando acaba. O que acontece dentro — escala,
- * solicitação, comunicado, nome de colaborador — não passa por aqui, e não é
- * uma escolha de interface: `perfis.conta_id` dele é nulo, e toda policy do
+ * Ele administra instâncias e acessos: cria a área, nomeia quem responde por
+ * ela, vê quem tem login nela e a tira do ar quando acaba. Área não se apaga —
+ * o histórico de meses fechados é registro trabalhista, então desativar tira do
+ * ar e preserva.
+ *
+ * O que ele NÃO vê continua sendo o desenho: escala, solicitação, comunicado e
+ * a ficha do colaborador (matrícula, cargo, jornada) não passam por aqui, e não
+ * por escolha de interface — `perfis.conta_id` dele é nulo, e toda policy do
  * domínio compara `conta_id = conta_id()`, então o banco recusa antes.
  *
- * O que sobra são números: quantas pessoas a área tem e se o mês corrente foi
- * publicado. É o bastante para saber se uma área está viva sem abrir nenhuma.
+ * A lista de usuários é a exceção deliberada da migration 0016: quem responde
+ * pelo sistema precisa saber quem entra nele. Ver, e só isso — alterar esses
+ * usuários continua sendo do administrador da área.
  */
 export default async function AreasPage({
   searchParams,
@@ -121,7 +126,7 @@ export default async function AreasPage({
                     )}
                   </div>
                   <p className="esc-desc">
-                    {area.colaboradores} colaborador(es) · {area.usuarios} usuário(s) ·{' '}
+                    {area.colaboradores} colaborador(es) · {area.usuarios.length} usuário(s) ·{' '}
                     {area.competenciaPublicada
                       ? `última escala publicada em ${formatarCompetencia(area.competenciaPublicada)}`
                       : 'nenhuma escala publicada'}
@@ -154,6 +159,52 @@ export default async function AreasPage({
                       </li>
                     ))}
                   </ul>
+                )}
+
+                {/* A lista completa fica atrás de um clique de propósito: numa
+                    instalação com muitas áreas, todas abertas ao mesmo tempo
+                    empurrariam para fora da tela justamente o que a página
+                    existe para comparar — o estado de cada área. */}
+                {area.usuarios.length > 0 && (
+                  <details>
+                    <summary className="text-[12px] font-semibold cursor-pointer" style={{ color: 'var(--accent)' }}>
+                      Ver os {area.usuarios.length} usuário(s) desta área
+                    </summary>
+
+                    <div className="mt-2.5 rounded-md overflow-hidden" style={{ border: '1px solid var(--line)' }}>
+                      <table className="w-full text-[12.5px]">
+                        <thead>
+                          <tr style={{ background: 'var(--bg)' }}>
+                            <th className="text-left font-semibold px-3 py-1.5">Nome</th>
+                            <th className="text-left font-semibold px-3 py-1.5">E-mail</th>
+                            <th className="text-left font-semibold px-3 py-1.5">Papel</th>
+                            <th className="text-left font-semibold px-3 py-1.5">Acesso</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {area.usuarios.map(u => (
+                            <tr key={u.id} style={{ borderTop: '1px solid var(--line)' }}>
+                              <td className="px-3 py-1.5">{u.nome}</td>
+                              <td className="px-3 py-1.5 font-mono text-[11px]" style={{ color: 'var(--muted)' }}>
+                                {u.email}
+                              </td>
+                              <td className="px-3 py-1.5">{rotuloPapel(u.papel)}</td>
+                              <td className="px-3 py-1.5">
+                                {u.bloqueado
+                                  ? <span style={{ color: 'var(--rose)' }}>Bloqueado</span>
+                                  : <span style={{ color: 'var(--muted)' }}>Ativo</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <p className="text-[11px] mt-2" style={{ color: 'var(--muted)' }}>
+                      Esta lista é só de leitura. Quem cria, bloqueia e troca o papel dos usuários de uma área é o
+                      Administrador da Área — exceto os próprios administradores, que são nomeados aqui.
+                    </p>
+                  </details>
                 )}
 
                 {/* `<details>` porque as duas ações são raras: renomear e somar
@@ -233,7 +284,8 @@ export default async function AreasPage({
         <ul className="px-4 pb-4 space-y-1.5">
           <li className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>
             <strong style={{ color: 'var(--text)' }}>Administrador Geral</strong> — cadastra as áreas e quem responde
-            por cada uma. Não enxerga colaborador, escala nem solicitação de área nenhuma.
+            por cada uma, e vê quem tem login em cada área. Não enxerga a ficha do colaborador, a escala nem as
+            solicitações de área nenhuma.
           </li>
           <li className="text-[11.5px] leading-relaxed" style={{ color: 'var(--muted)' }}>
             <strong style={{ color: 'var(--text)' }}>Administrador da Área</strong> — cadastra o Planejamento e cuida

@@ -472,14 +472,19 @@ declare n int; begin
   raise notice 'ok: conta_id nulo nega toda policy do dominio';
 end $$;
 
-\echo '=== …e em perfis só enxerga os administradores de área, mais ele mesmo ==='
+\echo '=== …mas em perfis enxerga todos os usuários, de todas as áreas (0016) ==='
+-- Até a 0015 este teste exigia o contrário: 3 perfis, só os administradores de
+-- área. A 0016 ampliou de propósito — quem responde pelo sistema precisa saber
+-- quem tem login nele. O limite da ampliação está no teste acima, que continua
+-- valendo: os dados DE DENTRO da área (colaborador, escala, solicitação) seguem
+-- fechados. Ver quem entra não é ver o que se faz lá dentro.
 do $$
 declare n int; begin
   select count(*) into n from perfis;
-  if n <> 3 then raise exception 'FALHOU: deveria ver 3 perfis (2 admins + ele), viu %', n; end if;
+  if n <> 8 then raise exception 'FALHOU: deveria ver os 8 perfis da massa, viu %', n; end if;
   select count(*) into n from perfis where papel in ('planejamento', 'gestor', 'colaborador');
-  if n <> 0 then raise exception 'FALHA DE SEGURANCA: geral leu % perfil(is) de dentro da area', n; end if;
-  raise notice 'ok: so os administradores locais';
+  if n <> 5 then raise exception 'FALHOU: deveria ver os 5 usuarios comuns das areas, viu %', n; end if;
+  raise notice 'ok: todos os logins, de todas as areas';
 end $$;
 
 \echo '=== resumo_areas() dá os números das duas áreas, sem os dados ==='
@@ -604,6 +609,51 @@ do $$ begin
   raise exception 'FALHA DE SEGURANCA: escalonamento para admin_local permitido';
 exception when insufficient_privilege then
   raise notice 'ok: bloqueado pela RLS';
+end $$;
+
+-- ══════════════════════════════════════════════════════════════
+-- 0016 — o Geral vê os usuários das áreas
+-- ══════════════════════════════════════════════════════════════
+
+\echo '=== O Geral vê os usuários de todas as áreas, e nada além disso ==='
+set request.jwt.claim.sub = 'ccccccc1-0000-0000-0000-000000000001';
+do $$
+declare na int; nb int; n int;
+begin
+  select count(*) into na from perfis where conta_id = '11111111-1111-1111-1111-111111111111';
+  select count(*) into nb from perfis where conta_id = '22222222-2222-2222-2222-222222222222';
+  if na < 5 or nb < 2 then
+    raise exception 'FALHA: o Geral nao leu os usuarios das areas (A=%, B=%)', na, nb;
+  end if;
+
+  -- A linha que separa "ver quem entra" de "ver a operação": a ficha do
+  -- colaborador, a escala e as solicitações continuam fechadas para ele.
+  select count(*) into n from colaboradores;
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: o Geral leu % colaborador(es)', n; end if;
+  select count(*) into n from solicitacoes;
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: o Geral leu % solicitacao(oes)', n; end if;
+
+  raise notice 'ok: le os logins das areas, nao a ficha de quem trabalha nelas';
+end $$;
+
+\echo '=== O Geral vê, mas NÃO altera, quem não é administrador de área ==='
+do $$
+declare p text; begin
+  update perfis set papel = 'gestor' where id = 'aaaaaaa1-0000-0000-0000-000000000003';
+  select papel into p from perfis where id = 'aaaaaaa1-0000-0000-0000-000000000003';
+  if p <> 'colaborador' then
+    raise exception 'FALHA DE SEGURANCA: o Geral mudou o papel de um colaborador para %', p;
+  end if;
+  raise notice 'ok: a 0016 ampliou a leitura e deixou a escrita como estava';
+end $$;
+
+\echo '=== A área continua sem enxergar os usuários da outra ==='
+set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000001';
+do $$
+declare n int; begin
+  select count(*) into n from perfis where conta_id = '22222222-2222-2222-2222-222222222222';
+  if n <> 0 then raise exception 'FALHA DE SEGURANCA: area A leu % usuario(s) da area B', n; end if;
+  raise notice 'ok: a ampliacao vale so para o Geral';
 end $$;
 
 reset role;

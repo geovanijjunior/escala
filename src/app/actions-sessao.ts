@@ -54,44 +54,20 @@ export async function entrar(formData: FormData) {
   redirect('/');
 }
 
-/**
- * Cria uma organização nova. Quem cadastra entra como Planejamento — é quem
- * está montando a operação. Os demais entram por convite (Colaboradores).
+/*
+ * Não há `cadastrar()`.
+ *
+ * Todo acesso ao Jornada é concedido por alguém acima na corrente — o
+ * Administrador Geral cria a área e o Administrador dela, que cadastra o
+ * Planejamento, que cadastra gestores e colaboradores. O auto-cadastro criava
+ * uma organização inteira para quem chegasse na URL, o que contradiz essa
+ * corrente; a tela e a action foram removidas juntas, porque tirar só o link
+ * deixaria a porta aberta para quem soubesse o endereço.
+ *
+ * O trigger `handle_novo_usuario` continua tratando o signup sem `conta_id` —
+ * ele é a última linha de defesa se alguém chamar a API de Auth por fora, e não
+ * o caminho de ninguém pela interface.
  */
-export async function cadastrar(formData: FormData) {
-  const nome = String(formData.get('nome') ?? '').trim();
-  const organizacao = String(formData.get('organizacao') ?? '').trim();
-  const email = String(formData.get('email') ?? '').trim();
-  const senha = String(formData.get('senha') ?? '');
-
-  const volta = (msg: string) => redirect('/cadastro?erro=' + encodeURIComponent(msg));
-  if (!nome) volta('Informe seu nome.');
-  if (!organizacao) volta('Informe o nome da organização.');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) volta('E-mail em formato inválido.');
-  if (senha.length < 8) volta('A senha precisa ter ao menos 8 caracteres.');
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password: senha,
-    // O trigger handle_novo_usuario lê estes campos para criar a conta.
-    options: { data: { nome, organizacao } },
-  });
-
-  if (error) volta(mensagemErroAuth(error));
-
-  // Com "Confirm email" ligado o cadastro dá certo mas não abre sessão: o
-  // Supabase espera o clique num link. Sem este aviso o usuário seria mandado
-  // para "/", o proxy o devolveria ao login e ele não saberia o que houve.
-  if (!data.session) {
-    volta(
-      'A organização foi criada, mas o Supabase está exigindo confirmação por e-mail e este sistema não envia esse link. ' +
-      'Desative "Confirm email" em Authentication → Sign In / Providers → Email e entre pela tela de login.'
-    );
-  }
-
-  redirect('/');
-}
 
 export async function sair() {
   const supabase = await createClient();

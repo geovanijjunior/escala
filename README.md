@@ -62,7 +62,7 @@ Um perfil tem exatamente um papel, e ele é a única dimensão de permissão:
 
 | Papel | Vê | Pode |
 |---|---|---|
-| **Administrador Geral** | As áreas, e nada dentro delas | Cadastrar áreas, nomear e bloquear o Administrador de cada uma, desativar e reativar uma área, ler as contagens de cada área (pessoas, usuários, mês publicado) |
+| **Administrador Geral** | As áreas, quem tem login em cada uma, e nada mais de dentro delas | Cadastrar áreas, nomear e bloquear o Administrador de cada uma, desativar e reativar uma área, ler as contagens de cada área (pessoas, usuários, mês publicado) e a lista de usuários dela |
 | **Administrador da Área** | Toda a área | Cadastrar o Planejamento e os demais usuários, manter colaboradores, equipes, unidades, postos, feriados e parâmetros, acompanhar os indicadores |
 | **Planejamento** | Toda a área | Tudo do Administrador da Área, mais: editar planos, gerar/publicar/encerrar a escala, fazer a triagem das solicitações, travar alocações, publicar comunicados para qualquer público |
 | **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, decidir sozinho o que a triagem encaminhou (aprovar, enfileirar ou recusar), lançar ocorrências, ajustar a escala já publicada, publicar comunicados para a equipe |
@@ -81,15 +81,33 @@ de leitura do Planejamento — precisa poder auditar a própria área —, mas a
 telas de plano, geração, calendário e solicitações ficam fora do alcance dele, e
 as Server Actions correspondentes recusam o papel.
 
-Quem cria uma organização pela tela de cadastro continua entrando como
-Planejamento dela; é o caminho de quem experimenta o sistema. Numa instalação
-com Administrador Geral, o caminho normal é ele criar a área.
+A exceção concedida ao Geral é **ver os usuários** de todas as áreas (`0016`):
+quem responde pelo sistema precisa saber quem tem acesso a ele. É leitura de
+`perfis` — nome, e-mail, papel, bloqueado — e nada além disso: a ficha do
+colaborador, a escala e as solicitações continuam fechadas, e ele não altera
+esses usuários. Ver não é gerir; quem cria, bloqueia e troca o papel de quem
+está dentro de uma área é o Administrador dela.
+
+**Área não se apaga.** Não há policy de delete em `contas`, e não é esquecimento:
+o cascade levaria junto o histórico de meses fechados, que é registro
+trabalhista. Para tirar do ar existe `ativa`, que fecha a porta para todo mundo
+de dentro — inclusive o administrador local — e preserva o que aconteceu.
+
+**Ninguém se cadastra sozinho.** Não há tela de auto-cadastro: todo acesso é
+concedido por alguém acima na corrente, e por isso a tela de login pede
+credencial e mais nada. O trigger `handle_novo_usuario` continua tratando o
+signup sem `conta_id` — é a última linha de defesa se alguém chamar a API de
+Auth por fora, não o caminho de ninguém pela interface.
 
 ### Criar o primeiro Administrador Geral
 
-Não há tela para isso — seria uma tela que qualquer um poderia usar antes do
-primeiro cadastro. No SQL Editor do Supabase, com o e-mail de um usuário que já
-existe em **Authentication → Users**:
+Não há tela para isso, e não poderia haver: uma tela capaz de criar o papel mais
+alto do sistema só faz sentido enquanto ele não existe, e nesse intervalo ela
+estaria aberta a qualquer um. O primeiro é feito à mão, uma vez; daí em diante a
+corrente cuida do resto.
+
+No SQL Editor do Supabase, com o e-mail de um usuário que já existe em
+**Authentication → Users**:
 
 ```sql
 update perfis set papel = 'admin_geral', conta_id = null
@@ -366,6 +384,7 @@ português abre sem embaralhar acento).
    | 13º | `0013_anexo_5mb_e_caixa_de_saida.sql` | anexo até 5 MB e correção do recorte da caixa de saída |
    | 14º | `0014_notificacoes_lidas.sql` | leitura por item no sino e última visita ao mural |
    | 15º | `0015_areas_e_administradores.sql` | áreas, Administrador Geral e Administrador da Área |
+   | 16º | `0016_geral_ve_usuarios.sql` | o Administrador Geral passa a ver os usuários de todas as áreas |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

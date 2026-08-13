@@ -1,7 +1,16 @@
-import Link from 'next/link';
 import { entrar } from '@/app/actions-sessao';
 import { Simbolo } from '@/components/Marca';
 
+/**
+ * Sem porta de auto-cadastro.
+ *
+ * Todo acesso ao Jornada é concedido por alguém acima na corrente: o
+ * Administrador Geral cria a área e o Administrador dela; o Administrador da
+ * Área cadastra o Planejamento; o Planejamento cadastra gestores e
+ * colaboradores. Ninguém entra por conta própria, então esta tela pede
+ * credencial e mais nada — um link de "criar organização" prometeria um caminho
+ * que o sistema não tem.
+ */
 export default async function LoginPage({
   searchParams,
 }: {
@@ -52,10 +61,7 @@ export default async function LoginPage({
         </div>
 
         <p className="text-[12px] mt-4 text-center" style={{ color: 'var(--muted)' }}>
-          Ainda não tem uma organização?{' '}
-          <Link href="/cadastro" className="font-semibold" style={{ color: 'var(--brand-700)' }}>
-            Criar agora
-          </Link>
+          Sem acesso? Fale com quem administra a sua área.
         </p>
       </div>
     </div>

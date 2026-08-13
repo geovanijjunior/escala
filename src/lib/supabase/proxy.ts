@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // quem chega ali vem de um link de e-mail, e a sessão de recuperação só é
 // processada pelo JavaScript do navegador — barrar no servidor antes disso
 // rodar impediria a página de sequer carregar.
-const ROTAS_PUBLICAS = ['/login', '/cadastro', '/redefinir-senha'];
+const ROTAS_PUBLICAS = ['/login', '/redefinir-senha'];
 
 /**
  * Casa a rota exata ou um filho dela (`/login/ajuda`), nunca um prefixo solto.
