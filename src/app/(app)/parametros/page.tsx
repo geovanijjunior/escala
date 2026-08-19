@@ -117,10 +117,8 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 <span className="esc-rotulo">Nome</span>
                 <input name="nome" defaultValue={editandoUnidade?.nome} required className="esc-input" />
               </label>
-              <label className="block">
-                <span className="esc-rotulo">Código</span>
-                <input name="codigo" defaultValue={editandoUnidade?.codigo} required className="esc-input" placeholder="MOR" />
-              </label>
+              {/* O código sai do formulário: o banco o gera a partir do id
+                  (migration 0018). Quem aparece na escala é a sigla. */}
               <label className="block">
                 <span className="esc-rotulo">Sigla</span>
                 <input name="sigla" defaultValue={editandoUnidade?.sigla} required className="esc-input" placeholder="MOR" />
@@ -438,16 +436,15 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
           <div className="overflow-x-auto">
             <table className="esc-tabela">
               <thead>
-                <tr><th>Equipe</th><th>Código</th><th>Regime</th><th>Turno</th><th>Gestor</th><th /></tr>
+                <tr><th>Equipe</th><th>Regime</th><th>Turno</th><th>Gestor</th><th /></tr>
               </thead>
               <tbody>
                 {equipes.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-6" style={{ color: 'var(--muted)' }}>Nenhuma equipe cadastrada.</td></tr>
+                  <tr><td colSpan={5} className="text-center py-6" style={{ color: 'var(--muted)' }}>Nenhuma equipe cadastrada.</td></tr>
                 )}
                 {equipes.map(e => (
                   <tr key={e.id}>
                     <td className="font-medium">{e.nome}</td>
-                    <td className="esc-num" style={{ color: 'var(--muted)' }}>{e.codigo}</td>
                     <td><Badge cor="var(--brand-700)" bg="var(--brand-100)">{e.regime}</Badge></td>
                     <td style={{ color: 'var(--muted)' }}>{e.turno === 'N' ? 'Noturno' : 'Diurno'}</td>
                     <td style={{ color: 'var(--muted)' }}>{perfis.find(p => p.id === e.gestorId)?.nome ?? '—'}</td>
@@ -465,13 +462,10 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
           <form action={salvarEquipe} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
             <Volta busca={busca} ancora="bloco-equipes" />
             {editandoEquipe && <input type="hidden" name="id" value={editandoEquipe.id} />}
+            {/* Sem campo de código: o banco o gera a partir do id (0018). */}
             <label className="block">
               <span className="esc-rotulo">Nome</span>
               <input name="nome" defaultValue={editandoEquipe?.nome} required className="esc-input w-56" />
-            </label>
-            <label className="block">
-              <span className="esc-rotulo">Código</span>
-              <input name="codigo" defaultValue={editandoEquipe?.codigo} required className="esc-input w-28" />
             </label>
             <label className="block">
               <span className="esc-rotulo">Regime</span>

@@ -1,0 +1,181 @@
+'use client';
+
+import { useState } from 'react';
+import { convidarUsuario } from '@/app/actions-usuarios';
+import { CARGOS } from '@/lib/domain/escalas/constantes';
+import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
+
+export interface OpcaoEquipe { id: number; nome: string; regime: string }
+export interface OpcaoUnidade { id: number; nome: string }
+
+/**
+ * Criar o acesso e, quando o papel é colaborador, o cadastro da escala junto.
+ *
+ * Antes eram duas telas em sequência: criava-se o login em Usuários e depois ia
+ * a Colaboradores associar a pessoa pelo campo "Usuário do sistema". O passo do
+ * meio não tinha nada a decidir — quem acabou de criar o acesso de um
+ * colaborador vai, sem exceção, cadastrá-lo na escala — e era justamente o que
+ * ficava esquecido: o login existia, a pessoa entrava e não via dia nenhum.
+ *
+ * É componente de cliente por causa de duas dependências entre campos. Os
+ * dados da escala só fazem sentido para o papel colaborador, e o ciclo só
+ * existe quando a equipe escolhida é 12x36 — mostrar os dois sempre pediria ao
+ * Planejamento que ignorasse metade do formulário e adivinhasse qual metade.
+ */
+export function FormNovoUsuario({
+  papeis, equipes, unidades,
+}: {
+  papeis: { valor: PapelEscalas; label: string }[];
+  equipes: OpcaoEquipe[];
+  unidades: OpcaoUnidade[];
+}) {
+  const [papel, setPapel] = useState<PapelEscalas>('colaborador');
+  const [equipeId, setEquipeId] = useState<string>(equipes[0] ? String(equipes[0].id) : '');
+
+  const ehColaborador = papel === 'colaborador';
+  const equipe = equipes.find(e => String(e.id) === equipeId);
+  const ehPlantao = equipe?.regime === '12x36';
+
+  // Sem equipe ou sem unidade não há cadastro de escala possível, e o formulário
+  // não deve fingir que há: o aviso manda para o lugar onde isso se resolve.
+  const faltaBase = ehColaborador && (equipes.length === 0 || unidades.length === 0);
+
+  return (
+    <form action={convidarUsuario} className="px-4 py-4 space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="block">
+          <span className="esc-rotulo">Nome</span>
+          <input name="nome" required className="esc-input" />
+        </label>
+        <label className="block">
+          <span className="esc-rotulo">E-mail</span>
+          <input type="email" name="email" required className="esc-input" />
+        </label>
+        <label className="block">
+          <span className="esc-rotulo">Papel</span>
+          <select
+            name="papel"
+            value={papel}
+            onChange={e => setPapel(e.target.value as PapelEscalas)}
+            className="esc-input"
+          >
+            {papeis.map(p => <option key={p.valor} value={p.valor}>{p.label}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <span className="esc-rotulo">Senha temporária</span>
+          <input name="senha" className="esc-input" placeholder="Gerada automaticamente" />
+        </label>
+      </div>
+
+      {ehColaborador && (
+        <div className="rounded-md border px-3.5 py-3" style={{ borderColor: 'var(--line)', background: 'var(--bg)' }}>
+          <p className="text-[12px] font-semibold">Dados da escala</p>
+          <p className="text-[11.5px] mt-0.5 mb-3" style={{ color: 'var(--muted)' }}>
+            Preenchidos aqui, o acesso e o cadastro na escala nascem juntos e já vinculados. Regime e gestor vêm da
+            equipe escolhida.
+          </p>
+
+          {faltaBase ? (
+            <p className="text-[12px] font-medium" style={{ color: 'var(--rose)' }}>
+              {equipes.length === 0 ? 'Nenhuma equipe cadastrada. ' : ''}
+              {unidades.length === 0 ? 'Nenhuma unidade ativa. ' : ''}
+              Cadastre em Parâmetros antes de criar um colaborador.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="block">
+                <span className="esc-rotulo">Matrícula</span>
+                <input name="matricula" required className="esc-input esc-num" />
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">Cargo</span>
+                <select name="cargo" className="esc-input">
+                  <option value="">—</option>
+                  {CARGOS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">Equipe</span>
+                <select
+                  name="equipeId"
+                  value={equipeId}
+                  onChange={e => setEquipeId(e.target.value)}
+                  required
+                  className="esc-input"
+                >
+                  {equipes.map(e => <option key={e.id} value={e.id}>{e.nome} · {e.regime}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">Unidade base</span>
+                <select name="unidadeBaseId" required className="esc-input">
+                  {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">Turno</span>
+                <select name="turno" defaultValue="D" className="esc-input">
+                  <option value="D">Diurno</option>
+                  <option value="N">Noturno</option>
+                </select>
+              </label>
+
+              {/* Só o 12x36 tem ciclo: é o que decide se a pessoa trabalha nos
+                  dias pares ou nos ímpares. Para 5x2 o campo não significa nada. */}
+              {ehPlantao && (
+                <label className="block">
+                  <span className="esc-rotulo">Ciclo (12x36)</span>
+                  <select name="ciclo" defaultValue="IMPAR" required className="esc-input">
+                    <option value="IMPAR">Dias ímpares</option>
+                    <option value="PAR">Dias pares</option>
+                  </select>
+                </label>
+              )}
+
+              <label className="block">
+                <span className="esc-rotulo">Entrada</span>
+                <input type="time" name="entrada" defaultValue="08:00" required className="esc-input esc-num" />
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">Jornada (horas)</span>
+                <input
+                  type="number" name="jornada" min={1} max={24} step={0.5} defaultValue={8}
+                  required className="esc-input esc-num"
+                />
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">Admissão</span>
+                <input type="date" name="admissao" required className="esc-input" />
+              </label>
+
+              <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap gap-x-5 gap-y-1.5 text-[12.5px]">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="elegHome" defaultChecked /> Elegível a home office
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="elegExterno" /> Elegível a trabalho externo
+                </label>
+                {!ehPlantao && (
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" name="sextaReduzida" /> Sexta reduzida (−1h)
+                  </label>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <button type="submit" className="esc-btn" disabled={faltaBase}>
+        {ehColaborador ? 'Criar acesso e cadastrar na escala' : 'Criar acesso'}
+      </button>
+    </form>
+  );
+}

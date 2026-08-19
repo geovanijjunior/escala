@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirCadastrador } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
-import { CARGOS, MOTIVOS_INATIVACAO } from '@/lib/domain/escalas/constantes';
+import { montarColaborador } from '@/lib/colaborador-form';
 import { DIAS_ABREV } from '@/lib/domain/escalas/datas';
 import { voltar, voltarComErro } from '@/lib/volta';
 import { mensagemErroBanco } from '@/lib/erros-banco';
@@ -39,83 +39,13 @@ export async function salvarColaborador(formData: FormData) {
   exigirCadastrador(sessao.papel, COLABS);
 
   const id = Number(formData.get('id') ?? 0);
-  const nome = texto(formData, 'nome');
-  const matricula = texto(formData, 'matricula');
-  const email = texto(formData, 'email');
-  const cargo = texto(formData, 'cargo');
-  const equipeId = Number(formData.get('equipeId'));
-  const unidadeBaseId = Number(formData.get('unidadeBaseId'));
-  const entrada = texto(formData, 'entrada');
-  const jornada = Number(formData.get('jornada'));
-  const admissao = texto(formData, 'admissao');
-  const desligamento = texto(formData, 'desligamento');
-
-  // O status é DERIVADO do motivo, não enviado ao lado dele. Com os dois vindo
-  // da tela, um dia eles discordariam — "ativo" com motivo de desligamento — e
-  // não haveria como saber qual dos dois é o verdadeiro.
-  const ativo = texto(formData, 'ativo') !== '0';
-  const motivoStatus = ativo ? '' : texto(formData, 'motivoStatus');
-  const regra = MOTIVOS_INATIVACAO.find(m => m.chave === motivoStatus);
-  const status = ativo ? 'ativo' : (regra?.desliga ? 'desligado' : 'afastado');
-  const turno = texto(formData, 'turno') === 'N' ? 'N' : 'D';
-  const cicloBruto = texto(formData, 'ciclo');
-  const perfilIdBruto = texto(formData, 'perfilId');
-
-  if (!nome) voltarComErro(COLABS, formData, 'Informe o nome.');
-  if (!matricula) voltarComErro(COLABS, formData, 'Informe a matrícula.');
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) voltarComErro(COLABS, formData, 'E-mail em formato inválido.');
-  if (cargo && !CARGOS.includes(cargo)) voltarComErro(COLABS, formData, 'Cargo inválido.');
-  if (!equipeId) voltarComErro(COLABS, formData, 'Selecione a equipe.');
-  if (!unidadeBaseId) voltarComErro(COLABS, formData, 'Selecione a unidade base.');
-  if (!/^\d{2}:\d{2}$/.test(entrada)) voltarComErro(COLABS, formData, 'Horário de entrada inválido.');
-  if (!(jornada > 0 && jornada <= 24)) voltarComErro(COLABS, formData, 'A jornada precisa estar entre 1 e 24 horas.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(admissao)) voltarComErro(COLABS, formData, 'Informe a data de admissão.');
-  if (!ativo && !regra) voltarComErro(COLABS, formData, 'Informe o motivo da inativação.');
-  if (status === 'desligado' && !desligamento) voltarComErro(COLABS, formData, 'Um colaborador desligado precisa da data de desligamento.');
-  if (desligamento && desligamento < admissao) voltarComErro(COLABS, formData, 'O desligamento não pode ser anterior à admissão.');
-
   const supabase = await createClient();
 
-  // Regime e turno vêm da equipe; o turno pode ser sobreposto caso a caso.
-  const { data: equipe } = await supabase.from('equipes').select('regime, turno, gestor_id').eq('id', equipeId).single();
-  if (!equipe) voltarComErro(COLABS, formData, 'Equipe não encontrada.');
-
-  const ciclo = equipe.regime === '12x36'
-    ? (cicloBruto === 'PAR' ? 'PAR' : 'IMPAR')
-    : null;
-  if (equipe.regime === '12x36' && !cicloBruto) voltarComErro(COLABS, formData, 'Regime 12x36 exige definir o ciclo base (dias pares ou ímpares).');
-
-  const duplicada = await supabase
-    .from('colaboradores')
-    .select('id')
-    .eq('matricula', matricula)
-    .neq('id', id || -1)
-    .maybeSingle();
-  if (duplicada.data) voltarComErro(COLABS, formData, `A matrícula ${matricula} já pertence a outro colaborador.`);
-
-  const registro = {
-    conta_id: sessao.conta.id,
-    perfil_id: perfilIdBruto || null,
-    nome,
-    matricula,
-    email,
-    cargo,
-    equipe_id: equipeId,
-    gestor_id: texto(formData, 'gestorId') || equipe.gestor_id,
-    regime: equipe.regime,
-    turno,
-    ciclo,
-    entrada,
-    jornada,
-    unidade_base_id: unidadeBaseId,
-    eleg_home: marcado(formData, 'elegHome'),
-    eleg_externo: marcado(formData, 'elegExterno'),
-    sexta_reduzida: equipe.regime === '5x2' && marcado(formData, 'sextaReduzida'),
-    status,
-    motivo_status: motivoStatus,
-    admissao,
-    desligamento: status === 'desligado' ? desligamento : null,
-  };
+  // A leitura e a validação vivem em `montarColaborador` porque o formulário de
+  // Usuários também cria colaborador — ver o comentário lá.
+  const lido = await montarColaborador(supabase, sessao.conta.id, formData, { id });
+  if (!lido.ok) return voltarComErro(COLABS, formData, lido.erro);
+  const { registro, rotuloMotivo } = lido;
 
   const { error } = id
     ? await supabase.from('colaboradores').update(registro).eq('id', id)
@@ -123,7 +53,11 @@ export async function salvarColaborador(formData: FormData) {
 
   if (error) voltarComErro(COLABS, formData, `Não foi possível salvar: ${mensagemErroBanco(error)}`);
 
-  await registrarLog(sessao, id ? 'Colaborador atualizado' : 'Colaborador criado', `${nome} · ${matricula} · ${status}${regra ? ` (${regra.label})` : ''}`);
+  await registrarLog(
+    sessao,
+    id ? 'Colaborador atualizado' : 'Colaborador criado',
+    `${registro.nome} · ${registro.matricula} · ${registro.status}${rotuloMotivo ? ` (${rotuloMotivo})` : ''}`,
+  );
   revalidatePath('/', 'layout');
   voltar(COLABS, formData);
 }
@@ -138,20 +72,20 @@ export async function salvarUnidade(formData: FormData) {
 
   const id = Number(formData.get('id') ?? 0);
   const nome = texto(formData, 'nome');
-  const codigo = texto(formData, 'codigo').toUpperCase();
   const sigla = texto(formData, 'sigla').toUpperCase();
   const total = inteiro(formData, 'capacidadeTotal');
   const reservadas = inteiro(formData, 'capacidadeReservadas');
 
-  if (!nome || !codigo || !sigla) voltarComErro(PARAMS, formData, 'Nome, código e sigla são obrigatórios.');
+  if (!nome || !sigla) voltarComErro(PARAMS, formData, 'Nome e sigla são obrigatórios.');
   if (total === null || total < 0) voltarComErro(PARAMS, formData, 'Informe a capacidade total como um número inteiro de posições.');
   if (reservadas === null || reservadas < 0) voltarComErro(PARAMS, formData, 'Informe as posições reservadas como um número inteiro.');
   if (reservadas > total) voltarComErro(PARAMS, formData, 'As posições reservadas não podem passar da capacidade total.');
 
   const supabase = await createClient();
+  // Sem `codigo`: no insert quem preenche é o trigger da 0018, a partir do id;
+  // no update, omitir a coluna preserva o valor que já está gravado.
   const registro = {
     conta_id: sessao.conta.id,
-    codigo,
     nome,
     sigla,
     cor: texto(formData, 'cor') || '#1A4E93',
@@ -263,15 +197,15 @@ export async function salvarEquipe(formData: FormData) {
 
   const id = Number(formData.get('id') ?? 0);
   const nome = texto(formData, 'nome');
-  const codigo = texto(formData, 'codigo').toUpperCase();
   const regime = texto(formData, 'regime') === '12x36' ? '12x36' : '5x2';
   const turno = texto(formData, 'turno') === 'N' ? 'N' : 'D';
-  if (!nome || !codigo) voltarComErro(PARAMS, formData, 'Nome e código da equipe são obrigatórios.');
+  if (!nome) voltarComErro(PARAMS, formData, 'Informe o nome da equipe.');
 
   const supabase = await createClient();
+  // Sem `codigo`: no insert quem preenche é o trigger da 0018, a partir do id;
+  // no update, omitir a coluna preserva o valor que já está gravado.
   const registro = {
     conta_id: sessao.conta.id,
-    codigo,
     nome,
     regime,
     turno,

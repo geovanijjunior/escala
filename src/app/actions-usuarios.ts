@@ -8,6 +8,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getSessao, exigirCadastrador } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { mensagemErroAuth } from '@/lib/erros-auth';
+import { mensagemErroBanco } from '@/lib/erros-banco';
+import { montarColaborador } from '@/lib/colaborador-form';
 import { voltar } from '@/lib/volta';
 import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
 
@@ -35,11 +37,27 @@ function senhaTemporaria(): string {
 }
 
 /**
- * Cria o login de alguém na organização.
+ * Cria o login de alguém na organização — e, se for colaborador, o cadastro
+ * dele na escala no mesmo passo.
  *
  * O usuário nasce direto no Supabase Auth com `conta_id` nos metadados — é isso
  * que faz o trigger handle_novo_usuario colocá-lo nesta conta em vez de criar
  * uma organização nova.
+ *
+ * A ordem das quatro etapas abaixo não é arbitrária, e o motivo é que criar
+ * login e criar colaborador acontecem em sistemas diferentes — Auth e banco —
+ * sem uma transação que abrace os dois:
+ *
+ *   1. valida o colaborador ANTES de tocar no Auth. Matrícula repetida ou
+ *      equipe faltando são os erros comuns, e descobri-los depois deixaria um
+ *      login criado que a pessoa não pediu;
+ *   2. cria o login;
+ *   3. grava o colaborador já apontando para o perfil recém-criado. O perfil
+ *      existe porque o trigger roda dentro da transação do insert em
+ *      `auth.users`, então quando `createUser` retorna ele já está lá;
+ *   4. se o passo 3 falhar mesmo assim, desfaz o login. Um login sem
+ *      colaborador entra no sistema e não aparece em escala nenhuma — some
+ *      dentro da lista de usuários e só reaparece quando alguém estranha.
  *
  * A senha temporária é devolvida na query string uma única vez, para ser
  * entregue à pessoa. Ela não fica gravada em lugar nenhum.
@@ -59,18 +77,44 @@ export async function convidarUsuario(formData: FormData) {
   const senha = String(formData.get('senha') ?? '').trim() || senhaTemporaria();
   if (senha.length < 8) erro('A senha temporária precisa ter ao menos 8 caracteres.');
 
+  // 1. O colaborador é validado primeiro, com `perfilId` ainda nulo — o id só
+  //    existe depois do passo 2, e é preenchido na hora de gravar.
+  const supabase = await createClient();
+  const dados = papel === 'colaborador'
+    ? await montarColaborador(supabase, sessao.conta.id, formData, { perfilId: null, nome, email })
+    : null;
+  if (dados && !dados.ok) erro(dados.erro);
+
+  // 2. O login.
   const admin = createAdminClient();
-  const { error } = await admin.auth.admin.createUser({
+  const { data: criado, error } = await admin.auth.admin.createUser({
     email,
     password: senha,
     email_confirm: true,
     user_metadata: { nome, papel, conta_id: sessao.conta.id, precisa_trocar_senha: true },
   });
 
-  if (error) erro(mensagemErroAuth(error));
+  if (error || !criado?.user) erro(mensagemErroAuth(error));
 
-  await registrarLog(sessao, 'Usuário criado', `${nome} (${email}) · ${papel}`);
-  revalidatePath(VOLTA);
+  // 3. O colaborador, apontando para o perfil que o trigger acabou de criar.
+  if (dados?.ok) {
+    const { error: erroColab } = await supabase
+      .from('colaboradores')
+      .insert({ ...dados.registro, perfil_id: criado.user.id });
+
+    // 4. Não deu: o login volta atrás para não sobrar acesso órfão.
+    if (erroColab) {
+      await admin.auth.admin.deleteUser(criado.user.id);
+      erro(`O acesso não foi criado porque o cadastro na escala falhou: ${mensagemErroBanco(erroColab)}`);
+    }
+  }
+
+  await registrarLog(
+    sessao,
+    'Usuário criado',
+    `${nome} (${email}) · ${papel}${dados?.ok ? ` · colaborador ${dados.registro.matricula}` : ''}`,
+  );
+  revalidatePath('/', 'layout');
   redirect(`${VOLTA}?criado=${encodeURIComponent(email)}&senha=${encodeURIComponent(senha)}`);
 }
 

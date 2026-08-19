@@ -207,17 +207,23 @@ npm install
 npm run dev
 ```
 
-Abra `http://localhost:3000`, clique em "Criar agora" — isso cria uma
-organização com você como Planejamento.
+Abra `http://localhost:3000`. Não há auto-cadastro: crie o primeiro
+Administrador Geral pelo SQL da seção anterior e, logado nele, cadastre a
+primeira área junto com o administrador dela — é ele quem cria o Planejamento.
 
 ### 4. Primeiros passos
 
 1. Em **Parâmetros**, cadastre as **unidades** (capacidade total e posições
-   reservadas), as **equipes** (regime e gestor) e os **feriados**.
-2. Em **Usuários**, crie o acesso das pessoas que vão operar o sistema. Cada uma
-   recebe uma senha temporária, mostrada uma única vez — entregue a ela.
-3. Em **Colaboradores**, cadastre as pessoas da escala e vincule cada uma ao
-   usuário do sistema pelo campo *Usuário do sistema*. É esse vínculo que faz
+   reservadas), as **equipes** (regime e gestor) e os **feriados**. O código de
+   unidade e de equipe não é pedido: o banco o gera a partir do id.
+2. Em **Usuários**, crie o acesso das pessoas. Cada uma recebe uma senha
+   temporária, mostrada uma única vez — entregue a ela. Escolhendo o papel
+   **colaborador**, o formulário abre os campos da escala (matrícula, equipe,
+   unidade base, jornada, admissão) e cria o login e o cadastro já vinculados,
+   sem passar por outra tela.
+3. **Colaboradores** continua sendo o caminho do caso inverso: a pessoa já está
+   na escala — veio de uma planilha importada, por exemplo — e só agora ganha
+   login. O campo *Usuário do sistema* liga os dois. É esse vínculo que faz
    "Minha escala" mostrar os dias certos e que permite ao gestor ver a própria
    equipe. Nem todo colaborador precisa de login, e nem todo usuário precisa
    estar na escala.
@@ -389,6 +395,7 @@ português abre sem embaralhar acento).
    | 15º | `0015_areas_e_administradores.sql` | áreas, Administrador Geral e Administrador da Área |
    | 16º | `0016_geral_ve_usuarios.sql` | o Administrador Geral passa a ver os usuários de todas as áreas |
    | 17º | `0017_anexo_20mb.sql` | anexo do mural de 5 MB para 20 MB |
+   | 18º | `0018_codigo_gerado.sql` | código de unidade e de equipe gerado pelo banco |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

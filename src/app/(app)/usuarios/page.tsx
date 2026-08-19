@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation';
 import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
 import { ROTULO_PAPEL } from '@/lib/supabase/types';
-import { convidarUsuario, mudarPapel, alternarBloqueio } from '@/app/actions-usuarios';
+import { mudarPapel, alternarBloqueio } from '@/app/actions-usuarios';
 import { Aviso, Badge, Bloco, Pill } from '@/components/Ui';
+import { FormNovoUsuario } from '@/components/FormNovoUsuario';
 import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
 
 const PAPEIS: { valor: PapelEscalas; label: string; desc: string }[] = [
@@ -22,13 +23,20 @@ export default async function UsuariosPage({
 
   const { erro, ok, criado, senha } = await searchParams;
   const supabase = await createClient();
-  const { data } = await supabase
-    .from('perfis')
-    .select('id, nome, email, papel, bloqueado, criado_em')
-    .order('nome');
-  const usuarios = (data ?? []) as {
+
+  // Equipes e unidades alimentam os campos de escala que aparecem quando o
+  // papel escolhido é colaborador.
+  const [perfisRes, equipesRes, unidadesRes] = await Promise.all([
+    supabase.from('perfis').select('id, nome, email, papel, bloqueado, criado_em').order('nome'),
+    supabase.from('equipes').select('id, nome, regime').order('nome'),
+    supabase.from('unidades').select('id, nome').eq('ativa', true).order('ordem'),
+  ]);
+
+  const usuarios = (perfisRes.data ?? []) as {
     id: string; nome: string; email: string; papel: PapelEscalas; bloqueado: boolean; criado_em: string;
   }[];
+  const equipes = (equipesRes.data ?? []) as { id: number; nome: string; regime: string }[];
+  const unidades = (unidadesRes.data ?? []) as { id: number; nome: string }[];
 
   return (
     <>
@@ -133,29 +141,7 @@ export default async function UsuariosPage({
         titulo="Adicionar pessoa"
         desc="Cria o login já dentro desta organização. Deixe a senha em branco para gerar uma temporária."
       >
-        <form action={convidarUsuario} className="px-4 py-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block">
-            <span className="esc-rotulo">Nome</span>
-            <input name="nome" required className="esc-input" />
-          </label>
-          <label className="block">
-            <span className="esc-rotulo">E-mail</span>
-            <input type="email" name="email" required className="esc-input" />
-          </label>
-          <label className="block">
-            <span className="esc-rotulo">Papel</span>
-            <select name="papel" defaultValue="colaborador" className="esc-input">
-              {PAPEIS.map(p => <option key={p.valor} value={p.valor}>{p.label}</option>)}
-            </select>
-          </label>
-          <label className="block">
-            <span className="esc-rotulo">Senha temporária</span>
-            <input name="senha" className="esc-input" placeholder="Gerada automaticamente" />
-          </label>
-          <div className="sm:col-span-2 lg:col-span-4">
-            <button type="submit" className="esc-btn">Criar acesso</button>
-          </div>
-        </form>
+        <FormNovoUsuario papeis={PAPEIS} equipes={equipes} unidades={unidades} />
 
         <ul className="px-4 pb-4 space-y-1.5">
           {PAPEIS.map(p => (
@@ -166,11 +152,13 @@ export default async function UsuariosPage({
         </ul>
       </Bloco>
 
-      <Bloco titulo="Vincular à escala" desc="Criar o login não coloca a pessoa na escala.">
+      <Bloco titulo="Quem já está na escala" desc="Para ligar um login a um cadastro que já existe.">
         <p className="px-4 py-3 text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>
-          Depois de criar o acesso, vá em <strong style={{ color: 'var(--text)' }}>Colaboradores</strong> e associe a
-          pessoa ao cadastro dela pelo campo <em>Usuário do sistema</em>. É esse vínculo que faz &ldquo;Minha
-          escala&rdquo; mostrar os dias certos e que permite ao gestor ver a própria equipe.
+          Criar o acesso de um colaborador aqui já monta o cadastro dele na escala. O caminho por{' '}
+          <strong style={{ color: 'var(--text)' }}>Colaboradores</strong> continua existindo para o caso inverso — a
+          pessoa já estava na escala (veio de uma planilha importada, por exemplo) e só agora vai ganhar login: lá,
+          o campo <em>Usuário do sistema</em> liga os dois. É esse vínculo que faz &ldquo;Minha escala&rdquo; mostrar
+          os dias certos e que permite ao gestor ver a própria equipe.
         </p>
       </Bloco>
     </>
