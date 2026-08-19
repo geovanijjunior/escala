@@ -4,7 +4,7 @@ import { getSessao } from '@/lib/sessao';
 import { listarNotificacoes } from '@/lib/data/escalas';
 import { Notificacoes } from '@/components/Notificacoes';
 import { createClient } from '@/lib/supabase/server';
-import { NavEscalas, type GrupoNav } from '@/components/NavEscalas';
+import { NavEscalas, FaixaSecoes, type GrupoNav } from '@/components/NavEscalas';
 import { Marca } from '@/components/Marca';
 import { TabBar } from '@/components/TabBar';
 import { ROTULO_PAPEL } from '@/lib/supabase/types';
@@ -141,7 +141,6 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
       <Suspense fallback={<div className="hidden lg:block w-[230px] shrink-0" style={{ background: 'var(--ink)' }} />}>
         <NavEscalas
           grupos={grupos}
-          semFaixaMobile={ehColaborador}
           marca={
             <Link href="/" className="block text-white">
               {/* O descritor é o nome da conta, e não "gestão de equipes": com
@@ -202,6 +201,15 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
             </div>
           </div>
         </header>
+
+        {/* Depois do cabeçalho, e não junto do trilho: a faixa é `sticky` logo
+            abaixo dele, e montada antes ficava coberta por ele. O colaborador
+            navega pela tab bar do rodapé e não monta faixa nenhuma. */}
+        {!ehColaborador && (
+          <Suspense fallback={null}>
+            <FaixaSecoes grupos={grupos} />
+          </Suspense>
+        )}
 
         <main
           className="px-3 sm:px-5 max-w-[1560px] py-4 lg:py-5 space-y-4"
