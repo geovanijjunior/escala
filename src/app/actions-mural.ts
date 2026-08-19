@@ -7,7 +7,9 @@ import { registrarLog } from '@/lib/log';
 import { avisarComunicado } from '@/lib/avisos';
 import { rotaComErro } from '@/lib/volta';
 import { mensagemErroBanco } from '@/lib/erros-banco';
-import { TIPOS_ANEXO, LIMITE_BYTES, LIMITE_ROTULO } from '@/lib/anexos';
+import {
+  TIPOS_ANEXO, LIMITE_BYTES, LIMITE_ROTULO, LIMITE_TOTAL_BYTES, LIMITE_TOTAL_ROTULO,
+} from '@/lib/anexos';
 import { redirect } from 'next/navigation';
 
 const VOLTA = '/mural';
@@ -66,6 +68,17 @@ export async function publicarComunicado(formData: FormData) {
 
   // ── Anexos ────────────────────────────────────────────────
   const arquivos = formData.getAll('anexos').filter((f): f is File => f instanceof File && f.size > 0);
+
+  // A soma é conferida antes do laço: recusar no meio deixaria o comunicado
+  // publicado com parte dos anexos gravados, e o autor sem saber quais.
+  const total = arquivos.reduce((n, f) => n + f.size, 0);
+  if (total > LIMITE_TOTAL_BYTES) {
+    erro(
+      `Os anexos somam ${(total / 1048576).toFixed(1)} MB e o limite por comunicado é ${LIMITE_TOTAL_ROTULO}. ` +
+      'Remova algum ou publique em dois comunicados.',
+    );
+  }
+
   for (const arquivo of arquivos) {
     if (!TIPOS_ANEXO.includes(arquivo.type)) {
       erro(`"${arquivo.name}" não é imagem nem PDF. Aceitos: PNG, JPEG, WEBP, GIF e PDF.`);

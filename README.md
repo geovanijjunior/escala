@@ -339,11 +339,14 @@ dos dois enxerga o que não lhe cabe.
   subir banco, e é o que torna viável mostrar o resultado antes de confirmar.
   A matrícula é a identidade: reimportar o mesmo arquivo atualiza em vez de
   duplicar, então corrigir uma linha e mandar tudo de novo é seguro.
-- **Anexo do mural mora no banco, em `bytea`, com teto de 5 MB.** É uma troca
-  deliberada contra o Storage: o mural recebe foto de aviso e PDF de uma ou
-  duas páginas, e guardar no banco dispensa bucket, políticas de storage e URL
-  assinada — o anexo herda exatamente o recorte do comunicado, sem um segundo
-  caminho por onde vazar.
+- **Anexo do mural mora no banco, em `bytea`, com teto de 20 MB por arquivo e
+  40 MB por comunicado.** É uma troca deliberada contra o Storage: o mural
+  recebe foto de aviso e PDF escaneado, e guardar no banco dispensa bucket,
+  políticas de storage e URL assinada — o anexo herda exatamente o recorte do
+  comunicado, sem um segundo caminho por onde vazar. Os dois tetos existem
+  porque medem coisas diferentes: o CHECK da tabela vale por arquivo, e o
+  `serverActions.bodySizeLimit` do `next.config.ts` vale para a requisição
+  inteira. Mexer num sem o outro troca uma mensagem clara por um erro de rede.
 - **Estado de navegação na URL**: mês, filtros, dia aberto e aba vivem na query
   string, então o botão voltar funciona e dá para compartilhar o link de um dia.
 
@@ -385,6 +388,7 @@ português abre sem embaralhar acento).
    | 14º | `0014_notificacoes_lidas.sql` | leitura por item no sino e última visita ao mural |
    | 15º | `0015_areas_e_administradores.sql` | áreas, Administrador Geral e Administrador da Área |
    | 16º | `0016_geral_ve_usuarios.sql` | o Administrador Geral passa a ver os usuários de todas as áreas |
+   | 17º | `0017_anexo_20mb.sql` | anexo do mural de 5 MB para 20 MB |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

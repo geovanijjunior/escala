@@ -40,8 +40,18 @@ export function Notificacoes({
         )}
       </summary>
 
+      {/* No celular o painel se ancora na TELA, não no sino.
+          Ancorado no sino, o `right-0` alinhava a borda direita do painel com a
+          do sino — que não fica na beira da tela, tem o botão "Sair" à direita
+          dele. Os 360px de painel cresciam para a esquerda a partir dali e
+          saíam pela borda: o título aparecia como "ificações" e cada aviso
+          começava cortado. Como o sino existe em dois lugares (cabeçalho do
+          celular e topbar do desktop), a correção não pode ser reposicionar o
+          sino — é o painel que passa a ser `fixed` entre as duas margens
+          enquanto a tela é estreita. De `lg` para cima ele volta a pender do
+          sino, onde há espaço de sobra. */}
       <div
-        className="absolute right-0 mt-2 w-[min(360px,calc(100vw-24px))] rounded-lg border shadow-lg overflow-hidden z-50"
+        className="fixed left-2 right-2 top-[57px] w-auto lg:absolute lg:left-auto lg:right-0 lg:top-auto lg:mt-2 lg:w-[360px] rounded-lg border shadow-lg overflow-hidden z-50"
         style={{ background: 'var(--surface)', borderColor: 'var(--line-2)', color: 'var(--text)' }}
       >
         <div

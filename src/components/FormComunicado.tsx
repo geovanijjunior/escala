@@ -1,7 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { TIPOS_ANEXO, LIMITE_BYTES, LIMITE_ROTULO } from '@/lib/anexos';
+import {
+  TIPOS_ANEXO, LIMITE_BYTES, LIMITE_ROTULO, LIMITE_TOTAL_BYTES, LIMITE_TOTAL_ROTULO,
+} from '@/lib/anexos';
 
 const tamanho = (b: number) => {
   if (b >= 1048576) return `${(b / 1048576).toFixed(1)} MB`;
@@ -28,6 +30,10 @@ export function FormComunicado({
   const campo = useRef<HTMLInputElement>(null);
 
   const grandes = arquivos.filter(f => f.size > LIMITE_BYTES);
+  // A soma importa por si: cada arquivo pode caber e o conjunto estourar o
+  // corpo da requisição, que é onde o Next corta.
+  const total = arquivos.reduce((n, f) => n + f.size, 0);
+  const totalEstourou = total > LIMITE_TOTAL_BYTES;
 
   return (
     <div className="space-y-3">
@@ -98,10 +104,10 @@ export function FormComunicado({
           >
             {arquivos.length ? 'Trocar arquivos' : 'Escolher arquivos'}
           </button>
-          <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>
+          <span className="text-[11.5px]" style={{ color: totalEstourou ? 'var(--rose)' : 'var(--muted)' }}>
             {arquivos.length === 0
               ? `Nenhum arquivo escolhido · até ${LIMITE_ROTULO} por arquivo`
-              : `${arquivos.length} arquivo(s)`}
+              : `${arquivos.length} arquivo(s) · ${tamanho(total)} no total`}
           </span>
           {arquivos.length > 0 && (
             <button
@@ -136,8 +142,15 @@ export function FormComunicado({
           </ul>
         )}
 
+        {totalEstourou && (
+          <p className="text-[11.5px] mt-1.5 font-medium" style={{ color: 'var(--rose)' }}>
+            Os anexos somam {tamanho(total)} e o limite por comunicado é {LIMITE_TOTAL_ROTULO}. Remova algum ou
+            publique em dois comunicados.
+          </p>
+        )}
+
         <span className="esc-ajuda mt-1 block">
-          Até {LIMITE_ROTULO} por arquivo. PNG, JPEG, WEBP, GIF ou PDF.
+          Até {LIMITE_ROTULO} por arquivo e {LIMITE_TOTAL_ROTULO} somando todos. PNG, JPEG, WEBP, GIF ou PDF.
         </span>
       </div>
 
@@ -146,7 +159,7 @@ export function FormComunicado({
         Fixar no topo do mural
       </label>
 
-      <button type="submit" className="esc-btn" disabled={grandes.length > 0}>
+      <button type="submit" className="esc-btn" disabled={grandes.length > 0 || totalEstourou}>
         Publicar comunicado
       </button>
     </div>
