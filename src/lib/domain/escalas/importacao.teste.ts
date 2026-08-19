@@ -14,8 +14,8 @@ const unidades: Unidade[] = [
 ];
 
 const equipes: Equipe[] = [
-  { id: 1, codigo: 'TEC', nome: 'Técnicos de Campo', regime: '5x2', turno: 'D', gestorId: null },
-  { id: 2, codigo: 'PLA', nome: 'Plantão 12x36', regime: '12x36', turno: 'D', gestorId: null },
+  { id: 1, codigo: 'TEC', nome: 'Técnicos de Campo', regime: '5x2', turno: 'D', gestorId: null, naEscala: true },
+  { id: 2, codigo: 'PLA', nome: 'Plantão 12x36', regime: '12x36', turno: 'D', gestorId: null, naEscala: true },
 ];
 
 const ler = (csv: string) => lerPlanilha(csv, { equipes, unidades });

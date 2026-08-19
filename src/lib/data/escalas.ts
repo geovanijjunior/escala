@@ -156,8 +156,17 @@ export async function listarUnidades(): Promise<Unidade[]> {
 export async function listarEquipes(): Promise<Equipe[]> {
   const supabase = await createClient();
   const data = conferir('listarEquipes', await supabase.from('equipes').select('*').order('nome'));
-  return ((data ?? []) as { id: number; codigo: string; nome: string; regime: '12x36' | '5x2'; turno: 'D' | 'N'; gestor_id: string | null }[])
-    .map(e => ({ id: e.id, codigo: e.codigo, nome: e.nome, regime: e.regime, turno: e.turno, gestorId: e.gestor_id }));
+  return ((data ?? []) as {
+    id: number; codigo: string; nome: string; regime: '12x36' | '5x2'; turno: 'D' | 'N';
+    gestor_id: string | null; na_escala: boolean | null;
+  }[])
+    .map(e => ({
+      id: e.id, codigo: e.codigo, nome: e.nome, regime: e.regime, turno: e.turno, gestorId: e.gestor_id,
+      // `?? true` cobre a instalação que ainda não rodou a 0019: sem a coluna o
+      // campo vem nulo, e o silêncio tem de significar "está na escala" — que é
+      // como o sistema sempre se comportou.
+      naEscala: e.na_escala ?? true,
+    }));
 }
 
 export async function listarColaboradores(): Promise<Colaborador[]> {
@@ -321,9 +330,23 @@ export function simular(ctx: ContextoMes, pinsExtras: ContextoMes['pins'] = []):
   });
 }
 
+/**
+ * Os colaboradores que o mês de fato escala.
+ *
+ * Quem está numa equipe fora da escala é excluído aqui e em `pendenciasDoMes`,
+ * não só no motor. Sem isso, a pessoa continuaria aparecendo em Planos do mês
+ * cobrando um plano que ninguém vai usar — e, pior, essa cobrança conta como
+ * pendência e BLOQUEIA a geração. A equipe sairia da escala e levaria a escala
+ * inteira junto.
+ */
+export function colaboradoresDaEscala(ctx: ContextoMes): Colaborador[] {
+  const fora = new Set(ctx.equipes.filter(e => !e.naEscala).map(e => e.id));
+  return ctx.colaboradores.filter(c => !fora.has(c.equipeId));
+}
+
 export function pendenciasDoMes(ctx: ContextoMes): Pendencia[] {
   return checarPlanos({
-    colaboradores: ctx.colaboradores,
+    colaboradores: colaboradoresDaEscala(ctx),
     planos: ctx.planos,
     ausencias: ctx.ausencias,
     unidades: ctx.unidades,

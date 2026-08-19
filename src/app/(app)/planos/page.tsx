@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessao } from '@/lib/sessao';
-import { carregarContextoMes, listarCompetencias, pendenciasDoMes } from '@/lib/data/escalas';
+import { carregarContextoMes, colaboradoresDaEscala, listarCompetencias, pendenciasDoMes } from '@/lib/data/escalas';
 import { DIAS_ABREV, addDias, formatarCompetencia, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { competenciaDaBusca, comFiltros, texto, type Busca } from '@/lib/pagina';
 import { copiarPlanosDoMes } from '@/app/actions-planos';
@@ -24,7 +24,9 @@ export default async function PlanosPage({ searchParams }: { searchParams: Promi
   const anterior = iso(mes === 0 ? ano - 1 : ano, mes === 0 ? 11 : mes - 1, 1);
   const temAnterior = competencias.includes(anterior);
 
-  const ativos = ctx.colaboradores.filter(c => c.status === 'ativo');
+  // Equipe fora da escala não aparece aqui: não há plano a definir para quem o
+  // motor não aloca.
+  const ativos = colaboradoresDaEscala(ctx).filter(c => c.status === 'ativo');
   const planoPorColab = new Map(ctx.planos.map(p => [p.colaboradorId, p]));
   const herdados = ctx.planos.filter(p => p.herdadoDe).length;
   const equipePorId = new Map(ctx.equipes.map(e => [e.id, e]));

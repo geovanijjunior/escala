@@ -54,10 +54,19 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
   const idsUnidades = unidades.map(u => u.id);
   const nomeUnidade = new Map(unidades.map(u => [u.id, u.nome] as const));
 
+  // Equipes fora da escala saem aqui, e não em cada regra adiante.
+  //
+  // Este filtro é o ponto único de onde a exclusão se propaga: quem não está em
+  // `colaboradores` não é alocado, não conta na ocupação da unidade, não entra
+  // na cota da equipe, na cobertura mínima nem na aderência. É o que dá sentido
+  // exato a "não ocupa posição" — a capacidade do prédio passa a valer só para
+  // quem de fato precisa estar nele.
+  const equipesForaDaEscala = new Set(input.equipes.filter(e => !e.naEscala).map(e => e.id));
+
   // Ordem estável de entrada: sem isso, duas gerações com os mesmos dados podem
   // divergir só porque o banco devolveu as linhas em outra ordem.
   const colaboradores = input.colaboradores
-    .filter(c => c.status === 'ativo')
+    .filter(c => c.status === 'ativo' && !equipesForaDaEscala.has(c.equipeId))
     .slice()
     .sort((a, b) => a.id - b.id);
 

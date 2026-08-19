@@ -89,7 +89,11 @@ export function gerarCenario(a: Aleatorio): GerarEscalaInput {
   const ativas = unidades.filter(u => u.ativa);
 
   const nEquipes = a.int(1, 3);
-  const equipes = Array.from({ length: nEquipes }, (_, i) => ({ id: i + 1, nome: `Equipe ${i + 1}` }));
+  // Todas na escala: a exclusão por equipe tem teste determinístico próprio em
+  // motor.teste.ts. Sortear aqui misturaria "ninguém foi alocado porque a
+  // equipe está fora" com falha de invariante, e o contraexemplo do fuzzer
+  // deixaria de apontar para a causa.
+  const equipes = Array.from({ length: nEquipes }, (_, i) => ({ id: i + 1, nome: `Equipe ${i + 1}`, naEscala: true }));
 
   const postos: Posto[] = a.bool(0.4)
     ? Array.from({ length: a.int(1, 2) }, (_, i) => ({

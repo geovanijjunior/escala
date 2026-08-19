@@ -215,7 +215,9 @@ primeira área junto com o administrador dela — é ele quem cria o Planejament
 
 1. Em **Parâmetros**, cadastre as **unidades** (capacidade total e posições
    reservadas), as **equipes** (regime e gestor) e os **feriados**. O código de
-   unidade e de equipe não é pedido: o banco o gera a partir do id.
+   unidade e de equipe não é pedido: o banco o gera a partir do id. Uma equipe
+   pode ficar **fora da escala** — usa só o fluxo de solicitações, e seus
+   colaboradores não são alocados nem ocupam posição nas unidades.
 2. Em **Usuários**, crie o acesso das pessoas. Cada uma recebe uma senha
    temporária, mostrada uma única vez — entregue a ela. Escolhendo o papel
    **colaborador**, o formulário abre os campos da escala (matrícula, equipe,
@@ -396,6 +398,7 @@ português abre sem embaralhar acento).
    | 16º | `0016_geral_ve_usuarios.sql` | o Administrador Geral passa a ver os usuários de todas as áreas |
    | 17º | `0017_anexo_20mb.sql` | anexo do mural de 5 MB para 20 MB |
    | 18º | `0018_codigo_gerado.sql` | código de unidade e de equipe gerado pelo banco |
+   | 19º | `0019_equipe_fora_da_escala.sql` | equipe que só usa solicitações e não ocupa posição |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

@@ -78,6 +78,14 @@ export interface Equipe {
   regime: Regime;
   turno: Turno;
   gestorId: string | null;
+  /**
+   * Falso para a equipe que só usa o fluxo de solicitações.
+   *
+   * Os colaboradores dela não entram na geração e, por consequência, não ocupam
+   * posição em unidade nenhuma — a capacidade do prédio vale só para quem é
+   * escalado. Eles seguem pedindo férias, folga e licença normalmente.
+   */
+  naEscala: boolean;
 }
 
 export interface Colaborador {
@@ -222,8 +230,13 @@ export interface GerarEscalaInput {
   /** 0-11, como em Date. */
   mes: number;
   unidades: Unidade[];
-  /** Só id e nome interessam ao motor — o nome entra nas mensagens de conflito. */
-  equipes: { id: number; nome: string }[];
+  /**
+   * O nome entra nas mensagens de conflito; `naEscala` decide quem é escalado.
+   * A equipe fora da escala continua na lista para que suas cotas e mensagens
+   * façam sentido caso alguém as consulte — o que o motor faz é não alocar
+   * ninguém dela.
+   */
+  equipes: { id: number; nome: string; naEscala: boolean }[];
   postos: Posto[];
   colaboradores: Colaborador[];
   planos: PlanoMensal[];

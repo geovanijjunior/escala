@@ -103,7 +103,10 @@ export async function salvarUnidade(formData: FormData) {
 
   await registrarLog(sessao, id ? 'Unidade atualizada' : 'Unidade criada', `${nome} · ${total - reservadas} posições operacionais`);
   revalidatePath('/', 'layout');
-  voltar(PARAMS, formData);
+  // `unidade: ''` apaga o parâmetro da volta, e é o que fecha o formulário.
+  // Sem isso ele reabria preenchido com o que acabara de ser gravado — a tela
+  // ficava idêntica à de antes de salvar, que é como se lê "não funcionou".
+  voltar(PARAMS, formData, { unidade: '' });
 }
 
 /**
@@ -210,15 +213,20 @@ export async function salvarEquipe(formData: FormData) {
     regime,
     turno,
     gestor_id: texto(formData, 'gestorId') || null,
+    na_escala: marcado(formData, 'naEscala'),
   };
   const { error } = id
     ? await supabase.from('equipes').update(registro).eq('id', id)
     : await supabase.from('equipes').insert(registro);
   if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a equipe: ${mensagemErroBanco(error)}`);
 
-  await registrarLog(sessao, id ? 'Equipe atualizada' : 'Equipe criada', `${nome} · ${regime} · turno ${turno}`);
+  await registrarLog(
+    sessao,
+    id ? 'Equipe atualizada' : 'Equipe criada',
+    `${nome} · ${regime} · turno ${turno}${registro.na_escala ? '' : ' · fora da escala'}`,
+  );
   revalidatePath('/', 'layout');
-  voltar(PARAMS, formData);
+  voltar(PARAMS, formData, { equipe: '' });
 }
 
 export async function salvarFeriado(formData: FormData) {

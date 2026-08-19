@@ -26,7 +26,10 @@ const mkPlano = (colaboradorId: number, over: Partial<PlanoMensal> = {}): PlanoM
   distribuicao: { 1: 100, 2: 0 }, unidadesFixas: {}, postos: [], ...over,
 });
 
-const equipes = [{ id: 1, nome: 'Técnicos 12x36' }, { id: 2, nome: 'Analistas' }];
+const equipes = [
+  { id: 1, nome: 'Técnicos 12x36', naEscala: true },
+  { id: 2, nome: 'Analistas', naEscala: true },
+];
 
 const base = {
   ano: 2026, mes: 7, unidades, equipes, postos: [], ausencias: [], capacidades: [], cotasEquipe: [],
@@ -432,6 +435,37 @@ const base = {
     ok(dias.length === 5, 'bloco de 5 dias ainda é entregue', String(dias.length));
     ok(!dias.includes('2026-08-05') && !dias.includes('2026-08-06'), 'e evita os dias de férias', dias.join(','));
   }
+}
+
+// ── Equipe fora da escala: não é alocada e não ocupa posição
+{
+  const equipesComUmaFora = [
+    { id: 1, nome: 'Técnicos 12x36', naEscala: true },
+    { id: 2, nome: 'Só solicitações', naEscala: false },
+  ];
+  // Cinco pessoas para uma unidade de quatro posições: se a equipe 2 contasse,
+  // alguém sobraria e viraria conflito de capacidade.
+  const colaboradores = [
+    mkColab(1, { equipeId: 1 }),
+    mkColab(2, { equipeId: 1 }),
+    mkColab(3, { equipeId: 2 }),
+    mkColab(4, { equipeId: 2 }),
+    mkColab(5, { equipeId: 2 }),
+  ];
+  const planos = colaboradores.map(c => mkPlano(c.id, { homeOffice: { modo: null, diasSemana: [], quantidade: 0, diasPreferencia: [], diasProibidos: [] } }));
+  const r = gerarEscala({ ...base, equipes: equipesComUmaFora, colaboradores, planos });
+
+  const alocados = new Set(r.alocacoes.map(a => a.colaboradorId));
+  ok([...alocados].every(id => id <= 2), 'só a equipe da escala é alocada', [...alocados].join(','));
+  ok(alocados.size === 2, 'as duas pessoas da equipe escalada entram', String(alocados.size));
+
+  // A segunda-feira é dia útil: só os dois da equipe 1 podem ocupar o Morumbi.
+  const seg = r.ocupacao['2026-08-03']?.[1] ?? 0;
+  ok(seg === 2, 'quem está fora da escala não ocupa posição', String(seg));
+  ok(r.conflitos.length === 0, 'e não gera conflito de capacidade', r.conflitos.map(c => c.msg).join(' | '));
+
+  // A aderência é dos escalados; quem não entra não aparece como desviado.
+  ok(r.aderencia.every(a => a.colaboradorId <= 2), 'aderência ignora equipe fora da escala');
 }
 
 console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`);

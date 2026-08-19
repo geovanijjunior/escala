@@ -42,6 +42,15 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
   const editandoUnidade = unidades.find(u => u.id === Number(texto(busca, 'unidade')));
   const editandoEquipe = equipes.find(e => e.id === Number(texto(busca, 'equipe')));
 
+  // O formulário de cadastro fica fechado por padrão e o estado vive na URL:
+  // `?unidade=7` edita a de id 7, `?unidade=novo` abre em branco. Assim o botão
+  // voltar desfaz a abertura, e a Server Action apaga o parâmetro ao gravar —
+  // é isso que fecha o formulário depois de salvar.
+  const criandoUnidade = texto(busca, 'unidade') === 'novo';
+  const criandoEquipe = texto(busca, 'equipe') === 'novo';
+  const formUnidadeAberto = Boolean(editandoUnidade) || criandoUnidade;
+  const formEquipeAberto = Boolean(editandoEquipe) || criandoEquipe;
+
   return (
     <>
       <div>
@@ -70,6 +79,14 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
             id="bloco-unidades"
             titulo="Unidades"
             desc="Cada unidade tem uma capacidade total e um número de posições reservadas (visitantes, sala de reunião, etc.). O motor nunca aloca acima de total menos reservadas."
+            acoes={!formUnidadeAberto && (
+              <Link
+                href={`/parametros${comFiltros(busca, { aba: 'unidades', unidade: 'novo' })}#bloco-unidades`}
+                className="esc-btn esc-btn-sm"
+              >
+                Nova unidade
+              </Link>
+            )}
           >
             {unidades.length === 0 ? (
               <Vazio titulo="Nenhuma unidade cadastrada" desc="Cadastre ao menos uma unidade física antes de montar a primeira escala." />
@@ -110,6 +127,8 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               </div>
             )}
 
+            {/* Fechado por padrão — ver o comentário do formulário de equipes. */}
+            {formUnidadeAberto && (
             <form action={salvarUnidade} className="px-4 py-3 border-t grid gap-3 sm:grid-cols-3 lg:grid-cols-4" style={{ borderColor: 'var(--line)' }}>
             <Volta busca={busca} ancora="bloco-unidades" />
               {editandoUnidade && <input type="hidden" name="id" value={editandoUnidade.id} />}
@@ -148,13 +167,12 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               </label>
               <div className="flex items-end gap-2">
                 <button type="submit" className="esc-btn">{editandoUnidade ? 'Salvar unidade' : 'Adicionar unidade'}</button>
-                {editandoUnidade && (
-                  <Link href={`/parametros${comFiltros(busca, { unidade: null })}`} className="esc-btn esc-btn-ghost esc-btn-sm">
-                    Cancelar
-                  </Link>
-                )}
+                <Link href={`/parametros${comFiltros(busca, { unidade: null })}`} className="esc-btn esc-btn-ghost esc-btn-sm">
+                  Cancelar
+                </Link>
               </div>
             </form>
+            )}
           </Bloco>
 
           {unidades.length > 0 && (
@@ -432,21 +450,38 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
       )}
 
       {aba === 'equipes' && (
-        <Bloco id="bloco-equipes" titulo="Equipes" desc="A equipe define o regime de trabalho e o gestor responsável pelas aprovações.">
+        <Bloco
+          id="bloco-equipes"
+          titulo="Equipes"
+          desc="A equipe define o regime de trabalho e o gestor responsável pelas aprovações. Uma equipe fora da escala usa só o fluxo de solicitações: seus colaboradores não são alocados e não ocupam posição nas unidades."
+          acoes={!formEquipeAberto && (
+            <Link
+              href={`/parametros${comFiltros(busca, { aba: 'equipes', equipe: 'novo' })}#bloco-equipes`}
+              className="esc-btn esc-btn-sm"
+            >
+              Nova equipe
+            </Link>
+          )}
+        >
           <div className="overflow-x-auto">
             <table className="esc-tabela">
               <thead>
-                <tr><th>Equipe</th><th>Regime</th><th>Turno</th><th>Gestor</th><th /></tr>
+                <tr><th>Equipe</th><th>Regime</th><th>Turno</th><th>Escala</th><th>Gestor</th><th /></tr>
               </thead>
               <tbody>
                 {equipes.length === 0 && (
-                  <tr><td colSpan={5} className="text-center py-6" style={{ color: 'var(--muted)' }}>Nenhuma equipe cadastrada.</td></tr>
+                  <tr><td colSpan={6} className="text-center py-6" style={{ color: 'var(--muted)' }}>Nenhuma equipe cadastrada.</td></tr>
                 )}
                 {equipes.map(e => (
                   <tr key={e.id}>
                     <td className="font-medium">{e.nome}</td>
                     <td><Badge cor="var(--brand-700)" bg="var(--brand-100)">{e.regime}</Badge></td>
                     <td style={{ color: 'var(--muted)' }}>{e.turno === 'N' ? 'Noturno' : 'Diurno'}</td>
+                    <td>
+                      {e.naEscala
+                        ? <Badge cor="var(--green)" bg="var(--green-bg)">Entra</Badge>
+                        : <Badge cor="var(--muted)" bg="var(--bg)">Fora</Badge>}
+                    </td>
                     <td style={{ color: 'var(--muted)' }}>{perfis.find(p => p.id === e.gestorId)?.nome ?? '—'}</td>
                     <td className="text-right">
                       <Link href={`/parametros${comFiltros(busca, { aba: 'equipes', equipe: String(e.id) })}`} className="esc-btn esc-btn-outline esc-btn-sm">
@@ -459,6 +494,11 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
             </table>
           </div>
 
+          {/* Só aparece ao clicar em Editar ou em Nova equipe. Aberto o tempo
+              todo, o formulário ficava embaixo da tabela parecendo parte dela —
+              e, depois de salvar, seguia preenchido com o que acabara de ser
+              gravado, o que se lê como "não salvou". */}
+          {formEquipeAberto && (
           <form action={salvarEquipe} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
             <Volta busca={busca} ancora="bloco-equipes" />
             {editandoEquipe && <input type="hidden" name="id" value={editandoEquipe.id} />}
@@ -488,13 +528,22 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 {perfis.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </select>
             </label>
+            {/* Marcado por padrão: a equipe nasce escalada, que é o caso comum.
+                Desmarcar tira os colaboradores dela da geração — e, com isso,
+                das posições das unidades. */}
+            <label className="flex flex-col gap-1 text-[12.5px]">
+              <span className="esc-rotulo">Escala</span>
+              <span className="flex items-center gap-2 h-[34px]">
+                <input type="checkbox" name="naEscala" defaultChecked={editandoEquipe?.naEscala ?? true} />
+                Entra na escala
+              </span>
+            </label>
             <button type="submit" className="esc-btn">{editandoEquipe ? 'Salvar equipe' : 'Adicionar equipe'}</button>
-            {editandoEquipe && (
-              <Link href={`/parametros${comFiltros(busca, { aba: 'equipes', equipe: null })}`} className="esc-btn esc-btn-ghost esc-btn-sm">
-                Cancelar
-              </Link>
-            )}
+            <Link href={`/parametros${comFiltros(busca, { aba: 'equipes', equipe: null })}`} className="esc-btn esc-btn-ghost esc-btn-sm">
+              Cancelar
+            </Link>
           </form>
+          )}
         </Bloco>
       )}
 

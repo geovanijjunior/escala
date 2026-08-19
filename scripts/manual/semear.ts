@@ -261,7 +261,7 @@ async function main() {
 
   const resultado = gerarEscala({
     ano: ANO, mes: MES, unidades,
-    equipes: (await q('select id, nome from equipes')).map(e => ({ id: e.id, nome: e.nome })),
+    equipes: (await q('select id, nome, na_escala from equipes')).map(e => ({ id: e.id, nome: e.nome, naEscala: e.na_escala ?? true })),
     postos: (await q('select * from postos')).map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo })),
     colaboradores, planos,
     ausencias: (await q('select * from ausencias')).map(a => ({
@@ -309,7 +309,7 @@ async function main() {
       ano: anoHoje,
       mes: mesHoje,
       unidades,
-      equipes: (await q('select id, nome from equipes')).map(e => ({ id: e.id, nome: e.nome })),
+      equipes: (await q('select id, nome, na_escala from equipes')).map(e => ({ id: e.id, nome: e.nome, naEscala: e.na_escala ?? true })),
       postos: (await q('select * from postos')).map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo })),
       colaboradores,
       // Mesmos planos, competência trocada: é exatamente o que a herança

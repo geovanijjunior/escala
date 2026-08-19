@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessao } from '@/lib/sessao';
-import { carregarContextoMes, getGeracaoAtual, pendenciasDoMes, simular } from '@/lib/data/escalas';
+import { carregarContextoMes, colaboradoresDaEscala, getGeracaoAtual, pendenciasDoMes, simular } from '@/lib/data/escalas';
 import { formatarCompetencia, formatarData } from '@/lib/domain/escalas/datas';
 import { REGRAS_MOTOR, STATUS_GERACAO } from '@/lib/domain/escalas/constantes';
 import { competenciaDaBusca, texto, type Busca } from '@/lib/pagina';
@@ -22,7 +22,8 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
   // A simulação roda com os mesmos dados da geração definitiva — é literalmente
   // a mesma função. O que muda é só gravar ou não o resultado.
   const previa = pendencias.length === 0 ? simular(ctx) : null;
-  const ativos = ctx.colaboradores.filter(c => c.status === 'ativo');
+  // Conta só quem é escalado — é o número que a prévia abaixo explica.
+  const ativos = colaboradoresDaEscala(ctx).filter(c => c.status === 'ativo');
   const aDefinir = previa ? previa.alocacoes.filter(a => a.modalidade !== 'DESCANSO').length : 0;
   const aderentes = previa ? previa.aderencia.filter(a => a.ok).length : 0;
 
