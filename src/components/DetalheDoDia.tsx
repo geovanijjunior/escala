@@ -152,7 +152,12 @@ export function DetalheDoDia({
                     </form>
                   ) : undefined}
                 >
-                  <td>
+                  {/* `key` em children estáticos: eles atravessam a fronteira
+                      servidor→cliente como array serializado, e nessa travessia
+                      o React perde a marcação de "filhos fixos" e passa a cobrar
+                      chave. Sem elas o console enche de aviso em toda abertura
+                      de dia no calendário. */}
+                  <td key="pessoa">
                     <div className="font-medium flex items-center gap-1.5 flex-wrap">
                       {c.nome}
                       {a.travado && <Badge cor="var(--brand-700)" bg="var(--brand-100)">travado</Badge>}
@@ -165,11 +170,11 @@ export function DetalheDoDia({
                     </div>
                     <div className="text-[10.5px]" style={{ color: 'var(--muted)' }}>{c.matricula}</div>
                   </td>
-                  <td style={{ color: 'var(--muted)' }}>
+                  <td key="equipe" style={{ color: 'var(--muted)' }}>
                     {equipePorId.get(c.equipeId)?.nome ?? '—'}
                     <div className="text-[10.5px]">{c.cargo}</div>
                   </td>
-                  <td>
+                  <td key="alocacao">
                     {/* Estado, não controle: a coluna diz onde a pessoa está, e
                         mudar isso é assunto da gaveta de ajuste. */}
                     <Badge cor={ap.cor} bg={ap.bg}>{ap.label}</Badge>
@@ -185,7 +190,7 @@ export function DetalheDoDia({
                       </div>
                     )}
                   </td>
-                  <td className="esc-num" style={{ color: 'var(--muted)' }}>
+                  <td key="horario" className="esc-num" style={{ color: 'var(--muted)' }}>
                     {['FERIAS', 'FOLGA', 'AFAST', 'FERIADO'].includes(a.modalidade) ? '—' : faixaHoraria(c, dow)}
                   </td>
                 </LinhaDoColaborador>

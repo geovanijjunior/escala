@@ -174,7 +174,7 @@ export async function salvarCapacidade(formData: FormData) {
     `${unidade.nome} · ${quando} · ${total} lugares, ${reservadas} reservadas`
   );
   revalidatePath('/', 'layout');
-  voltar(PARAMS, formData);
+  voltar(PARAMS, formData, { form: '' });
 }
 
 /** Remove uma exceção de capacidade: o dia volta a valer a capacidade padrão da unidade. */
@@ -246,7 +246,7 @@ export async function salvarFeriado(formData: FormData) {
 
   await registrarLog(sessao, 'Feriado cadastrado', `${data} · ${nome}`);
   revalidatePath('/', 'layout');
-  voltar(PARAMS, formData);
+  voltar(PARAMS, formData, { form: '' });
 }
 
 export async function removerFeriado(formData: FormData) {
@@ -286,7 +286,7 @@ export async function salvarParametros(formData: FormData) {
 
   await registrarLog(sessao, 'Parâmetros do motor alterados', `Âncora ${cicloAncora} · tolerância ±${tolerancia} · cobertura mínima ${cobertura}`);
   revalidatePath('/', 'layout');
-  voltar(PARAMS, formData);
+  voltar(PARAMS, formData, { form: '' });
 }
 
 /* ============================================================
@@ -345,7 +345,7 @@ export async function salvarCotaEquipe(formData: FormData) {
   const quando = dows.length > 0 ? dows.map(d => DIAS_ABREV[d]).join(', ') : 'todos os dias';
   await registrarLog(sessao, 'Cota por equipe ajustada', `${equipe.nome} em ${unidade.nome} · ${quando} · até ${limite}`);
   revalidatePath('/', 'layout');
-  voltar(PARAMS, formData);
+  voltar(PARAMS, formData, { form: '' });
 }
 
 /** Remove a cota: a equipe volta a ser limitada só pela capacidade da unidade. */
@@ -402,7 +402,7 @@ export async function salvarPosto(formData: FormData) {
 
   await registrarLog(sessao, id ? 'Posto atualizado' : 'Posto criado', `${nome} · ${vagas} vaga(s)`);
   revalidatePath('/', 'layout');
-  voltar(PARAMS, formData);
+  voltar(PARAMS, formData, { form: '' });
 }
 
 export async function removerPosto(formData: FormData) {

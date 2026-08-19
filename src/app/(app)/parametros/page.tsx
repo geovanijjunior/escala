@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
 import { getConfig, listarEquipes, listarFeriados, listarLogs, listarUnidades } from '@/lib/data/escalas';
-import { DIAS_ABREV, dowDeIso, formatarData } from '@/lib/domain/escalas/datas';
+import { DIAS_ABREV, dowDeIso, formatarCompetencia, formatarData } from '@/lib/domain/escalas/datas';
 import { REGRAS_MOTOR } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import {
@@ -50,6 +50,21 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
   const criandoEquipe = texto(busca, 'equipe') === 'novo';
   const formUnidadeAberto = Boolean(editandoUnidade) || criandoUnidade;
   const formEquipeAberto = Boolean(editandoEquipe) || criandoEquipe;
+
+  /**
+   * Os demais formulários da tela — exceção de capacidade, cota, posto,
+   * feriado e parâmetros do motor — seguem a mesma regra por um parâmetro só.
+   *
+   * Eles ficavam abertos abaixo de cada tabela, e a tela de Parâmetros virava
+   * uma pilha de campos vazios em que era preciso caçar a tabela no meio.
+   * Todos são de adicionar (a linha existente se remove, não se edita), menos
+   * o do motor, que edita a configuração única e por isso mostra os valores em
+   * leitura enquanto está fechado.
+   */
+  const formAberto = texto(busca, 'form');
+  const abrirForm = (nome: string, ancora: string) =>
+    `/parametros${comFiltros(busca, { form: nome })}#${ancora}`;
+  const fecharForm = `/parametros${comFiltros(busca, { form: null })}`;
 
   return (
     <>
@@ -180,6 +195,11 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               id="bloco-capacidade"
               titulo="Capacidade e posições reservadas por dia"
               desc="Sobrepõe a capacidade padrão da unidade num dia da semana (toda segunda, toda sexta…) ou numa data específica. Data exata tem precedência sobre dia da semana. É aqui que se diz 'na segunda eu guardo 2 posições'."
+              acoes={formAberto !== 'capacidade' && (
+                <Link href={abrirForm('capacidade', 'bloco-capacidade')} className="esc-btn esc-btn-sm">
+                  Nova exceção
+                </Link>
+              )}
             >
               <div className="overflow-x-auto">
                 <table className="esc-tabela">
@@ -224,6 +244,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 </table>
               </div>
 
+              {formAberto === 'capacidade' && (
               <form action={salvarCapacidade} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
             <Volta busca={busca} ancora="bloco-capacidade" />
                 <label className="block">
@@ -260,12 +281,14 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   <input type="number" name="reservadas" min={0} defaultValue={0} className="esc-input w-24 esc-num" />
                 </label>
                 <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar</button>
+                <Link href={fecharForm} className="esc-btn esc-btn-ghost esc-btn-sm">Cancelar</Link>
                 <p className="text-[11.5px] w-full" style={{ color: 'var(--muted)' }}>
                   Marque quantos dias quiser — todos recebem os mesmos valores de uma vez.
                   Total em branco mantém a capacidade padrão da unidade, para quando só as reservadas mudam.
                   Salvar de novo um dia já cadastrado substitui o valor anterior; para voltar ao padrão, use <strong style={{ color: 'var(--text)' }}>Remover</strong> na linha.
                 </p>
               </form>
+              )}
             </Bloco>
           )}
 
@@ -274,6 +297,9 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               id="bloco-cotas"
               titulo="Cota de posições por equipe"
               desc="Reparte as posições de uma unidade entre as equipes: no Morumbi, 5 para técnicos 12x36 e 3 para analistas. Equipe sem cota aqui não tem teto próprio — só a capacidade da unidade a limita."
+              acoes={formAberto !== 'cota' && (
+                <Link href={abrirForm('cota', 'bloco-cotas')} className="esc-btn esc-btn-sm">Nova cota</Link>
+              )}
             >
               <div className="overflow-x-auto">
                 <table className="esc-tabela">
@@ -313,6 +339,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 </table>
               </div>
 
+              {formAberto === 'cota' && (
               <form action={salvarCotaEquipe} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
                 <Volta busca={busca} ancora="bloco-cotas" />
                 <label className="block">
@@ -349,12 +376,14 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   <input type="number" name="limite" min={0} required className="esc-input w-32 esc-num" />
                 </label>
                 <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar cota</button>
+                <Link href={fecharForm} className="esc-btn esc-btn-ghost esc-btn-sm">Cancelar</Link>
                 <p className="text-[11.5px] w-full" style={{ color: 'var(--muted)' }}>
                   Nenhum dia marcado significa <strong style={{ color: 'var(--text)' }}>todos os dias</strong>; marcar um dia
                   cria uma exceção que vence a cota geral naquele dia. Quando as cotas de uma unidade somam a capacidade
                   livre dela, o teto vira garantia: um analista deixa de ocupar o lugar que sobrou de técnico.
                 </p>
               </form>
+              )}
             </Bloco>
           )}
 
@@ -363,6 +392,9 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               id="bloco-postos"
               titulo="Postos dentro das unidades"
               desc="Uma função exercida dentro da unidade — o Corpo Clínico dentro do Morumbi. Não é outra unidade: quem cobre o posto ocupa uma posição normal do Morumbi, então capacidade e rateio não mudam. Quem cobre e por quantos dias é definido no plano do mês de cada pessoa."
+              acoes={formAberto !== 'posto' && (
+                <Link href={abrirForm('posto', 'bloco-postos')} className="esc-btn esc-btn-sm">Novo posto</Link>
+              )}
             >
               <div className="overflow-x-auto">
                 <table className="esc-tabela">
@@ -398,6 +430,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 </table>
               </div>
 
+              {formAberto === 'posto' && (
               <form action={salvarPosto} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
                 <Volta busca={busca} ancora="bloco-postos" />
                 <label className="block">
@@ -418,11 +451,43 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   <input type="checkbox" name="ativo" defaultChecked /> Ativo
                 </label>
                 <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Adicionar posto</button>
+                <Link href={fecharForm} className="esc-btn esc-btn-ghost esc-btn-sm">Cancelar</Link>
               </form>
+              )}
             </Bloco>
           )}
 
-          <Bloco id="bloco-motor" titulo="Motor" desc="Ajustes globais que mudam como o motor decide.">
+          <Bloco
+            id="bloco-motor"
+            titulo="Motor"
+            desc="Ajustes globais que mudam como o motor decide."
+            acoes={formAberto !== 'motor' && (
+              <Link href={abrirForm('motor', 'bloco-motor')} className="esc-btn esc-btn-sm">Editar parâmetros</Link>
+            )}
+          >
+            {/* Fechado, este bloco MOSTRA os valores em vez de sumir: são dois
+                números que se consulta muito mais do que se altera, e escondê-los
+                atrás de um clique trocaria um formulário inútil por uma consulta
+                a mais. Os outros formulários da tela somem porque não têm o que
+                exibir quando ninguém está cadastrando. */}
+            {formAberto !== 'motor' && (
+              <dl className="px-4 py-3 flex flex-wrap gap-x-10 gap-y-2 text-[13px]">
+                <div>
+                  <dt className="esc-rotulo">Âncora do ciclo 12x36</dt>
+                  <dd className="esc-num">{formatarCompetencia(config.cicloAncora)}</dd>
+                </div>
+                <div>
+                  <dt className="esc-rotulo">Tolerância de aderência</dt>
+                  <dd className="esc-num">{config.toleranciaAderencia} dia(s)</dd>
+                </div>
+                <div>
+                  <dt className="esc-rotulo">Cobertura mínima por unidade</dt>
+                  <dd className="esc-num">{config.coberturaMinima}</dd>
+                </div>
+              </dl>
+            )}
+
+            {formAberto === 'motor' && (
             <form action={salvarParametros} className="px-4 py-3 flex flex-wrap items-end gap-3">
             <Volta busca={busca} ancora="bloco-motor" />
               <label className="block">
@@ -439,12 +504,14 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 <input type="number" name="cobertura" min={0} max={50} defaultValue={config.coberturaMinima} required className="esc-input w-32 esc-num" />
               </label>
               <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar parâmetros</button>
+              <Link href={fecharForm} className="esc-btn esc-btn-ghost esc-btn-sm">Cancelar</Link>
               <p className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
                 A âncora define a partir de qual mês a paridade par/ímpar do 12x36 é contada. Mudá-la desloca o ciclo
                 de todo mundo, então ela fica travada aqui: altere direto em <code>config</code> se for mesmo
                 necessário.
               </p>
             </form>
+            )}
           </Bloco>
         </>
       )}
@@ -552,6 +619,9 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
           id="bloco-feriados"
           titulo="Feriados"
           desc="Colaboradores 5x2 folgam automaticamente. Plantões 12x36 não são afetados: o feriado não desloca o ciclo."
+          acoes={formAberto !== 'feriado' && (
+            <Link href={abrirForm('feriado', 'bloco-feriados')} className="esc-btn esc-btn-sm">Novo feriado</Link>
+          )}
         >
           <div className="overflow-x-auto max-h-[500px]">
             <table className="esc-tabela">
@@ -577,6 +647,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               </tbody>
             </table>
           </div>
+          {formAberto === 'feriado' && (
           <form action={salvarFeriado} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
             <Volta busca={busca} ancora="bloco-feriados" />
             <label className="block">
@@ -588,12 +659,14 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               <input name="nome" required className="esc-input" placeholder="Ex.: Consciência Negra" />
             </label>
             <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Adicionar feriado</button>
+            <Link href={fecharForm} className="esc-btn esc-btn-ghost esc-btn-sm">Cancelar</Link>
             <p className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
               Cada data comporta um feriado. Salvar uma data que já existe <strong>substitui</strong> o
               nome dela — é assim que se corrige um cadastro errado. Para remover, use <strong>Remover</strong>
               na linha. Feriado novo não reescreve a escala já gerada: é preciso gerar de novo.
             </p>
           </form>
+          )}
         </Bloco>
       )}
 
