@@ -29,7 +29,7 @@ const CAB = 'nome;matricula;equipe;unidade base;admissao';
   ok(r.linhas[0].erros.length === 0, 'linha válida não tem erro', JSON.stringify(r.linhas[0]?.erros));
   ok(r.linhas[0].equipeId === 1 && r.linhas[0].unidadeBaseId === 1, 'equipe e unidade resolvidas pelo nome');
   ok(r.linhas[0].admissao === '2024-03-01', 'data brasileira vira ISO');
-  ok(r.linhas[0].entrada === '08:00' && r.linhas[0].jornada === 8, 'entrada e jornada têm padrão');
+  ok(r.linhas[0].entrada === '08:00' && r.linhas[0].saida === '17:00', 'entrada e saída têm padrão');
 }
 
 // ── 2. O que o Excel brasileiro produz: BOM, ponto e vírgula, CRLF
@@ -113,7 +113,7 @@ const CAB = 'nome;matricula;equipe;unidade base;admissao';
   const comCiclo = ler(`${CAB};ciclo\nAna;100;PLA;MOR;01/03/2024;ímpar`);
   ok(comCiclo.linhas[0].erros.length === 0 && comCiclo.linhas[0].ciclo === 'IMPAR',
     '12x36 com ciclo por extenso e acentuado', JSON.stringify(comCiclo.linhas[0].erros));
-  ok(comCiclo.linhas[0].jornada === 12, '12x36 tem jornada padrão de 12h');
+  ok(comCiclo.linhas[0].saida === '19:00', '12x36 sai às 19:00 por padrão', comCiclo.linhas[0].saida);
 
   const cincoDois = ler(`${CAB};ciclo\nAna;100;TEC;MOR;01/03/2024;par`);
   ok(cincoDois.linhas[0].ciclo === null, '5x2 ignora o ciclo em vez de gravá-lo');
@@ -138,15 +138,23 @@ const CAB = 'nome;matricula;equipe;unidade base;admissao';
   ok(r.linhas[0].sextaReduzida === false, 'plantonista não tem sexta reduzida, mesmo pedindo');
 }
 
-// ── 13. Hora e jornada nos formatos da planilha
+// ── 13. Entrada e saída nos formatos da planilha
 {
-  const r = ler(`${CAB};entrada;jornada\nAna;100;TEC;MOR;01/03/2024;7:30;7,5`);
+  const r = ler(`${CAB};entrada;saida\nAna;100;TEC;MOR;01/03/2024;7:30;16:45`);
   ok(r.linhas[0].entrada === '07:30', '7:30 vira 07:30');
-  ok(r.linhas[0].jornada === 7.5, 'vírgula decimal é aceita');
+  ok(r.linhas[0].saida === '16:45', '16:45 é lido como está', r.linhas[0].saida);
 
-  const ruim = ler(`${CAB};entrada;jornada\nAna;100;TEC;MOR;01/03/2024;25:00;99`);
+  const ruim = ler(`${CAB};entrada;saida\nAna;100;TEC;MOR;01/03/2024;25:00;99:00`);
   ok(ruim.linhas[0].erros.some(e => /entrada inválido/.test(e)), '25:00 não é hora');
-  ok(ruim.linhas[0].erros.some(e => /fora do intervalo/.test(e)), '99h de jornada é recusada');
+  ok(ruim.linhas[0].erros.some(e => /saída inválido/.test(e)), '99:00 não é hora de saída');
+
+  // Turno que vira o dia é legítimo: entra 19:00, sai 07:00.
+  const noturno = ler(`${CAB};entrada;saida\nAna;100;TEC;MOR;01/03/2024;19:00;07:00`);
+  ok(noturno.linhas[0].erros.length === 0, 'saída antes da entrada é turno noturno, não erro',
+    JSON.stringify(noturno.linhas[0].erros));
+
+  const igual = ler(`${CAB};entrada;saida\nAna;100;TEC;MOR;01/03/2024;08:00;08:00`);
+  ok(igual.linhas[0].erros.some(e => /igual à entrada/.test(e)), 'saída igual à entrada é recusada');
 }
 
 // ── 14. Arquivo vazio e só-cabeçalho

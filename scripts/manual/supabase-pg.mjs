@@ -306,26 +306,34 @@ function usuarioAtual() {
 }
 
 /**
- * `rpc()`, só para funções sem argumento que devolvem tabela.
+ * `rpc()`, com ou sem argumento nomeado.
  *
- * É o que `resumo_areas()` é, e a chamada roda com o mesmo `role` e o mesmo
- * `auth.uid()` das consultas normais — sem isso a função `security definer`
- * seria chamada como superusuário e o `where eh_admin_geral()` de dentro dela
- * passaria para qualquer um, escondendo justamente a trava que ela existe para
- * ter. Argumento nomeado não é suportado de propósito: melhor quebrar alto do
- * que ignorar em silêncio.
+ * A chamada roda com o mesmo `role` e o mesmo `auth.uid()` das consultas
+ * normais — sem isso a função `security definer` seria chamada como
+ * superusuário e o `where eh_admin_geral()` de dentro dela passaria para
+ * qualquer um, escondendo justamente a trava que ela existe para ter.
+ *
+ * Os argumentos vão por `nome => $n`, como o PostgREST faz: assim a ordem em
+ * que o objeto foi escrito na chamada não importa, e um nome errado quebra na
+ * hora em vez de virar um parâmetro posicional trocado. O retorno imita o
+ * PostgREST também: função que devolve escalar (uma linha, uma coluna) chega
+ * como o valor puro, não como `[{ semear_feriados_nacionais: 10 }]` — é o que
+ * `trazerFeriadosNacionais` lê quando conta quantos feriados entraram.
  */
 async function chamarRpc(nome, args, admin) {
-  if (args && Object.keys(args).length) {
-    throw new Error(`rpc("${nome}") com argumentos não é suportado pelo shim`);
-  }
+  const nomes = Object.keys(args ?? {});
+  const lista = nomes.map((k, i) => `${cita(k)} => $${i + 1}`).join(', ');
+  const valores = nomes.map(k => args[k]);
   const conexao = await pool.connect();
   try {
     await conexao.query('begin');
     await conexao.query(`set local role ${admin ? 'postgres' : 'app_user'}`);
     await conexao.query(`select set_config('request.jwt.claim.sub', $1, true)`, [usuarioAtual().id]);
-    const { rows } = await conexao.query(`select * from ${cita(nome)}()`);
+    const { rows, fields } = await conexao.query(`select * from ${cita(nome)}(${lista})`, valores);
     await conexao.query('commit');
+    if (rows.length === 1 && fields.length === 1) {
+      return { data: rows[0][fields[0].name], error: null };
+    }
     return { data: rows, error: null };
   } catch (e) {
     await conexao.query('rollback').catch(() => {});

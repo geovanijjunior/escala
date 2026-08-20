@@ -126,7 +126,7 @@ export async function importarPlanilha(conteudo: string): Promise<Relatorio> {
       turno: l.turno,
       ciclo: l.ciclo,
       entrada: l.entrada,
-      jornada: l.jornada,
+      saida: l.saida,
       unidade_base_id: l.unidadeBaseId,
       eleg_home: l.elegHome,
       eleg_externo: l.elegExterno,

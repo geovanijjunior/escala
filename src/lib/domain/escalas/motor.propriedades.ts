@@ -102,6 +102,10 @@ export function gerarCenario(a: Aleatorio): GerarEscalaInput {
         nome: `Posto ${i + 1}`,
         vagas: a.int(1, 2),
         ativo: a.bool(0.85),
+        // Aberto a qualquer equipe: o filtro por equipe tem teste
+        // determinístico próprio, e sortear aqui produziria contraexemplos que
+        // só dizem "o plano apontou para a equipe errada".
+        equipeId: null,
       }))
     : [];
 
@@ -121,7 +125,7 @@ export function gerarCenario(a: Aleatorio): GerarEscalaInput {
       turno: 'D' as const,
       ciclo: a.bool() ? 'IMPAR' as const : 'PAR' as const,
       entrada: '08:00',
-      jornada: 8,
+      saida: '17:00',
       unidadeBaseId: a.de(ativas).id,
       elegHome: a.bool(0.7),
       elegExterno: a.bool(0.3),
@@ -213,7 +217,7 @@ export function gerarCenario(a: Aleatorio): GerarEscalaInput {
   for (const u of ativas) {
     for (const e of equipes) {
       if (!a.bool(0.25)) continue;
-      cotasEquipe.push({ unidadeId: u.id, equipeId: e.id, dow: a.bool(0.3) ? a.int(1, 5) : null, limite: a.int(0, 6) });
+      cotasEquipe.push({ unidadeId: u.id, equipeId: e.id, dow: a.bool(0.3) ? a.int(1, 5) : null, minimo: a.int(0, 3) });
     }
   }
 
@@ -298,9 +302,14 @@ inv.push({
 });
 
 inv.push({
-  nome: 'cota por equipe nunca é estourada sem conflito',
+  // A cota virou PISO, então a invariante virou junto: não se checa mais
+  // excesso, e sim que a falta seja declarada. Um piso que o motor não cumpre
+  // em silêncio é o modo caro de errar — a unidade abre sem cobertura e nada
+  // na tela diz isso.
+  nome: 'piso por equipe é atendido, ou existe alerta dizendo que não foi',
   checa: (e, r) => {
     const porColab = new Map(e.colaboradores.map(c => [c.id, c]));
+    const foraDaEscala = new Set(e.equipes.filter(x => !x.naEscala).map(x => x.id));
     for (const data of datasDoMes(e)) {
       const dow = diaSemana(e.ano, e.mes, Number(data.slice(8)));
       const conta = new Map<string, number>();
@@ -310,18 +319,27 @@ inv.push({
         const k = `${al.unidadeId}|${c.equipeId}`;
         conta.set(k, (conta.get(k) ?? 0) + 1);
       }
+      const vistos = new Set<string>();
       for (const cota of e.cotasEquipe) {
+        const chave = `${cota.unidadeId}|${cota.equipeId}`;
+        if (vistos.has(chave) || foraDaEscala.has(cota.equipeId)) continue;
+        vistos.add(chave);
+
         const especifica = e.cotasEquipe.find(
           x => x.unidadeId === cota.unidadeId && x.equipeId === cota.equipeId && x.dow === dow
         );
         const vigente = especifica ?? e.cotasEquipe.find(
           x => x.unidadeId === cota.unidadeId && x.equipeId === cota.equipeId && x.dow === null
         );
-        if (!vigente) continue;
-        const usados = conta.get(`${cota.unidadeId}|${cota.equipeId}`) ?? 0;
-        if (usados > vigente.limite) {
-          const temConflito = r.conflitos.some(c => c.data === data && c.msg.includes('cota'));
-          if (!temConflito) return `unidade ${cota.unidadeId} / equipe ${cota.equipeId} em ${data}: ${usados} > ${vigente.limite}`;
+        if (!vigente || vigente.minimo <= 0) continue;
+
+        const usados = conta.get(chave) ?? 0;
+        if (usados >= vigente.minimo) continue;
+
+        const temAlerta = r.alertas.some(x => x.data === data && x.msg.includes('exigida'));
+        if (!temAlerta) {
+          return `unidade ${cota.unidadeId} / equipe ${cota.equipeId} em ${data}: `
+            + `${usados} < ${vigente.minimo} e nenhum alerta`;
         }
       }
     }

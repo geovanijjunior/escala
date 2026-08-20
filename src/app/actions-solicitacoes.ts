@@ -8,7 +8,7 @@ import { registrarLog } from '@/lib/log';
 import { voltar, rotaComErro } from '@/lib/volta';
 import { getGeracaoAtual } from '@/lib/data/escalas';
 import { mensagemErroBanco } from '@/lib/erros-banco';
-import { addDias, diffDias, dowDeIso, formatarData, iso, partesIso, somaHoras } from '@/lib/domain/escalas/datas';
+import { addDias, diffDias, dowDeIso, fimDoTurno, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { GRUPOS_AUSENCIA, GRUPO_DO_TIPO, OPCOES_FERIAS, TIPOS_COM_PERIODO, TIPOS_OCORRENCIA, TIPOS_SOLICITACAO, type TipoOcorrencia, type TipoSolicitacao } from '@/lib/domain/escalas/constantes';
 import type { Modalidade } from '@/lib/domain/escalas/tipos';
 
@@ -471,18 +471,18 @@ export async function registrarOcorrencia(formData: FormData) {
       horaSaida = String(formData.get('horaSaida') ?? '').trim();
       if (!/^\d{2}:\d{2}$/.test(horaSaida)) erro(volta, 'Informe o horário de saída.');
 
-      // Os minutos saem do cálculo contra a jornada da pessoa, não da digitação:
-      // quem lança sabe a que horas a pessoa saiu, não quanto isso deu.
+      // Os minutos saem do horário cadastrado, não da digitação: quem lança
+      // sabe a que horas a pessoa saiu, não quanto isso deu. `fimDoTurno` é a
+      // mesma função que as telas usam para exibir a faixa — é o que garante
+      // que o horário cobrado aqui seja o mesmo que a pessoa viu na escala.
       const { data: c } = await supabase
         .from('colaboradores')
-        .select('entrada, jornada, sexta_reduzida')
+        .select('saida, sexta_reduzida')
         .eq('id', colaboradorId)
         .single();
       if (!c) erro(volta, 'Colaborador não encontrado.');
 
-      const dow = dowDeIso(data);
-      const horas = Number(c.jornada) - (c.sexta_reduzida && dow === 5 ? 1 : 0);
-      const fimPrevisto = somaHoras(String(c.entrada).slice(0, 5), horas + (horas > 6 ? 1 : 0));
+      const fimPrevisto = fimDoTurno(String(c.saida).slice(0, 5), c.sexta_reduzida, dowDeIso(data));
       minutos = emMinutos(fimPrevisto) - emMinutos(horaSaida);
       if (minutos <= 0) {
         erro(volta, `Saída às ${horaSaida} não é antecipada: o turno terminava às ${fimPrevisto}.`);

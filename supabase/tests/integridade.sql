@@ -152,13 +152,13 @@ select espera_recusa('mesmo posto atribuído duas vezes no mesmo plano', $$
 $$);
 
 select espera_recusa('cota de equipe negativa',
-  $$insert into cotas_equipe (conta_id, unidade_id, equipe_id, limite)
+  $$insert into cotas_equipe (conta_id, unidade_id, equipe_id, minimo)
     values ('11111111-1111-1111-1111-111111111111', 1, 1, -3)$$);
 
 select espera_recusa('duas cotas gerais para o mesmo par unidade+equipe', $$
-  insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, limite)
+  insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, minimo)
     values ('11111111-1111-1111-1111-111111111111', 2, 1, null, 3);
-  insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, limite)
+  insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, minimo)
     values ('11111111-1111-1111-1111-111111111111', 2, 1, null, 5);
 $$);
 
@@ -185,7 +185,7 @@ select espera_recusa('posto da conta B dentro de unidade da conta A',
     values ('22222222-2222-2222-2222-222222222222', 1, 'Invasor')$$, '23503');
 
 select espera_recusa('cota da conta B sobre equipe da conta A',
-  $$insert into cotas_equipe (conta_id, unidade_id, equipe_id, limite)
+  $$insert into cotas_equipe (conta_id, unidade_id, equipe_id, minimo)
     values ('22222222-2222-2222-2222-222222222222', 3, 1, 2)$$, '23503');
 
 select espera_recusa('solicitação com parceiro de outra conta', $$

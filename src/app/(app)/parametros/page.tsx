@@ -9,6 +9,7 @@ import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import {
   removerCapacidade, removerCotaEquipe, removerFeriado, removerPosto, salvarCapacidade,
   salvarCotaEquipe, salvarEquipe, salvarFeriado, salvarParametros, salvarPosto, salvarUnidade,
+  trazerFeriadosNacionais,
 } from '@/app/actions-cadastros';
 import { Abas, Aviso, Badge, Bloco, Vazio } from '@/components/Ui';
 import { Volta } from '@/components/Volta';
@@ -34,8 +35,8 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
   ]);
   const capacidades = (capRes.data ?? []) as { id: number; unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
   const perfis = (perfisRes.data ?? []) as { id: string; nome: string; papel: string | null }[];
-  const cotas = (cotaRes.data ?? []) as { id: number; unidade_id: number; equipe_id: number; dow: number | null; limite: number }[];
-  const postos = (postoRes.data ?? []) as { id: number; unidade_id: number; nome: string; vagas: number; ativo: boolean }[];
+  const cotas = (cotaRes.data ?? []) as { id: number; unidade_id: number; equipe_id: number; dow: number | null; minimo: number }[];
+  const postos = (postoRes.data ?? []) as { id: number; unidade_id: number; nome: string; vagas: number; ativo: boolean; equipe_id: number | null }[];
 
   const aba = texto(busca, 'aba') || 'unidades';
   const href = (a: string) => `/parametros${comFiltros(busca, { aba: a })}`;
@@ -296,7 +297,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
             <Bloco
               id="bloco-cotas"
               titulo="Cota de posições por equipe"
-              desc="Reparte as posições de uma unidade entre as equipes: no Morumbi, 5 para técnicos 12x36 e 3 para analistas. Equipe sem cota aqui não tem teto próprio — só a capacidade da unidade a limita."
+              desc="O MÍNIMO de pessoas de cada equipe que precisa estar na unidade: no Morumbi, ao menos 3 técnicos 12x36 e 1 analista. O motor preenche essas vagas antes de distribuir o resto, e avisa quando não conseguir. Não é teto — quem limita quantos cabem é a capacidade da unidade."
               acoes={formAberto !== 'cota' && (
                 <Link href={abrirForm('cota', 'bloco-cotas')} className="esc-btn esc-btn-sm">Nova cota</Link>
               )}
@@ -306,13 +307,13 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   <thead>
                     <tr>
                       <th>Unidade</th><th>Equipe</th><th>Quando</th>
-                      <th className="text-right">Até</th><th />
+                      <th className="text-right">Mínimo</th><th />
                     </tr>
                   </thead>
                   <tbody>
                     {cotas.length === 0 && (
                       <tr><td colSpan={5} className="text-center py-6" style={{ color: 'var(--muted)' }}>
-                        Nenhuma cota — qualquer equipe pode ocupar qualquer posição livre.
+                        Nenhum mínimo — a distribuição do plano de cada pessoa decide sozinha quem vai onde.
                       </td></tr>
                     )}
                     {cotas
@@ -325,7 +326,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                           <td style={{ color: 'var(--muted)' }}>
                             {c.dow === null ? 'Todos os dias' : `Toda ${DIAS_ABREV[c.dow].toLowerCase()}`}
                           </td>
-                          <td className="text-right esc-num font-semibold">{c.limite}</td>
+                          <td className="text-right esc-num font-semibold">{c.minimo}</td>
                           <td className="text-right">
                             <form action={removerCotaEquipe} className="inline">
                               <Volta busca={busca} ancora="bloco-cotas" />
@@ -372,15 +373,16 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   </div>
                 </fieldset>
                 <label className="block">
-                  <span className="esc-rotulo">Até quantas pessoas</span>
-                  <input type="number" name="limite" min={0} required className="esc-input w-32 esc-num" />
+                  <span className="esc-rotulo">No mínimo quantas pessoas</span>
+                  <input type="number" name="minimo" min={0} required className="esc-input w-36 esc-num" />
                 </label>
                 <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Salvar cota</button>
                 <Link href={fecharForm} className="esc-btn esc-btn-ghost esc-btn-sm">Cancelar</Link>
                 <p className="text-[11.5px] w-full" style={{ color: 'var(--muted)' }}>
                   Nenhum dia marcado significa <strong style={{ color: 'var(--text)' }}>todos os dias</strong>; marcar um dia
-                  cria uma exceção que vence a cota geral naquele dia. Quando as cotas de uma unidade somam a capacidade
-                  livre dela, o teto vira garantia: um analista deixa de ocupar o lugar que sobrou de técnico.
+                  cria uma exceção que vence o mínimo geral naquele dia. O mínimo é servido antes da distribuição
+                  percentual, então ele pode trazer para a unidade alguém cujo plano do mês aponta para outro lugar —
+                  o desvio aparece na aderência.
                 </p>
               </form>
               )}
@@ -391,7 +393,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
             <Bloco
               id="bloco-postos"
               titulo="Postos dentro das unidades"
-              desc="Uma função exercida dentro da unidade — o Corpo Clínico dentro do Morumbi. Não é outra unidade: quem cobre o posto ocupa uma posição normal do Morumbi, então capacidade e rateio não mudam. Quem cobre e por quantos dias é definido no plano do mês de cada pessoa."
+              desc="Uma função exercida dentro da unidade — o Corpo Clínico dentro do Morumbi. Não é outra unidade: quem cobre o posto ocupa uma posição normal do Morumbi, então capacidade e rateio não mudam. A equipe define QUEM pode cobrir; quem de fato cobre e por quantos dias é definido no plano do mês de cada pessoa."
               acoes={formAberto !== 'posto' && (
                 <Link href={abrirForm('posto', 'bloco-postos')} className="esc-btn esc-btn-sm">Novo posto</Link>
               )}
@@ -399,11 +401,11 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               <div className="overflow-x-auto">
                 <table className="esc-tabela">
                   <thead>
-                    <tr><th>Posto</th><th>Dentro de</th><th className="text-right">Vagas simultâneas</th><th>Situação</th><th /></tr>
+                    <tr><th>Posto</th><th>Dentro de</th><th>Equipe</th><th className="text-right">Vagas simultâneas</th><th>Situação</th><th /></tr>
                   </thead>
                   <tbody>
                     {postos.length === 0 && (
-                      <tr><td colSpan={5} className="text-center py-6" style={{ color: 'var(--muted)' }}>
+                      <tr><td colSpan={6} className="text-center py-6" style={{ color: 'var(--muted)' }}>
                         Nenhum posto cadastrado.
                       </td></tr>
                     )}
@@ -411,6 +413,11 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                       <tr key={po.id}>
                         <td className="font-medium">{po.nome}</td>
                         <td style={{ color: 'var(--muted)' }}>{unidades.find(u => u.id === po.unidade_id)?.nome ?? '—'}</td>
+                        <td style={{ color: 'var(--muted)' }}>
+                          {po.equipe_id
+                            ? equipes.find(e => e.id === po.equipe_id)?.nome ?? '—'
+                            : 'Qualquer equipe'}
+                        </td>
                         <td className="text-right esc-num">{po.vagas}</td>
                         <td>
                           {po.ativo
@@ -441,6 +448,15 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                   <span className="esc-rotulo">Dentro da unidade</span>
                   <select name="unidadeId" required className="esc-input w-44">
                     {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                  </select>
+                </label>
+                {/* Nulo continua valendo: posto aberto a qualquer equipe é como
+                    eles existiam antes de a coluna nascer. */}
+                <label className="block">
+                  <span className="esc-rotulo">Equipe que cobre</span>
+                  <select name="equipeId" className="esc-input w-52">
+                    <option value="">Qualquer equipe</option>
+                    {equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
                   </select>
                 </label>
                 <label className="block">
@@ -618,7 +634,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
         <Bloco
           id="bloco-feriados"
           titulo="Feriados"
-          desc="Colaboradores 5x2 folgam automaticamente. Plantões 12x36 não são afetados: o feriado não desloca o ciclo."
+          desc="Os feriados nacionais do ano já vêm preenchidos; o cadastro manual cobre o resto — feriado municipal, aniversário da cidade, ponto facultativo que a empresa adota. Colaboradores 5x2 folgam automaticamente. Plantões 12x36 não são afetados: o feriado não desloca o ciclo."
           acoes={formAberto !== 'feriado' && (
             <Link href={abrirForm('feriado', 'bloco-feriados')} className="esc-btn esc-btn-sm">Novo feriado</Link>
           )}
@@ -647,6 +663,28 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               </tbody>
             </table>
           </div>
+          <form
+            action={trazerFeriadosNacionais}
+            className="px-4 py-3 border-t flex flex-wrap items-end gap-3"
+            style={{ borderColor: 'var(--line)' }}
+          >
+            <Volta busca={busca} ancora="bloco-feriados" />
+            <label className="block">
+              <span className="esc-rotulo">Trazer feriados nacionais de</span>
+              <input
+                type="number" name="ano" min={2000} max={2100}
+                defaultValue={new Date().getFullYear()}
+                required className="esc-input w-28 esc-num"
+              />
+            </label>
+            <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Trazer</button>
+            <p className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
+              Os nove feriados fixos mais a Sexta-feira Santa, calculada a partir da Páscoa. Repetir é seguro: o que
+              já está cadastrado não é tocado, inclusive se você renomeou algum. Carnaval e Corpus Christi ficam de
+              fora porque são ponto facultativo — cadastre-os acima se a operação os adota.
+            </p>
+          </form>
+
           {formAberto === 'feriado' && (
           <form action={salvarFeriado} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
             <Volta busca={busca} ancora="bloco-feriados" />

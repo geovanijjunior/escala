@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { DIAS_ABREV, dowDeIso, formatarData, somaHoras } from '@/lib/domain/escalas/datas';
+import { DIAS_ABREV, dowDeIso, fimDoTurno, formatarData } from '@/lib/domain/escalas/datas';
 import { MODALIDADES, TIPOS_OCORRENCIA } from '@/lib/domain/escalas/constantes';
 import { alternarTrava, reposicionarAlocacao } from '@/app/actions-geracao';
 import { LinhaDoColaborador } from './LinhaDoColaborador';
@@ -23,10 +23,8 @@ interface Props {
   volta: string;
 }
 
-/** Fim do turno: jornada + 1h de intervalo quando a jornada passa de 6h. */
 function faixaHoraria(c: Colaborador, dow: number): string {
-  const horas = c.sextaReduzida && dow === 5 ? c.jornada - 1 : c.jornada;
-  return `${c.entrada}–${somaHoras(c.entrada, horas + (horas > 6 ? 1 : 0))}`;
+  return `${c.entrada}–${fimDoTurno(c.saida, c.sextaReduzida, dow)}`;
 }
 
 /**

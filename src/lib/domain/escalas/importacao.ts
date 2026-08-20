@@ -29,7 +29,7 @@ export interface LinhaImportada {
   turno: 'D' | 'N';
   ciclo: 'IMPAR' | 'PAR' | null;
   entrada: string;
-  jornada: number;
+  saida: string;
   elegHome: boolean;
   elegExterno: boolean;
   sextaReduzida: boolean;
@@ -129,7 +129,7 @@ const COLUNAS = {
   turno: ['turno'],
   ciclo: ['ciclo'],
   entrada: ['entrada', 'horario', 'hora entrada'],
-  jornada: ['jornada', 'carga horaria', 'horas'],
+  saida: ['saida', 'saída', 'hora saida', 'hora de saida'],
   elegHome: ['home office', 'home', 'eleg home', 'elegivel home office'],
   elegExterno: ['trabalho externo', 'externo', 'eleg externo'],
   sextaReduzida: ['sexta reduzida', 'sexta'],
@@ -183,14 +183,6 @@ function hora(bruto: string): string | null {
   const min = Number(m[2]);
   if (h > 23 || min > 59) return null;
   return `${String(h).padStart(2, '0')}:${m[2]}`;
-}
-
-/** A planilha em português escreve 7,5 e não 7.5. */
-function numero(bruto: string): number | null {
-  const t = bruto.trim().replace(',', '.');
-  if (t === '') return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
 }
 
 /* ============================================================
@@ -293,10 +285,12 @@ export function lerPlanilha(
     const entrada = entradaBruta ? hora(entradaBruta) : '08:00';
     if (entrada === null) problemas.push(`Horário de entrada inválido: "${entradaBruta}". Use HH:MM.`);
 
-    const jornadaBruta = campo('jornada');
-    const jornada = jornadaBruta ? numero(jornadaBruta) : (equipe?.regime === '12x36' ? 12 : 8);
-    if (jornada === null) problemas.push(`Jornada inválida: "${jornadaBruta}".`);
-    else if (!(jornada > 0 && jornada <= 24)) problemas.push(`Jornada de ${jornada}h está fora do intervalo de 1 a 24.`);
+    // O padrão sai do regime porque é o que a planilha mais deixa em branco:
+    // 12x36 entra 07:00 e sai 19:00; 5x2 entra 08:00 e sai 17:00.
+    const saidaBruta = campo('saida');
+    const saida = saidaBruta ? hora(saidaBruta) : (equipe?.regime === '12x36' ? '19:00' : '17:00');
+    if (saida === null) problemas.push(`Horário de saída inválido: "${saidaBruta}". Use HH:MM.`);
+    else if (saida === (entrada ?? '08:00')) problemas.push('A saída não pode ser igual à entrada.');
 
     const boolCampo = (c: Campo, rotulo: string) => {
       const v = booleano(campo(c));
@@ -324,7 +318,7 @@ export function lerPlanilha(
       turno,
       ciclo,
       entrada: entrada ?? '08:00',
-      jornada: jornada ?? 8,
+      saida: saida ?? '17:00',
       elegHome,
       elegExterno,
       // Sexta reduzida não existe no 12x36: quem faz plantão não tem sexta
@@ -341,6 +335,6 @@ export function lerPlanilha(
 /** Cabeçalho de referência, para o modelo que a tela oferece para baixar. */
 export const CABECALHO_MODELO = [
   'nome', 'matricula', 'email', 'cargo', 'equipe', 'unidade base',
-  'turno', 'ciclo', 'entrada', 'jornada',
+  'turno', 'ciclo', 'entrada', 'saida',
   'home office', 'trabalho externo', 'sexta reduzida', 'admissao',
 ];

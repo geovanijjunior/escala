@@ -140,7 +140,7 @@ A precedência, documentada em `REGRAS_MOTOR` e exibida na própria interface:
 5. Home office fixo
 6. Unidade fixa por dia da semana
 7. Capacidade da unidade
-8. Cota de posições por equipe
+8. Mínimo de posições por equipe
 9. Cota semanal de home office
 10. Preferência de home office (e espalhamento como desempate)
 11. Distribuição percentual (maior resto)
@@ -217,12 +217,20 @@ primeira área junto com o administrador dela — é ele quem cria o Planejament
    reservadas), as **equipes** (regime e gestor) e os **feriados**. O código de
    unidade e de equipe não é pedido: o banco o gera a partir do id. Uma equipe
    pode ficar **fora da escala** — usa só o fluxo de solicitações, e seus
-   colaboradores não são alocados nem ocupam posição nas unidades.
-2. Em **Usuários**, crie o acesso das pessoas. Cada uma recebe uma senha
-   temporária, mostrada uma única vez — entregue a ela. Escolhendo o papel
+   colaboradores não são alocados nem ocupam posição nas unidades. Os feriados
+   nacionais do ano em curso já vêm criados junto com a área; o botão *Trazer
+   feriados nacionais* repete isso para qualquer outro ano, e nunca sobrescreve
+   um feriado que alguém já cadastrou à mão. O que é ponto facultativo —
+   Carnaval e Corpus Christi — fica de fora de propósito: cada operação decide.
+   Cada **posto** pode ficar reservado a uma equipe; deixando em branco, serve a
+   qualquer uma. E a **cota por equipe** é o *mínimo* de pessoas daquela equipe
+   naquela unidade, não o máximo.
+2. Em **Usuários**, crie o acesso das pessoas. A senha temporária é gerada pelo
+   sistema e mostrada uma única vez — entregue a ela. Escolhendo o papel
    **colaborador**, o formulário abre os campos da escala (matrícula, equipe,
-   unidade base, jornada, admissão) e cria o login e o cadastro já vinculados,
-   sem passar por outra tela.
+   unidade base, entrada e saída, admissão) e cria o login e o cadastro já
+   vinculados, sem passar por outra tela. O ciclo do 12x36 não é pedido aqui:
+   ele é decidido a cada **plano do mês**.
 3. **Colaboradores** continua sendo o caminho do caso inverso: a pessoa já está
    na escala — veio de uma planilha importada, por exemplo — e só agora ganha
    login. O campo *Usuário do sistema* liga os dois. É esse vínculo que faz
@@ -277,10 +285,13 @@ dos dois enxerga o que não lhe cabe.
   barreira absoluta.
 - **Prioridade por cargo:** analista tem preferência no home office, técnico na
   posição presencial — é quem precisa estar perto do equipamento.
-- **Cota por equipe é teto, não reserva ociosa.** Quando as cotas de uma unidade
-  somam a capacidade livre, o teto vira garantia — um analista não ocupa o lugar
-  que sobrou de técnico. Quem quer só limitar deixa folga; quem quer garantir faz
-  as cotas fecharem o total.
+- **Cota por equipe é piso, não teto.** O número diz quantas pessoas daquela
+  equipe *precisam* estar na unidade, e o motor as coloca antes de distribuir o
+  resto — mesmo que a distribuição percentual preferisse mandá-las para outro
+  lugar. Acima do piso ninguém é barrado: quem quer ficar, fica, até a
+  capacidade acabar. Piso que não deu para cumprir — porque faltou gente da
+  equipe ou lugar na unidade — vira **alerta**, não conflito: a escala continua
+  válida e o Planejamento decide o que fazer.
 - **Alocação normalizada**: uma linha por (pessoa, dia), com modalidade e unidade
   em colunas separadas. "Quem está no Morumbi dia 12" é uma consulta SQL.
 - **Vínculo entre contas é impossível no banco, não só na tela.** Cada pai tem
@@ -382,7 +393,7 @@ português abre sem embaralhar acento).
    |---|---|---|
    | 1º | `0001_init.sql` | `contas`, `perfis`, helpers e o trigger de cadastro |
    | 2º | `0002_escalas.sql` | as 17 tabelas do domínio e as policies |
-   | 3º | `0003_cota_equipe.sql` | teto de posições por equipe em cada unidade |
+   | 3º | `0003_cota_equipe.sql` | cota de posições por equipe em cada unidade |
    | 4º | `0004_subunidades.sql` | hierarquia de unidades |
    | 5º | `0005_postos.sql` | postos internos das unidades |
    | 6º | `0006_correcoes.sql` | correções de índices e de policies |
@@ -399,6 +410,9 @@ português abre sem embaralhar acento).
    | 17º | `0017_anexo_20mb.sql` | anexo do mural de 5 MB para 20 MB |
    | 18º | `0018_codigo_gerado.sql` | código de unidade e de equipe gerado pelo banco |
    | 19º | `0019_equipe_fora_da_escala.sql` | equipe que só usa solicitações e não ocupa posição |
+   | 20º | `0020_entrada_saida_e_ciclo.sql` | horário de saída no lugar da jornada em horas; ciclo 12x36 deixa de ser obrigatório no cadastro |
+   | 21º | `0021_cota_minima_e_posto_da_equipe.sql` | cota por equipe vira mínimo; posto passa a ter equipe |
+   | 22º | `0022_feriados_nacionais.sql` | feriados nacionais do ano vigente já criados com a área |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

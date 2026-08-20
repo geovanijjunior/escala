@@ -99,19 +99,41 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
 
   const nomeDaEquipe = new Map(input.equipes.map(e => [e.id, e.nome]));
 
-  // ── Cota por equipe: teto de pessoas de uma equipe numa unidade.
+  // ── Cota por equipe: PISO de pessoas de uma equipe numa unidade.
+  //
+  // Era teto e virou mínimo. A diferença não é de sinal, é de natureza: um teto
+  // se aplica recusando (basta checar antes de alocar), um piso se aplica
+  // servindo — alguém precisa ser posto ali antes que a distribuição livre gaste
+  // as posições. Por isso as vagas mínimas são atendidas numa passada própria,
+  // antes do rateio percentual, e o que não for preenchido vira alerta.
+  //
   // O dia da semana específico tem precedência sobre a cota geral; par sem cota
-  // cadastrada não tem teto próprio, só a capacidade da unidade limita.
+  // cadastrada não exige ninguém.
   const cotaGeral = new Map<string, number>();
   const cotaSemanal = new Map<string, number>();
   for (const c of input.cotasEquipe) {
-    if (c.dow === null) cotaGeral.set(`${c.unidadeId}|${c.equipeId}`, c.limite);
-    else cotaSemanal.set(`${c.unidadeId}|${c.equipeId}|${c.dow}`, c.limite);
+    if (c.dow === null) cotaGeral.set(`${c.unidadeId}|${c.equipeId}`, c.minimo);
+    else cotaSemanal.set(`${c.unidadeId}|${c.equipeId}|${c.dow}`, c.minimo);
   }
-  const cotaDe = (unidadeId: number, equipeId: number, dow: number): number | null =>
+  const minimoDe = (unidadeId: number, equipeId: number, dow: number): number | null =>
     cotaSemanal.get(`${unidadeId}|${equipeId}|${dow}`)
     ?? cotaGeral.get(`${unidadeId}|${equipeId}`)
     ?? null;
+
+  /** Os pisos que valem num dia, do maior para o menor — o mais exigente primeiro. */
+  const minimosDoDia = (dow: number): { unidadeId: number; equipeId: number; minimo: number }[] => {
+    const vistos = new Set<string>();
+    const saida: { unidadeId: number; equipeId: number; minimo: number }[] = [];
+    for (const c of input.cotasEquipe) {
+      const chave = `${c.unidadeId}|${c.equipeId}`;
+      if (vistos.has(chave)) continue;
+      const m = minimoDe(c.unidadeId, c.equipeId, dow);
+      if (m === null || m <= 0) continue;
+      vistos.add(chave);
+      saida.push({ unidadeId: c.unidadeId, equipeId: c.equipeId, minimo: m });
+    }
+    return saida.sort((a, b) => b.minimo - a.minimo || a.unidadeId - b.unidadeId || a.equipeId - b.equipeId);
+  };
 
   const conflitos: Aviso[] = [];
   const alertas: Aviso[] = [];
@@ -304,6 +326,21 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       const posto = postoPorId.get(atrib.postoId);
       if (!posto) continue;
 
+      // O posto pertence a uma equipe: quem cobre enfermagem é da enfermagem.
+      // A tela já filtra a lista, mas um plano gravado antes de o posto ganhar
+      // dono — ou a equipe da pessoa mudando depois — chegaria aqui incoerente,
+      // e alocar assim mesmo seria escalar alguém para uma função que não é
+      // dele. `equipeId` nulo mantém o posto aberto, como era antes da coluna.
+      if (posto.equipeId !== null && posto.equipeId !== c.equipeId) {
+        conflitos.push({
+          nivel: 'erro', colaboradorId: c.id, colaborador: c.nome,
+          msg: `${c.nome} está no plano do posto ${posto.nome}, que é de `
+            + `${nomeDaEquipe.get(posto.equipeId) ?? `equipe ${posto.equipeId}`}. `
+            + 'Remova a atribuição no plano do mês ou mude a equipe do posto.',
+        });
+        continue;
+      }
+
       const candidatas = atrib.semana !== null && atrib.semana !== undefined
         ? [atrib.semana - 1]
         : semanasDoMes;
@@ -488,20 +525,9 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       contaEquipe(decidido.unidadeId, c.equipeId);
     }
 
-    // Cota estourada só com o que foi fixado: o motor não desfaz decisão rígida,
-    // então isso é conflito para o Planejamento resolver, não algo a contornar.
-    for (const u of unidades) {
-      for (const [equipeStr, usados] of Object.entries(porEquipe[u.id])) {
-        const equipeId = Number(equipeStr);
-        const limite = cotaDe(u.id, equipeId, dowDoDia);
-        if (limite === null || usados <= limite) continue;
-        const nomeEquipe = nomeDaEquipe.get(equipeId) ?? `equipe ${equipeId}`;
-        conflitos.push({
-          nivel: 'erro', data,
-          msg: `${u.nome} em ${formatarData(data)} tem ${usados} pessoa(s) de ${nomeEquipe} fixadas para uma cota de ${limite}. Revise as travas e unidades fixas dessa equipe.`,
-        });
-      }
-    }
+    // Não há checagem de excesso por equipe: a cota virou piso, e piso não é
+    // estourado. Quem limita quantas pessoas cabem numa unidade continua sendo
+    // a capacidade dela, conferida logo abaixo.
 
     // Um dia pode estourar só com o que foi fixado — precisa ser reportado, já
     // que o motor não tem como desfazer uma decisão rígida.
@@ -545,12 +571,60 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     // "sobra cadeira no Morumbi": as duas precisam ser verdade.
     const temLugar = (id: number) => ocupacao[data][id] < capacidade[id];
 
-    const dentroDaCota = (id: number, equipeId: number) => {
-      const limite = cotaDe(id, equipeId, dowDoDia);
-      return limite === null || (porEquipe[id][equipeId] ?? 0) < limite;
-    };
+    // `cabe` só pergunta pela capacidade. A cota deixou de recusar gente: ela
+    // agora exige presença, e isso é resolvido servindo as vagas mínimas logo
+    // abaixo, não barrando quem chega.
+    const cabe = (id: number) => temLugar(id);
 
-    const cabe = (id: number, equipeId: number) => temLugar(id) && dentroDaCota(id, equipeId);
+    const destacados = new Set<number>();
+
+    // ── Piso por equipe: servido ANTES de qualquer distribuição ──
+    //
+    // Um mínimo só é garantido se as vagas forem preenchidas enquanto ainda há
+    // posição livre. Deixar para o fim seria o mesmo que não ter mínimo: o
+    // rateio percentual já teria gasto a capacidade da unidade, e a exigência
+    // viraria um aviso sobre algo impossível de corrigir.
+    //
+    // Aqui, diferente da cobertura mínima logo abaixo, NÃO se exige meta > 0 na
+    // unidade. É a natureza da regra: quem escreve "preciso de 3 técnicos no
+    // Morumbi" está dizendo que alguém tem de estar lá, mesmo que o plano do
+    // mês daquela pessoa aponte para outro lugar. O desvio aparece na aderência,
+    // que é onde ele deve aparecer.
+    //
+    // Os pisos maiores são servidos primeiro (`minimosDoDia` já ordena): quando
+    // duas equipes disputam a mesma unidade quase cheia, atender antes a que
+    // exige mais deixa o resultado independente da ordem de cadastro.
+    for (const { unidadeId, equipeId, minimo } of minimosDoDia(dowDoDia)) {
+      if (!idsUnidades.includes(unidadeId)) continue;
+
+      while ((porEquipe[unidadeId][equipeId] ?? 0) < minimo && temLugar(unidadeId)) {
+        const falta = (x: Candidato) => (metas[x.colab.id][unidadeId] ?? 0) - alocado[x.colab.id][unidadeId];
+        const escolhido = candidatos
+          .filter(x => !destacados.has(x.colab.id) && x.colab.equipeId === equipeId)
+          .sort((a, b) => falta(b) - falta(a) || a.colab.id - b.colab.id)[0];
+        if (!escolhido) break;
+
+        definir(escolhido.colab.id, data, 'UNIDADE', unidadeId);
+        ocupacao[data][unidadeId]++;
+        alocado[escolhido.colab.id][unidadeId]++;
+        contaEquipe(unidadeId, equipeId);
+        concentracao[unidadeId][equipeId] = (concentracao[unidadeId][equipeId] ?? 0) + 1;
+        destacados.add(escolhido.colab.id);
+      }
+
+      // Não deu para completar: alerta, e não conflito. A escala do dia é
+      // válida — o que falta é gente, e isso se resolve no cadastro ou no plano.
+      const conseguidos = porEquipe[unidadeId][equipeId] ?? 0;
+      if (conseguidos < minimo) {
+        const u = unidades.find(x => x.id === unidadeId);
+        alertas.push({
+          nivel: 'aviso', data,
+          msg: `${u?.nome ?? `Unidade ${unidadeId}`} em ${formatarData(data)} ficou com ${conseguidos} de `
+            + `${minimo} pessoa(s) exigida(s) de ${nomeDaEquipe.get(equipeId) ?? `equipe ${equipeId}`}`
+            + `${temLugar(unidadeId) ? ' — não há mais quem escalar dessa equipe.' : ' — a unidade lotou antes.'}`,
+        });
+      }
+    }
 
     // Cobertura mínima na GERAÇÃO, não só na conferência. Antes o motor
     // distribuía tudo pela meta de cada pessoa e só no fim reclamava que a
@@ -562,7 +636,6 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     // Morumbi para cobrir a Paulista seria inventar uma alocação que ninguém
     // pediu. Se ninguém está planejado para lá, o alerta continua — e aí ele é
     // acionável: falta gente no plano do mês, não na escala.
-    const destacados = new Set<number>();
     if (coberturaMinima > 0) {
       for (const u of unidades) {
         while (ocupacao[data][u.id] < coberturaMinima) {
@@ -570,7 +643,7 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
           const escolhido = candidatos
             .filter(x => !destacados.has(x.colab.id)
               && (metas[x.colab.id][u.id] ?? 0) > 0
-              && cabe(u.id, x.colab.equipeId))
+              && cabe(u.id))
             .sort((a, b) => falta(b) - falta(a) || a.colab.id - b.colab.id)[0];
           if (!escolhido) break;
 
@@ -591,9 +664,9 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       let colocado = false;
 
       for (const id of ordem) {
-        if (!cabe(id, colab.equipeId)) continue;
+        if (!cabe(id)) continue;
         const conc = concentracao[id][colab.equipeId] ?? 0;
-        const alternativa = ordem.find(x => x !== id && cabe(x, colab.equipeId));
+        const alternativa = ordem.find(x => x !== id && cabe(x));
         // Balanceamento só desempata quando não custa a meta da pessoa.
         if (id !== preferida && alternativa !== undefined && conc > LIMITE_CONCENTRACAO_EQUIPE) continue;
         definir(colab.id, data, 'UNIDADE', id);
@@ -608,26 +681,16 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
       if (!colocado) {
         definir(colab.id, data, 'EXTERNO', null);
 
-        // Distingue lotação de cota: dizer "sem posição" mostrando "Morumbi
-        // 3/10" faria o Planejamento procurar o problema no lugar errado.
-        const detalhe = unidades.map(u => {
-          const lotada = !temLugar(u.id);
-          const limite = cotaDe(u.id, colab.equipeId, dowDoDia);
-          const barrouCota = !lotada && limite !== null && (porEquipe[u.id][colab.equipeId] ?? 0) >= limite;
-          const base = `${u.nome} ${ocupacao[data][u.id]}/${capacidade[u.id]}`;
-          return barrouCota ? `${base} — cota da equipe cheia (${limite})` : base;
-        }).join(', ');
-
-        const soPorCota = unidades.some(u => {
-          const limite = cotaDe(u.id, colab.equipeId, dowDoDia);
-          return temLugar(u.id) && limite !== null && (porEquipe[u.id][colab.equipeId] ?? 0) >= limite;
-        });
+        // Com a cota virada piso, sobrou uma única razão para não caber:
+        // capacidade. A mensagem deixou de precisar distinguir "lotada" de
+        // "barrada pela cota da equipe", porque a segunda não existe mais.
+        const detalhe = unidades
+          .map(u => `${u.nome} ${ocupacao[data][u.id]}/${capacidade[u.id]}`)
+          .join(', ');
 
         conflitos.push({
           nivel: 'erro', colaboradorId: colab.id, colaborador: colab.nome, data,
-          msg: soPorCota
-            ? `Há lugar físico, mas a cota da equipe está cheia em toda unidade elegível (${detalhe}). Alocado como Trabalho Externo.`
-            : `Sem posição disponível em nenhuma unidade (${detalhe}). Alocado como Trabalho Externo.`,
+          msg: `Sem posição disponível em nenhuma unidade (${detalhe}). Alocado como Trabalho Externo.`,
         });
       }
     }

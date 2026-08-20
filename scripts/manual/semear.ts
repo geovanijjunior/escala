@@ -134,12 +134,16 @@ async function main() {
   await db.query(`insert into capacidades (conta_id, unidade_id, dow, total, reservadas) values
     ($1,1,1,16,4), ($1,1,5,16,4)`, [CONTA]);
 
-  await db.query(`insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, limite) values
-    ($1,1,1,null,6), ($1,1,2,null,5), ($1,2,1,null,4)`, [CONTA]);
+  // Piso, não teto: o mínimo de cada equipe por unidade.
+  await db.query(`insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, minimo) values
+    ($1,1,1,null,2), ($1,1,2,null,1), ($1,2,1,null,1)`, [CONTA]);
 
+  // `on conflict do nothing` porque a conta já nasce com os feriados nacionais
+  // do ano corrente (trigger da 0022), e estes três estão entre eles.
   await db.query(`insert into feriados (conta_id, data, nome) values
     ($1,'2026-11-02','Finados'), ($1,'2026-11-15','Proclamação da República'),
-    ($1,'2026-11-20','Consciência Negra')`, [CONTA]);
+    ($1,'2026-11-20','Consciência Negra')
+    on conflict (conta_id, data) do nothing`, [CONTA]);
 
   /**
    * O elenco. Está escrito por extenso, e não gerado por `i % n`, porque cada
@@ -191,9 +195,9 @@ async function main() {
     await db.query(
       `insert into colaboradores
         (id, conta_id, perfil_id, nome, matricula, email, cargo, equipe_id, gestor_id,
-         regime, turno, ciclo, entrada, jornada, unidade_base_id, eleg_home, status, admissao)
+         regime, turno, ciclo, entrada, saida, unidade_base_id, eleg_home, status, admissao)
        overriding system value
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'D',$11,'08:00',8,$12,$13,'ativo','2024-03-01')`,
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'D',$11,'08:00','17:00',$12,$13,'ativo','2024-03-01')`,
       [i + 1, CONTA, p.perfil ?? null, p.nome, String(1000 + i),
        semAcento(p.nome.toLowerCase().replace(/ /g, '.')) + '@saolucas.com',
        p.cargo, p.equipe, RICARDO, p.regime, p.ciclo ?? null,
@@ -244,7 +248,7 @@ async function main() {
   const colaboradores: Colaborador[] = (await q('select * from colaboradores order by id')).map(c => ({
     id: c.id, perfilId: c.perfil_id, nome: c.nome, matricula: c.matricula, email: c.email,
     cargo: c.cargo, equipeId: c.equipe_id, gestorId: c.gestor_id, regime: c.regime, turno: c.turno,
-    ciclo: c.ciclo, entrada: c.entrada, jornada: Number(c.jornada), unidadeBaseId: c.unidade_base_id,
+    ciclo: c.ciclo, entrada: c.entrada, saida: c.saida, unidadeBaseId: c.unidade_base_id,
     elegHome: c.eleg_home, elegExterno: c.eleg_externo, sextaReduzida: c.sexta_reduzida,
     status: c.status, admissao: c.admissao, desligamento: c.desligamento,
   }));
@@ -262,7 +266,7 @@ async function main() {
   const resultado = gerarEscala({
     ano: ANO, mes: MES, unidades,
     equipes: (await q('select id, nome, na_escala from equipes')).map(e => ({ id: e.id, nome: e.nome, naEscala: e.na_escala ?? true })),
-    postos: (await q('select * from postos')).map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo })),
+    postos: (await q('select * from postos')).map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo, equipeId: p.equipe_id ?? null })),
     colaboradores, planos,
     ausencias: (await q('select * from ausencias')).map(a => ({
       id: a.id, colaboradorId: a.colaborador_id, tipo: a.tipo, inicio: a.inicio,
@@ -272,7 +276,7 @@ async function main() {
       unidadeId: c.unidade_id, dow: c.dow, data: c.data, total: c.total, reservadas: c.reservadas,
     })),
     cotasEquipe: (await q('select * from cotas_equipe')).map(c => ({
-      unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, limite: c.limite,
+      unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, minimo: c.minimo,
     })),
     feriados: Object.fromEntries((await q('select * from feriados')).map(f => [f.data, f.nome])),
     pins: [], cicloAncora: '2026-01-01', toleranciaAderencia: 3, coberturaMinima: 1,
@@ -310,7 +314,7 @@ async function main() {
       mes: mesHoje,
       unidades,
       equipes: (await q('select id, nome, na_escala from equipes')).map(e => ({ id: e.id, nome: e.nome, naEscala: e.na_escala ?? true })),
-      postos: (await q('select * from postos')).map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo })),
+      postos: (await q('select * from postos')).map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo, equipeId: p.equipe_id ?? null })),
       colaboradores,
       // Mesmos planos, competência trocada: é exatamente o que a herança
       // entrega ao motor quando o mês não tem plano próprio.
@@ -320,7 +324,7 @@ async function main() {
         unidadeId: c.unidade_id, dow: c.dow, data: c.data, total: c.total, reservadas: c.reservadas,
       })),
       cotasEquipe: (await q('select * from cotas_equipe')).map(c => ({
-        unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, limite: c.limite,
+        unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, minimo: c.minimo,
       })),
       feriados: {},
       pins: [], cicloAncora: '2026-01-01', toleranciaAderencia: 3, coberturaMinima: 1,

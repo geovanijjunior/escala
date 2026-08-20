@@ -238,10 +238,6 @@ export default async function AreasPage({
                           <input type="email" name="adminEmail" required className="esc-input" />
                         </label>
                       </div>
-                      <label className="block">
-                        <span className="esc-rotulo">Senha temporária</span>
-                        <input name="senha" className="esc-input" placeholder="Gerada automaticamente" />
-                      </label>
                       <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">
                         Adicionar administrador
                       </button>
@@ -259,7 +255,7 @@ export default async function AreasPage({
         titulo="Cadastrar área e seu administrador"
         desc="Os dois no mesmo passo: se o login falhar, a área não chega a existir. Quem entrar com este acesso cadastra o Planejamento da área, e o Planejamento monta a operação."
       >
-        <form action={criarArea} className="px-4 py-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <form action={criarArea} className="px-4 py-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="block">
             <span className="esc-rotulo">Nome da área</span>
             <input name="nome" required className="esc-input" placeholder="Hospital São Lucas" />
@@ -272,11 +268,7 @@ export default async function AreasPage({
             <span className="esc-rotulo">E-mail</span>
             <input type="email" name="adminEmail" required className="esc-input" />
           </label>
-          <label className="block">
-            <span className="esc-rotulo">Senha temporária</span>
-            <input name="senha" className="esc-input" placeholder="Gerada automaticamente" />
-          </label>
-          <div className="sm:col-span-2 lg:col-span-4">
+          <div className="sm:col-span-2 lg:col-span-3">
             <button type="submit" className="esc-btn">Criar área</button>
           </div>
         </form>

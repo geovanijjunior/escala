@@ -139,7 +139,7 @@ export default async function UsuariosPage({
 
       <Bloco
         titulo="Adicionar pessoa"
-        desc="Cria o login já dentro desta organização. Deixe a senha em branco para gerar uma temporária."
+        desc="Cria o login já dentro desta organização. A senha temporária é gerada automaticamente e mostrada uma única vez depois de salvar."
       >
         <FormNovoUsuario papeis={PAPEIS} equipes={equipes} unidades={unidades} />
 

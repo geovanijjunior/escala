@@ -9,7 +9,7 @@ export interface ConferirAlocacoesInput {
   equipes: Equipe[];
   unidades: Unidade[];
   capacidades: CapacidadeOverride[];
-  cotasEquipe: { unidadeId: number; equipeId: number; dow: number | null; limite: number }[];
+  cotasEquipe: { unidadeId: number; equipeId: number; dow: number | null; minimo: number }[];
   ausencias: Ausencia[];
   coberturaMinima: number;
 }
@@ -57,10 +57,10 @@ export function conferirAlocacoes({
   const cotaGeral = new Map<string, number>();
   const cotaSemanal = new Map<string, number>();
   for (const c of cotasEquipe) {
-    if (c.dow === null) cotaGeral.set(`${c.unidadeId}|${c.equipeId}`, c.limite);
-    else cotaSemanal.set(`${c.unidadeId}|${c.equipeId}|${c.dow}`, c.limite);
+    if (c.dow === null) cotaGeral.set(`${c.unidadeId}|${c.equipeId}`, c.minimo);
+    else cotaSemanal.set(`${c.unidadeId}|${c.equipeId}|${c.dow}`, c.minimo);
   }
-  const cotaDe = (unidadeId: number, equipeId: number, dow: number): number | null =>
+  const minimoDe = (unidadeId: number, equipeId: number, dow: number): number | null =>
     cotaSemanal.get(`${unidadeId}|${equipeId}|${dow}`)
     ?? cotaGeral.get(`${unidadeId}|${equipeId}`)
     ?? null;
@@ -128,22 +128,35 @@ export function conferirAlocacoes({
         });
       }
 
-      // Cota por equipe.
+      // Cota por equipe: a conferência espelha o motor, e o motor passou a
+      // tratar a cota como PISO. Falta de gente é alerta, não conflito — a
+      // escala publicada continua válida, o que falta é cobertura.
+      //
+      // O laço percorre as cotas cadastradas, e não as equipes presentes: a
+      // equipe que ficou com ZERO pessoas na unidade é justamente a que mais
+      // precisa aparecer, e ela não estaria no mapa de presentes.
       const porEquipe = new Map<number, number>();
       for (const a of daUnidade) {
         const eq = colabPorId.get(a.colaboradorId)?.equipeId;
         if (eq !== undefined) porEquipe.set(eq, (porEquipe.get(eq) ?? 0) + 1);
       }
-      for (const [equipeId, n] of porEquipe) {
-        const limite = cotaDe(u.id, equipeId, dow);
-        if (limite !== null && n > limite) {
-          conflitos.push({
-            nivel: 'erro',
-            data,
-            msg: `${nomeDaEquipe.get(equipeId) ?? 'Equipe'} com ${n} pessoa(s) em ${u.nome} `
-              + `em ${formatarData(data)} — a cota é ${limite}.`,
-          });
-        }
+      // `vistas` porque o mesmo par pode ter duas linhas — a cota geral e a de
+      // um dia da semana. `minimoDe` já resolve qual vence; sem a deduplicação,
+      // o alerta sairia repetido para o mesmo par no mesmo dia.
+      const vistas = new Set<number>();
+      for (const c of cotasEquipe) {
+        if (c.unidadeId !== u.id || vistas.has(c.equipeId)) continue;
+        vistas.add(c.equipeId);
+        const minimo = minimoDe(u.id, c.equipeId, dow);
+        if (minimo === null || minimo <= 0) continue;
+        const n = porEquipe.get(c.equipeId) ?? 0;
+        if (n >= minimo) continue;
+        alertas.push({
+          nivel: 'aviso',
+          data,
+          msg: `${nomeDaEquipe.get(c.equipeId) ?? 'Equipe'} com ${n} de ${minimo} pessoa(s) exigida(s) `
+            + `em ${u.nome} em ${formatarData(data)}.`,
+        });
       }
 
       if (alguemTrabalha && coberturaMinima > 0 && daUnidade.length < coberturaMinima) {

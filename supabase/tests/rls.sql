@@ -97,7 +97,7 @@ insert into equipes (id, conta_id, codigo, nome, regime, gestor_id) overriding s
   (3, '22222222-2222-2222-2222-222222222222', 'EQB', 'Equipe B',           '5x2', null);
 
 -- Cota da conta A, para o teste de vazamento entre contas ter o que não ver.
-insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, limite) values
+insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, minimo) values
   ('11111111-1111-1111-1111-111111111111', 1, 1, null, 5);
 
 insert into colaboradores (id, conta_id, perfil_id, nome, matricula, equipe_id, unidade_base_id) overriding system value values
@@ -235,7 +235,7 @@ end $$;
 
 \echo '=== Colaborador NÃO pode definir cota de equipe (deve falhar) ==='
 do $$ begin
-  insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, limite)
+  insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, minimo)
   values ('11111111-1111-1111-1111-111111111111', 1, 1, null, 99);
   raise exception 'FALHA DE SEGURANCA: colaborador definiu cota de equipe';
 exception when insufficient_privilege then

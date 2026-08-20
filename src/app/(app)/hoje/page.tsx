@@ -5,7 +5,7 @@ import {
   carregarContextoMes, getGeracaoAtual, listarAlocacoes, listarSolicitacoes, listarUnidades,
 } from '@/lib/data/escalas';
 import {
-  DIAS_ABREV, diaSemana, formatarData, iso, somaHoras,
+  DIAS_ABREV, diaSemana, fimDoTurno, formatarData, iso,
 } from '@/lib/domain/escalas/datas';
 import { TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { texto, type Busca } from '@/lib/pagina';
@@ -69,8 +69,7 @@ export default async function HojePage({ searchParams }: { searchParams: Promise
 
   const faixaDe = (dow: number) => {
     if (!eu) return '';
-    const horas = eu.sextaReduzida && dow === 5 ? eu.jornada - 1 : eu.jornada;
-    return `${eu.entrada}–${somaHoras(eu.entrada, horas + (horas > 6 ? 1 : 0))}`;
+    return `${eu.entrada}–${fimDoTurno(eu.saida, eu.sextaReduzida, dow)}`;
   };
 
   const doDia = minhas.find(a => a.data === hoje);

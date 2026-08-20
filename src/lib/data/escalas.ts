@@ -22,7 +22,7 @@ interface LinhaUnidade {
 interface LinhaColaborador {
   id: number; perfil_id: string | null; nome: string; matricula: string; email: string;
   cargo: string; equipe_id: number; gestor_id: string | null; regime: '12x36' | '5x2';
-  turno: 'D' | 'N'; ciclo: 'IMPAR' | 'PAR' | null; entrada: string; jornada: number;
+  turno: 'D' | 'N'; ciclo: 'IMPAR' | 'PAR' | null; entrada: string; saida: string;
   unidade_base_id: number; eleg_home: boolean; eleg_externo: boolean; sexta_reduzida: boolean;
   status: 'ativo' | 'afastado' | 'desligado'; motivo_status: string | null;
   admissao: string; desligamento: string | null;
@@ -97,7 +97,7 @@ const paraUnidade = (u: LinhaUnidade): Unidade => ({
 const paraColaborador = (c: LinhaColaborador): Colaborador => ({
   id: c.id, perfilId: c.perfil_id, nome: c.nome, matricula: c.matricula, email: c.email,
   cargo: c.cargo, equipeId: c.equipe_id, gestorId: c.gestor_id, regime: c.regime, turno: c.turno,
-  ciclo: c.ciclo, entrada: (c.entrada ?? '08:00').slice(0, 5), jornada: Number(c.jornada),
+  ciclo: c.ciclo, entrada: (c.entrada ?? '08:00').slice(0, 5), saida: (c.saida ?? '17:00').slice(0, 5),
   unidadeBaseId: c.unidade_base_id, elegHome: c.eleg_home, elegExterno: c.eleg_externo,
   sextaReduzida: c.sexta_reduzida, status: c.status, motivoStatus: c.motivo_status ?? '',
   admissao: c.admissao, desligamento: c.desligamento,
@@ -211,7 +211,7 @@ export interface ContextoMes {
   ausencias: Ausencia[];
   postos: Posto[];
   capacidades: { unidadeId: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
-  cotasEquipe: { unidadeId: number; equipeId: number; dow: number | null; limite: number }[];
+  cotasEquipe: { unidadeId: number; equipeId: number; dow: number | null; minimo: number }[];
   feriados: Record<string, string>;
   pins: { colaboradorId: number; data: string; modalidade: Modalidade; unidadeId: number | null }[];
   config: ConfigEscalas;
@@ -299,10 +299,10 @@ export async function carregarContextoMes(competencia: string, contaId: string):
     ausencias,
     capacidades: ((capRes.data ?? []) as { unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[])
       .map(c => ({ unidadeId: c.unidade_id, dow: c.dow, data: c.data, total: c.total, reservadas: c.reservadas })),
-    postos: ((postoRes.data ?? []) as { id: number; unidade_id: number; nome: string; vagas: number; ativo: boolean }[])
-      .map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo })),
-    cotasEquipe: ((cotaRes.data ?? []) as { unidade_id: number; equipe_id: number; dow: number | null; limite: number }[])
-      .map(c => ({ unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, limite: c.limite })),
+    postos: ((postoRes.data ?? []) as { id: number; unidade_id: number; nome: string; vagas: number; ativo: boolean; equipe_id: number | null }[])
+      .map(p => ({ id: p.id, unidadeId: p.unidade_id, nome: p.nome, vagas: p.vagas, ativo: p.ativo, equipeId: p.equipe_id ?? null })),
+    cotasEquipe: ((cotaRes.data ?? []) as { unidade_id: number; equipe_id: number; dow: number | null; minimo: number }[])
+      .map(c => ({ unidadeId: c.unidade_id, equipeId: c.equipe_id, dow: c.dow, minimo: c.minimo })),
     feriados: Object.fromEntries(((ferRes.data ?? []) as { data: string; nome: string }[]).map(f => [f.data, f.nome])),
     pins: ((pinRes.data ?? []) as { colaborador_id: number; data: string; modalidade: Modalidade; unidade_id: number | null }[])
       .map(p => ({ colaboradorId: p.colaborador_id, data: p.data, modalidade: p.modalidade, unidadeId: p.unidade_id })),

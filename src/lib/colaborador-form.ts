@@ -11,8 +11,13 @@ import { CARGOS, MOTIVOS_INATIVACAO } from '@/lib/domain/escalas/constantes';
  * Não redireciona nem grava: devolve o registro pronto ou a primeira mensagem
  * de erro, e quem chamou decide para qual tela voltar. Foi o que permitiu os
  * dois caminhos compartilharem a regra em vez de manterem cópias — duas cópias
- * de "12x36 exige ciclo" divergem no primeiro ajuste que alguém fizer só de um
+ * da mesma validação divergem no primeiro ajuste que alguém fizer só de um
  * lado, e a que ficar para trás não dá erro: aceita o cadastro errado.
+ *
+ * `ciclo` não aparece no registro de propósito. No insert o banco aplica o
+ * default; no update, omitir a coluna preserva o que já estava lá — incluí-la
+ * como `null` apagaria, a cada edição de cadastro, o ciclo histórico de quem
+ * foi cadastrado antes de a regra mudar.
  */
 
 const texto = (fd: FormData, campo: string) => String(fd.get(campo) ?? '').trim();
@@ -29,9 +34,8 @@ export interface RegistroColaborador {
   gestor_id: string | null;
   regime: string;
   turno: 'D' | 'N';
-  ciclo: 'PAR' | 'IMPAR' | null;
   entrada: string;
-  jornada: number;
+  saida: string;
   unidade_base_id: number;
   eleg_home: boolean;
   eleg_externo: boolean;
@@ -71,7 +75,7 @@ export async function montarColaborador(
   const equipeId = Number(formData.get('equipeId'));
   const unidadeBaseId = Number(formData.get('unidadeBaseId'));
   const entrada = texto(formData, 'entrada');
-  const jornada = Number(formData.get('jornada'));
+  const saida = texto(formData, 'saida');
   const admissao = texto(formData, 'admissao');
   const desligamento = texto(formData, 'desligamento');
 
@@ -83,7 +87,6 @@ export async function montarColaborador(
   const regra = MOTIVOS_INATIVACAO.find(m => m.chave === motivoStatus);
   const status = ativo ? 'ativo' : (regra?.desliga ? 'desligado' : 'afastado');
   const turno = texto(formData, 'turno') === 'N' ? 'N' : 'D';
-  const cicloBruto = texto(formData, 'ciclo');
 
   if (!nome) return { ok: false, erro: 'Informe o nome.' };
   if (!matricula) return { ok: false, erro: 'Informe a matrícula.' };
@@ -92,7 +95,10 @@ export async function montarColaborador(
   if (!equipeId) return { ok: false, erro: 'Selecione a equipe.' };
   if (!unidadeBaseId) return { ok: false, erro: 'Selecione a unidade base.' };
   if (!/^\d{2}:\d{2}$/.test(entrada)) return { ok: false, erro: 'Horário de entrada inválido.' };
-  if (!(jornada > 0 && jornada <= 24)) return { ok: false, erro: 'A jornada precisa estar entre 1 e 24 horas.' };
+  if (!/^\d{2}:\d{2}$/.test(saida)) return { ok: false, erro: 'Horário de saída inválido.' };
+  // Saída igual à entrada seria turno de duração zero. Saída ANTES da entrada é
+  // aceita de propósito: é o turno noturno, que entra num dia e sai no outro.
+  if (saida === entrada) return { ok: false, erro: 'A saída não pode ser igual à entrada.' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(admissao)) return { ok: false, erro: 'Informe a data de admissão.' };
   if (!ativo && !regra) return { ok: false, erro: 'Informe o motivo da inativação.' };
   if (status === 'desligado' && !desligamento) return { ok: false, erro: 'Um colaborador desligado precisa da data de desligamento.' };
@@ -103,10 +109,9 @@ export async function montarColaborador(
     .from('equipes').select('regime, turno, gestor_id').eq('id', equipeId).single();
   if (!equipe) return { ok: false, erro: 'Equipe não encontrada.' };
 
-  if (equipe.regime === '12x36' && !cicloBruto) {
-    return { ok: false, erro: 'Regime 12x36 exige definir o ciclo base (dias pares ou ímpares).' };
-  }
-  const ciclo = equipe.regime === '12x36' ? (cicloBruto === 'PAR' ? 'PAR' : 'IMPAR') : null;
+  // O ciclo do 12x36 NÃO é pedido aqui: quem decide é o plano do mês, que o
+  // motor lê primeiro e cuja validação bloqueia a geração sem ele. Pedir nos
+  // dois lugares criava um valor que ninguém consultava.
 
   const duplicada = await supabase
     .from('colaboradores').select('id').eq('matricula', matricula).neq('id', id || -1).maybeSingle();
@@ -126,9 +131,8 @@ export async function montarColaborador(
       gestor_id: texto(formData, 'gestorId') || equipe.gestor_id,
       regime: equipe.regime,
       turno,
-      ciclo,
       entrada,
-      jornada,
+      saida,
       unidade_base_id: unidadeBaseId,
       eleg_home: marcado(formData, 'elegHome'),
       eleg_externo: marcado(formData, 'elegExterno'),

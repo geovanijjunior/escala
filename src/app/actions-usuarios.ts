@@ -74,8 +74,10 @@ export async function convidarUsuario(formData: FormData) {
   if (!nome) erro('Informe o nome.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) erro('E-mail em formato inválido.');
 
-  const senha = String(formData.get('senha') ?? '').trim() || senhaTemporaria();
-  if (senha.length < 8) erro('A senha temporária precisa ter ao menos 8 caracteres.');
+  // Sempre gerada: o formulário não tem mais campo de senha. Aceitar um valor
+  // digitado convidava a repetir a mesma senha para todo mundo, e o que viesse
+  // do formulário ainda daria a volta pela query string.
+  const senha = senhaTemporaria();
 
   // 1. O colaborador é validado primeiro, com `perfilId` ainda nulo — o id só
   //    existe depois do passo 2, e é preenchido na hora de gravar.

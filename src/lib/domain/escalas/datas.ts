@@ -66,6 +66,20 @@ export function somaHoras(hhmm: string, horas: number): string {
   return `${pad(Math.floor(norm / 60))}:${pad(norm % 60)}`;
 }
 
+/**
+ * A que horas a pessoa sai naquele dia.
+ *
+ * Antes cada tela refazia a mesma conta a partir da duração — entrada, mais a
+ * jornada, mais uma hora de intervalo quando passava de seis, menos uma na
+ * sexta reduzida. Eram quatro cópias da mesma regra, e bastava uma ficar para
+ * trás para o horário exibido divergir do horário cobrado numa saída
+ * antecipada. Agora a saída é cadastrada, e o que sobra de cálculo é a única
+ * exceção que existe: a sexta mais curta.
+ */
+export function fimDoTurno(saida: string, sextaReduzida: boolean, dow: number): string {
+  return sextaReduzida && dow === 5 ? somaHoras(saida, -1) : saida;
+}
+
 /** Último dia coberto por uma ausência de N dias corridos. */
 export function fimAusencia(inicio: string, dias: number): string {
   return addDias(inicio, Math.max(1, dias) - 1);

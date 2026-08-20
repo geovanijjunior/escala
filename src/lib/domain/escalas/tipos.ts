@@ -58,6 +58,14 @@ export interface Posto {
   nome: string;
   vagas: number;
   ativo: boolean;
+  /**
+   * Equipe que cobre o posto. Nulo = qualquer equipe.
+   *
+   * O posto é do time que exerce a função — quem cobre enfermagem é da
+   * enfermagem. Isto FILTRA quem pode ser marcado; QUEM cobre e por quantos
+   * dias continua sendo decidido no plano do mês de cada pessoa.
+   */
+  equipeId: number | null;
 }
 
 /**
@@ -99,9 +107,17 @@ export interface Colaborador {
   gestorId: string | null;
   regime: Regime;
   turno: Turno;
+  /**
+   * Ciclo base do 12x36, quando algum dia foi cadastrado.
+   *
+   * Não é mais pedido no cadastro: quem manda é `PlanoMensal.ciclo`, que o
+   * motor lê primeiro e que a validação de plano exige antes de deixar gerar.
+   * O campo sobrevive como histórico do que já existia.
+   */
   ciclo: Ciclo | null;
+  /** Horários reais de trabalho. A duração é a diferença entre os dois. */
   entrada: string;
-  jornada: number;
+  saida: string;
   unidadeBaseId: number;
   elegHome: boolean;
   elegExterno: boolean;
@@ -168,23 +184,22 @@ export interface CapacidadeOverride {
 }
 
 /**
- * Teto de pessoas de uma equipe numa unidade — "no Morumbi cabem 5 técnicos
- * 12x36 e 3 analistas".
+ * PISO de pessoas de uma equipe numa unidade — "no Morumbi preciso de pelo
+ * menos 3 técnicos 12x36 todo dia".
  *
  * `dow` nulo vale para todos os dias; um dia da semana específico tem
- * precedência sobre o geral. Par (unidade, equipe) sem cota não tem teto
- * próprio: só a capacidade da unidade limita, então quem não precisa da regra
- * não cadastra nada.
+ * precedência sobre o geral. Par (unidade, equipe) sem cota não tem exigência:
+ * a unidade se vira com quem a distribuição mandar.
  *
- * É um teto, não uma reserva ociosa. Quando as cotas somam a capacidade livre
- * da unidade, o teto vira garantia na prática: se os analistas já bateram 3, um
- * quarto analista não ocupa o lugar que sobrou de técnico.
+ * É mínimo, não máximo. O motor serve estas vagas ANTES da distribuição
+ * percentual e avisa quando não conseguir preenchê-las — não há teto por
+ * equipe: quem limita quantos cabem é a capacidade da unidade.
  */
 export interface CotaEquipe {
   unidadeId: number;
   equipeId: number;
   dow: number | null;
-  limite: number;
+  minimo: number;
 }
 
 export interface Pin {

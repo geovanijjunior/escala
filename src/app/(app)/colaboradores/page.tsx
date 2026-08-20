@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
 import { listarColaboradores, listarEquipes, listarUnidades } from '@/lib/data/escalas';
-import { formatarData, somaHoras } from '@/lib/domain/escalas/datas';
+import { formatarData } from '@/lib/domain/escalas/datas';
 import { CARGOS } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import { salvarColaborador } from '@/app/actions-cadastros';
@@ -60,7 +60,7 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
         <div>
           <h1 className="text-[17px] font-semibold tracking-tight">Colaboradores</h1>
           <p className="text-[12px] mt-0.5" style={{ color: 'var(--muted)' }}>
-            Cadastro base da escala: equipe, regime, jornada, elegibilidades e vínculo com o usuário do sistema.
+            Cadastro base da escala: equipe, regime, horários, elegibilidades e vínculo com o usuário do sistema.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -160,7 +160,7 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
                   <tbody>
                     {listados.map(c => {
                       const equipe = equipePorId.get(c.equipeId);
-                      const saida = somaHoras(c.entrada, c.jornada + (c.jornada > 6 ? 1 : 0));
+                      const saida = c.saida;
                       const perfil = c.perfilId ? perfilPorId.get(c.perfilId) : null;
                       const sit = SITUACAO[c.status];
                       return (
@@ -270,21 +270,16 @@ function Formulario({
           </select>
         </label>
 
-        <label className="block">
-          <span className="esc-rotulo">Ciclo base (12x36)</span>
-          <select name="ciclo" defaultValue={c?.ciclo ?? ''} className="esc-input">
-            <option value="">Não se aplica</option>
-            <option value="IMPAR">Dias ímpares</option>
-            <option value="PAR">Dias pares</option>
-          </select>
-        </label>
+        {/* Sem ciclo 12x36: quem manda é o plano do mês, que já o exige antes
+            de deixar gerar. Sem jornada em horas: os horários são cadastrados,
+            e a duração é a diferença entre eles. */}
         <label className="block">
           <span className="esc-rotulo">Entrada</span>
           <input type="time" name="entrada" defaultValue={c?.entrada ?? '08:00'} required className="esc-input esc-num" />
         </label>
         <label className="block">
-          <span className="esc-rotulo">Jornada diária (horas)</span>
-          <input type="number" name="jornada" min={1} max={24} step={0.5} defaultValue={c?.jornada ?? 8} required className="esc-input esc-num" />
+          <span className="esc-rotulo">Saída</span>
+          <input type="time" name="saida" defaultValue={c?.saida ?? '17:00'} required className="esc-input esc-num" />
         </label>
 
         <label className="block">

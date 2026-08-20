@@ -17,10 +17,17 @@ export interface OpcaoUnidade { id: number; nome: string }
  * colaborador vai, sem exceção, cadastrá-lo na escala — e era justamente o que
  * ficava esquecido: o login existia, a pessoa entrava e não via dia nenhum.
  *
- * É componente de cliente por causa de duas dependências entre campos. Os
- * dados da escala só fazem sentido para o papel colaborador, e o ciclo só
- * existe quando a equipe escolhida é 12x36 — mostrar os dois sempre pediria ao
- * Planejamento que ignorasse metade do formulário e adivinhasse qual metade.
+ * É componente de cliente por causa de duas dependências entre campos: os
+ * dados da escala só fazem sentido para o papel colaborador, e a sexta reduzida
+ * só existe no 5x2. Mostrar tudo sempre pediria ao Planejamento que ignorasse
+ * metade do formulário e adivinhasse qual metade.
+ *
+ * Não há campo de senha: ela é sempre gerada e mostrada uma única vez depois de
+ * salvar. Um campo opcional para digitá-la convidava a escolher a mesma senha
+ * para todo mundo, e o valor digitado ainda passava pela query string na volta.
+ *
+ * Também não há ciclo 12x36: quem o define é o plano do mês, que já o exige
+ * antes de deixar gerar a escala.
  */
 export function FormNovoUsuario({
   papeis, equipes, unidades,
@@ -42,7 +49,7 @@ export function FormNovoUsuario({
 
   return (
     <form action={convidarUsuario} className="px-4 py-4 space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label className="block">
           <span className="esc-rotulo">Nome</span>
           <input name="nome" required className="esc-input" />
@@ -61,10 +68,6 @@ export function FormNovoUsuario({
           >
             {papeis.map(p => <option key={p.valor} value={p.valor}>{p.label}</option>)}
           </select>
-        </label>
-        <label className="block">
-          <span className="esc-rotulo">Senha temporária</span>
-          <input name="senha" className="esc-input" placeholder="Gerada automaticamente" />
         </label>
       </div>
 
@@ -125,29 +128,14 @@ export function FormNovoUsuario({
                 </select>
               </label>
 
-              {/* Só o 12x36 tem ciclo: é o que decide se a pessoa trabalha nos
-                  dias pares ou nos ímpares. Para 5x2 o campo não significa nada. */}
-              {ehPlantao && (
-                <label className="block">
-                  <span className="esc-rotulo">Ciclo (12x36)</span>
-                  <select name="ciclo" defaultValue="IMPAR" required className="esc-input">
-                    <option value="IMPAR">Dias ímpares</option>
-                    <option value="PAR">Dias pares</option>
-                  </select>
-                </label>
-              )}
-
               <label className="block">
                 <span className="esc-rotulo">Entrada</span>
                 <input type="time" name="entrada" defaultValue="08:00" required className="esc-input esc-num" />
               </label>
 
               <label className="block">
-                <span className="esc-rotulo">Jornada (horas)</span>
-                <input
-                  type="number" name="jornada" min={1} max={24} step={0.5} defaultValue={8}
-                  required className="esc-input esc-num"
-                />
+                <span className="esc-rotulo">Saída</span>
+                <input type="time" name="saida" defaultValue="17:00" required className="esc-input esc-num" />
               </label>
 
               <label className="block">

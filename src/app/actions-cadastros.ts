@@ -229,6 +229,43 @@ export async function salvarEquipe(formData: FormData) {
   voltar(PARAMS, formData, { equipe: '' });
 }
 
+/**
+ * Traz os feriados nacionais de um ano para a área.
+ *
+ * A área nova já nasce com o ano corrente (trigger da 0022); este botão existe
+ * para os anos seguintes e para quem montou a operação antes da migration.
+ *
+ * `semear_feriados_nacionais` usa `on conflict do nothing`, então repetir é
+ * seguro e o que a área ajustou à mão fica intacto — a semeadura acrescenta o
+ * que falta, nunca reescreve o que alguém decidiu.
+ */
+export async function trazerFeriadosNacionais(formData: FormData) {
+  const sessao = await getSessao();
+  exigirCadastrador(sessao.papel, PARAMS);
+
+  const ano = inteiro(formData, 'ano');
+  if (ano === null || ano < 2000 || ano > 2100) {
+    voltarComErro(PARAMS, formData, 'Informe um ano entre 2000 e 2100.');
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('semear_feriados_nacionais', {
+    p_conta_id: sessao.conta.id,
+    p_ano: ano,
+  });
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível trazer os feriados: ${mensagemErroBanco(error)}`);
+
+  const novos = Number(data ?? 0);
+  await registrarLog(sessao, 'Feriados nacionais importados', `${ano} · ${novos} novo(s)`);
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData, {
+    form: '',
+    ok: novos > 0
+      ? `${novos} feriado(s) nacional(is) de ${ano} adicionado(s).`
+      : `Os feriados nacionais de ${ano} já estavam cadastrados.`,
+  });
+}
+
 export async function salvarFeriado(formData: FormData) {
   const sessao = await getSessao();
   exigirCadastrador(sessao.papel, PARAMS);
@@ -308,14 +345,14 @@ export async function salvarCotaEquipe(formData: FormData) {
 
   const unidadeId = Number(formData.get('unidadeId'));
   const equipeId = Number(formData.get('equipeId'));
-  const limiteBruto = texto(formData, 'limite');
+  const minimoBruto = texto(formData, 'minimo');
   const dows = formData.getAll('dow')
     .map(v => Number(v))
     .filter(n => Number.isInteger(n) && n >= 0 && n <= 6);
 
   if (!unidadeId || !equipeId) voltarComErro(PARAMS, formData, 'Escolha a unidade e a equipe.');
-  const limite = Number(limiteBruto);
-  if (limiteBruto === '' || !Number.isInteger(limite) || limite < 0) {
+  const minimo = Number(minimoBruto);
+  if (minimoBruto === '' || !Number.isInteger(minimo) || minimo < 0) {
     voltarComErro(PARAMS, formData, 'Informe a cota como um número inteiro de posições (0 impede a equipe de usar a unidade).');
   }
 
@@ -327,14 +364,14 @@ export async function salvarCotaEquipe(formData: FormData) {
   if (!unidade || !equipe) voltarComErro(PARAMS, formData, 'Unidade ou equipe não encontrada.');
 
   const operacionais = unidade.capacidade_total - unidade.capacidade_reservadas;
-  if (limite > operacionais) {
-    voltarComErro(PARAMS, formData, `A cota de ${limite} passa das ${operacionais} posições operacionais de ${unidade.nome}.`);
+  if (minimo > operacionais) {
+    voltarComErro(PARAMS, formData, `O mínimo de ${minimo} passa das ${operacionais} posições operacionais de ${unidade.nome}.`);
   }
 
   const filtro = supabase.from('cotas_equipe').delete().eq('unidade_id', unidadeId).eq('equipe_id', equipeId);
   await (dows.length > 0 ? filtro.in('dow', dows) : filtro.is('dow', null));
 
-  const base = { conta_id: sessao.conta.id, unidade_id: unidadeId, equipe_id: equipeId, limite };
+  const base = { conta_id: sessao.conta.id, unidade_id: unidadeId, equipe_id: equipeId, minimo };
   const linhas: (typeof base & { dow: number | null })[] = dows.length > 0
     ? dows.map(dow => ({ ...base, dow }))
     : [{ ...base, dow: null }];
@@ -343,7 +380,7 @@ export async function salvarCotaEquipe(formData: FormData) {
   if (error) voltarComErro(PARAMS, formData, `Não foi possível salvar a cota: ${mensagemErroBanco(error)}`);
 
   const quando = dows.length > 0 ? dows.map(d => DIAS_ABREV[d]).join(', ') : 'todos os dias';
-  await registrarLog(sessao, 'Cota por equipe ajustada', `${equipe.nome} em ${unidade.nome} · ${quando} · até ${limite}`);
+  await registrarLog(sessao, 'Cota por equipe ajustada', `${equipe.nome} em ${unidade.nome} · ${quando} · mínimo ${minimo}`);
   revalidatePath('/', 'layout');
   voltar(PARAMS, formData, { form: '' });
 }
@@ -387,12 +424,18 @@ export async function salvarPosto(formData: FormData) {
   if (!nome) voltarComErro(PARAMS, formData, 'Informe o nome do posto.');
   if (vagas === null || vagas < 1) voltarComErro(PARAMS, formData, 'Informe quantas vagas simultâneas o posto tem — ao menos 1.');
 
+  // Vazio = aberto a qualquer equipe, que é como os postos existiam antes de a
+  // coluna nascer. Só um `null` explícito preserva esse sentido; `Number('')`
+  // seria 0, um id de equipe que não existe.
+  const equipeId = Number(formData.get('equipeId')) || null;
+
   const supabase = await createClient();
   const registro = {
     conta_id: sessao.conta.id,
     unidade_id: unidadeId,
     nome,
     vagas,
+    equipe_id: equipeId,
     ativo: marcado(formData, 'ativo'),
   };
   const { error } = id

@@ -15,7 +15,7 @@ const unidades: Unidade[] = [
 
 const mkColab = (id: number, over: Partial<Colaborador> = {}): Colaborador => ({
   id, perfilId: null, nome: `P${id}`, matricula: String(id), email: '', cargo: 'Analista Jr',
-  equipeId: 1, gestorId: null, regime: '5x2', turno: 'D', ciclo: null, entrada: '08:00', jornada: 8,
+  equipeId: 1, gestorId: null, regime: '5x2', turno: 'D', ciclo: null, entrada: '08:00', saida: '17:00',
   unidadeBaseId: 1, elegHome: true, elegExterno: false, sextaReduzida: true, status: 'ativo',
   admissao: '2024-01-01', desligamento: null, ...over,
 });
@@ -49,7 +49,7 @@ const base = {
 
 // ── 2. 12x36 alterna dias e nunca cai em dias consecutivos
 {
-  const c = mkColab(1, { regime: '12x36', ciclo: 'IMPAR', jornada: 12 });
+  const c = mkColab(1, { regime: '12x36', ciclo: 'IMPAR', saida: '19:00' });
   const r = gerarEscala({ ...base, colaboradores: [c], planos: [mkPlano(1, { ciclo: 'IMPAR' })] });
   const trabalhados = r.alocacoes.filter(a => a.modalidade === 'UNIDADE').map(a => Number(a.data.slice(8)));
   ok(trabalhados.every(d => d % 2 === 1), '12x36 IMPAR só em dias ímpares');
@@ -157,93 +157,85 @@ const base = {
 }
 
 
-// ── Cota por equipe: teto de pessoas de uma equipe numa unidade
+// ── Cota por equipe: PISO de pessoas de uma equipe numa unidade
 {
-  // 4 técnicos (equipe 1) querendo o Morumbi, que tem 4 lugares mas cota 2.
+  // Duas unidades, e o plano de todo mundo aponta 100% para a Paulista (2).
+  // O piso de 2 no Morumbi (1) tem de puxar gente para lá mesmo assim — é a
+  // diferença entre um mínimo e uma preferência.
   {
     const r = gerarEscala({
       ...base,
-      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, limite: 2 }],
+      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, minimo: 2 }],
+      colaboradores: [1, 2, 3, 4].map(id => mkColab(id, { equipeId: 1 })),
+      planos: [1, 2, 3, 4].map(id => mkPlano(id, { distribuicao: { 1: 0, 2: 100 } })),
+    });
+    const noMor = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1);
+    ok(noMor.length === 2, 'piso de 2 puxa gente contra a distribuição', String(noMor.length));
+    const naPau = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 2);
+    ok(naPau.length === 2, 'o resto segue o plano', String(naPau.length));
+  }
+
+  // Piso não é teto: com todo mundo planejado para o Morumbi, um mínimo de 2
+  // não impede os 4 de ficarem lá.
+  {
+    const r = gerarEscala({
+      ...base,
+      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, minimo: 2 }],
       colaboradores: [1, 2, 3, 4].map(id => mkColab(id, { equipeId: 1 })),
       planos: [1, 2, 3, 4].map(id => mkPlano(id, { distribuicao: { 1: 100, 2: 0 } })),
     });
     const noMor = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1);
-    ok(noMor.length === 2, 'cota de 2 limita a equipe mesmo com 4 lugares', String(noMor.length));
-    const foram = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 2);
-    ok(foram.length === 2, 'os excedentes vão para a outra unidade', String(foram.length));
+    ok(noMor.length === 4, 'mínimo não limita quem quer ficar', String(noMor.length));
   }
 
-  // Equipe sem cota cadastrada não é limitada.
+  // Equipe sem cota cadastrada não é puxada para lugar nenhum.
   {
     const r = gerarEscala({
       ...base,
-      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, limite: 2 }],
+      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, minimo: 2 }],
       colaboradores: [1, 2, 3].map(id => mkColab(id, { equipeId: 2 })),
-      planos: [1, 2, 3].map(id => mkPlano(id, { distribuicao: { 1: 100, 2: 0 } })),
+      planos: [1, 2, 3].map(id => mkPlano(id, { distribuicao: { 1: 0, 2: 100 } })),
     });
     const noMor = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1);
-    ok(noMor.length === 3, 'equipe sem cota não é limitada', String(noMor.length));
+    ok(noMor.length === 0, 'equipe sem piso não é deslocada', String(noMor.length));
   }
 
-  // Cota por dia da semana tem precedência sobre a geral.
+  // Piso por dia da semana tem precedência sobre o geral.
   {
     const r = gerarEscala({
       ...base,
       cotasEquipe: [
-        { unidadeId: 1, equipeId: 1, dow: null, limite: 3 },
-        { unidadeId: 1, equipeId: 1, dow: 1, limite: 1 }, // segunda
+        { unidadeId: 1, equipeId: 1, dow: null, minimo: 1 },
+        { unidadeId: 1, equipeId: 1, dow: 1, minimo: 3 }, // segunda
       ],
       colaboradores: [1, 2, 3].map(id => mkColab(id, { equipeId: 1 })),
-      planos: [1, 2, 3].map(id => mkPlano(id, { distribuicao: { 1: 100, 2: 0 } })),
+      planos: [1, 2, 3].map(id => mkPlano(id, { distribuicao: { 1: 0, 2: 100 } })),
     });
     const seg = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1); // segunda
     const ter = r.alocacoes.filter(a => a.data === '2026-08-04' && a.unidadeId === 1); // terça
-    ok(seg.length === 1, 'cota da segunda (1) vence a geral (3)', String(seg.length));
-    ok(ter.length === 3, 'terça usa a cota geral (3)', String(ter.length));
+    ok(seg.length === 3, 'piso da segunda (3) vence o geral (1)', String(seg.length));
+    ok(ter.length === 1, 'terça usa o piso geral (1)', String(ter.length));
   }
 
-  // Cotas que fecham a capacidade viram garantia: analista não toma lugar de técnico.
+  // Não há gente suficiente: alerta, e a escala do dia continua válida.
   {
     const r = gerarEscala({
       ...base,
-      cotasEquipe: [
-        { unidadeId: 1, equipeId: 1, dow: null, limite: 3 }, // técnicos
-        { unidadeId: 1, equipeId: 2, dow: null, limite: 1 }, // analistas
-      ],
-      colaboradores: [
-        mkColab(1, { equipeId: 2 }), mkColab(2, { equipeId: 2 }), mkColab(3, { equipeId: 2 }),
-        mkColab(4, { equipeId: 1 }),
-      ],
-      planos: [1, 2, 3, 4].map(id => mkPlano(id, { distribuicao: { 1: 100, 2: 0 } })),
+      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, minimo: 3 }],
+      colaboradores: [mkColab(1, { equipeId: 1 })],
+      planos: [mkPlano(1, { distribuicao: { 1: 100, 2: 0 } })],
     });
-    const analistas = r.alocacoes.filter(a => a.data === '2026-08-03' && a.unidadeId === 1 && a.colaboradorId <= 3);
-    const tecnico = r.alocacoes.find(a => a.data === '2026-08-03' && a.colaboradorId === 4);
-    ok(analistas.length === 1, 'analistas param na cota de 1', String(analistas.length));
-    ok(tecnico?.unidadeId === 1, 'lugar do técnico continua disponível para ele', String(tecnico?.unidadeId));
-  }
-
-  // Cota estourada por trava é conflito, não é contornada silenciosamente.
-  {
-    const r = gerarEscala({
-      ...base,
-      cotasEquipe: [{ unidadeId: 1, equipeId: 1, dow: null, limite: 1 }],
-      colaboradores: [mkColab(1, { equipeId: 1 }), mkColab(2, { equipeId: 1 })],
-      planos: [mkPlano(1), mkPlano(2)],
-      pins: [
-        { colaboradorId: 1, data: '2026-08-03', modalidade: 'UNIDADE' as const, unidadeId: 1 },
-        { colaboradorId: 2, data: '2026-08-03', modalidade: 'UNIDADE' as const, unidadeId: 1 },
-      ],
-    });
-    const sobreCota = r.conflitos.filter(c => c.msg.includes('cota de 1'));
-    ok(sobreCota.length === 1, 'trava que estoura a cota vira conflito', String(sobreCota.length));
-    ok(sobreCota[0]?.msg.includes('Técnicos 12x36'), 'conflito nomeia a equipe', sobreCota[0]?.msg ?? '');
+    const faltou = r.alertas.filter(a => a.data === '2026-08-03' && a.msg.includes('exigida'));
+    ok(faltou.length === 1, 'piso não atingido vira alerta', String(faltou.length));
+    ok(faltou[0]?.msg.includes('1 de 3'), 'o alerta diz quanto faltou', faltou[0]?.msg ?? '');
+    ok(r.conflitos.length === 0, 'e não vira conflito', r.conflitos.map(c => c.msg).join(' | '));
   }
 }
 
 
 // ── Postos: N dias úteis contíguos numa semana, dentro da unidade
 {
-  const postos = [{ id: 7, unidadeId: 1, nome: 'Corpo Clínico', vagas: 1, ativo: true }];
+  const postos = [{ id: 7, unidadeId: 1, nome: 'Corpo Clínico', vagas: 1, ativo: true, equipeId: null }];
   const baseP = { ...base, postos };
 
   // 5 dias = uma semana inteira de segunda a sexta, sempre no Morumbi.
@@ -395,7 +387,7 @@ const base = {
 // só aparecia terça e quinta. Nos outros dois o posto constava ocupado sem
 // ninguém lá, e bloqueava quem poderia cobrir.
 {
-  const postos = [{ id: 7, unidadeId: 1, nome: 'Corpo Clínico', vagas: 1, ativo: true }];
+  const postos = [{ id: 7, unidadeId: 1, nome: 'Corpo Clínico', vagas: 1, ativo: true, equipeId: null }];
 
   // 12x36 não cobre dias seguidos: vira conflito, não meia-cobertura.
   {

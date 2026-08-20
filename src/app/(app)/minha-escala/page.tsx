@@ -5,7 +5,7 @@ import {
   carregarContextoMes, getGeracaoAtual, listarAlocacoes, listarSolicitacoes, listarUnidades,
 } from '@/lib/data/escalas';
 import {
-  DIAS_ABREV, diaSemana, diasNoMes, formatarCompetencia, formatarData, iso, somaHoras,
+  DIAS_ABREV, diaSemana, diasNoMes, fimDoTurno, formatarCompetencia, formatarData, iso,
 } from '@/lib/domain/escalas/datas';
 import { STATUS_SOLICITACAO, TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { competenciaDaBusca, texto, type Busca } from '@/lib/pagina';
@@ -63,8 +63,7 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
 
   const faixa = (dow: number) => {
     if (!eu) return '';
-    const horas = eu.sextaReduzida && dow === 5 ? eu.jornada - 1 : eu.jornada;
-    return `${eu.entrada}–${somaHoras(eu.entrada, horas + (horas > 6 ? 1 : 0))}`;
+    return `${eu.entrada}–${fimDoTurno(eu.saida, eu.sextaReduzida, dow)}`;
   };
 
   const minhasSolicitacoes = solicitacoes.filter(

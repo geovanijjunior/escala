@@ -43,10 +43,9 @@ async function registrarNaArea(
   });
 }
 
-function validarAdmin(nome: string, email: string, senha: string) {
+function validarAdmin(nome: string, email: string) {
   if (!nome) erro('Informe o nome do administrador da área.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) erro('E-mail do administrador em formato inválido.');
-  if (senha.length < 8) erro('A senha temporária precisa ter ao menos 8 caracteres.');
 }
 
 /**
@@ -68,10 +67,10 @@ export async function criarArea(formData: FormData) {
   const nome = String(formData.get('nome') ?? '').trim();
   const adminNome = String(formData.get('adminNome') ?? '').trim();
   const adminEmail = String(formData.get('adminEmail') ?? '').trim().toLowerCase();
-  const senha = String(formData.get('senha') ?? '').trim() || senhaTemporaria();
+  const senha = senhaTemporaria();
 
   if (!nome) erro('Informe o nome da área.');
-  validarAdmin(adminNome, adminEmail, senha);
+  validarAdmin(adminNome, adminEmail);
 
   const supabase = await createClient();
   const { data: area, error: erroArea } = await supabase
@@ -116,10 +115,10 @@ export async function adicionarAdminLocal(formData: FormData) {
   const areaId = String(formData.get('areaId') ?? '');
   const nome = String(formData.get('adminNome') ?? '').trim();
   const email = String(formData.get('adminEmail') ?? '').trim().toLowerCase();
-  const senha = String(formData.get('senha') ?? '').trim() || senhaTemporaria();
+  const senha = senhaTemporaria();
 
   if (!areaId) erro('Área não informada.');
-  validarAdmin(nome, email, senha);
+  validarAdmin(nome, email);
 
   // Confere que a área existe pelo client sob RLS: se um id forjado chegasse
   // aqui, o client de serviço criaria o login apontando para lugar nenhum.
