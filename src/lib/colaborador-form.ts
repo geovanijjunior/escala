@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CARGOS, MOTIVOS_INATIVACAO } from '@/lib/domain/escalas/constantes';
+import { horaNormalizada } from '@/lib/domain/escalas/datas';
 
 /**
  * Leitura e validação dos campos de colaborador vindos de um formulário.
@@ -74,8 +75,11 @@ export async function montarColaborador(
   const cargo = texto(formData, 'cargo');
   const equipeId = Number(formData.get('equipeId'));
   const unidadeBaseId = Number(formData.get('unidadeBaseId'));
-  const entrada = texto(formData, 'entrada');
-  const saida = texto(formData, 'saida');
+  // Normalizados aqui, e não conferidos por formato lá embaixo: `8:00` e
+  // `08:00` são o mesmo horário e precisam entrar iguais no banco, e `99:99`
+  // não é horário nenhum embora tenha a forma de um.
+  const entrada = horaNormalizada(texto(formData, 'entrada'));
+  const saida = horaNormalizada(texto(formData, 'saida'));
   const admissao = texto(formData, 'admissao');
   const desligamento = texto(formData, 'desligamento');
 
@@ -94,8 +98,8 @@ export async function montarColaborador(
   if (cargo && !CARGOS.includes(cargo)) return { ok: false, erro: 'Cargo inválido.' };
   if (!equipeId) return { ok: false, erro: 'Selecione a equipe.' };
   if (!unidadeBaseId) return { ok: false, erro: 'Selecione a unidade base.' };
-  if (!/^\d{2}:\d{2}$/.test(entrada)) return { ok: false, erro: 'Horário de entrada inválido.' };
-  if (!/^\d{2}:\d{2}$/.test(saida)) return { ok: false, erro: 'Horário de saída inválido.' };
+  if (!entrada) return { ok: false, erro: 'Horário de entrada inválido.' };
+  if (!saida) return { ok: false, erro: 'Horário de saída inválido.' };
   // Saída igual à entrada seria turno de duração zero. Saída ANTES da entrada é
   // aceita de propósito: é o turno noturno, que entra num dia e sai no outro.
   if (saida === entrada) return { ok: false, erro: 'A saída não pode ser igual à entrada.' };

@@ -15,15 +15,27 @@
 -- fim de turno que o sistema vinha exibindo. Nada muda na tela depois de rodar.
 alter table colaboradores add column if not exists saida text;
 
-update colaboradores
-   set saida = to_char(
-         entrada::time + (((jornada + case when jornada > 6 then 1 else 0 end))::text || ' hours')::interval,
-         'HH24:MI')
- where saida is null
-   and exists (
-     select 1 from information_schema.columns
-      where table_name = 'colaboradores' and column_name = 'jornada'
-   );
+-- A conversão precisa ser SQL dinâmico, e não um `update ... where exists (a
+-- coluna jornada existe)`. O Postgres analisa a instrução inteira antes de
+-- avaliar qualquer condição: na segunda passada — quando `jornada` já foi
+-- derrubada logo abaixo — a referência à coluna quebra em tempo de análise, e
+-- a guarda em runtime nunca chega a ser consultada. Com `execute`, o texto só
+-- é analisado quando a coluna de fato está lá.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_name = 'colaboradores' and column_name = 'jornada'
+  ) then
+    execute $sql$
+      update colaboradores
+         set saida = to_char(
+               entrada::time + ((jornada + case when jornada > 6 then 1 else 0 end)::text || ' hours')::interval,
+               'HH24:MI')
+       where saida is null
+    $sql$;
+  end if;
+end $$;
 
 -- Quem chegar sem jornada para converter (base nova) recebe o padrão.
 update colaboradores set saida = '17:00' where saida is null;

@@ -30,20 +30,29 @@
 -- conta_id, que é NOT NULL, e apagar um posto passaria a falhar. A bateria de
 -- integridade pegou isso na primeira execução. Exige Postgres 15 ou superior.
 
-alter table colaboradores drop constraint if exists colaboradores_id_conta_id_key;
-alter table colaboradores add constraint colaboradores_id_conta_id_key unique (id, conta_id);
-alter table equipes drop constraint if exists equipes_id_conta_id_key;
-alter table equipes add constraint equipes_id_conta_id_key unique (id, conta_id);
-alter table geracoes drop constraint if exists geracoes_id_conta_id_key;
-alter table geracoes add constraint geracoes_id_conta_id_key unique (id, conta_id);
-alter table planos drop constraint if exists planos_id_conta_id_key;
-alter table planos add constraint planos_id_conta_id_key unique (id, conta_id);
-alter table postos drop constraint if exists postos_id_conta_id_key;
-alter table postos add constraint postos_id_conta_id_key unique (id, conta_id);
-alter table solicitacoes drop constraint if exists solicitacoes_id_conta_id_key;
-alter table solicitacoes add constraint solicitacoes_id_conta_id_key unique (id, conta_id);
-alter table unidades drop constraint if exists unidades_id_conta_id_key;
-alter table unidades add constraint unidades_id_conta_id_key unique (id, conta_id);
+-- Cria só o que falta, em vez de derrubar e refazer.
+--
+-- O `drop ... add` de antes tornava esta migration NÃO repetível, contra o que
+-- o README promete: as migrations seguintes (0010, 0011, 0012 e agora a 0021)
+-- declaram FKs compostas apoiadas justamente nestas unicidades, e o Postgres
+-- recusa derrubar uma chave da qual outra coisa depende. Rodar a 0009 uma
+-- segunda vez — o que qualquer um faz quando não lembra se ela já passou —
+-- morria em "cannot drop constraint ... because other objects depend on it".
+--
+-- Nada se perde ao pular: a definição é sempre a mesma `(id, conta_id)`, então
+-- uma chave que já exista é exatamente a que seria recriada.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'colaboradores', 'equipes', 'geracoes', 'planos', 'postos', 'solicitacoes', 'unidades'
+  ] loop
+    if not exists (select 1 from pg_constraint where conname = t || '_id_conta_id_key') then
+      execute format('alter table %I add constraint %I unique (id, conta_id)', t, t || '_id_conta_id_key');
+    end if;
+  end loop;
+end $$;
 
 alter table alocacoes drop constraint if exists alocacoes_colaborador_id_fkey;
 alter table alocacoes drop constraint if exists alocacoes_colaborador_id_conta_fkey;

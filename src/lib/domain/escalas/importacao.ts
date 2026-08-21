@@ -1,4 +1,5 @@
 import { CARGOS } from './constantes';
+import { horaNormalizada } from './datas';
 import type { Equipe, Unidade } from './tipos';
 
 /**
@@ -175,15 +176,14 @@ function ehDataReal(iso: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso;
 }
 
-/** Aceita `8:00`, `08:00` e `08:00:00`. */
-function hora(bruto: string): string | null {
-  const m = bruto.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return `${String(h).padStart(2, '0')}:${m[2]}`;
-}
+/**
+ * Aceita `8:00`, `08:00` e `08:00:00`.
+ *
+ * Mudou de casa para `datas.ts` quando o formulário de colaborador passou a
+ * digitar horário também: eram duas réguas para o mesmo campo, e a de lá
+ * conferia só o formato — a planilha recusava `99:99` e a tela aceitava.
+ */
+const hora = horaNormalizada;
 
 /* ============================================================
    Leitura

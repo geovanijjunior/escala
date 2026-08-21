@@ -57,6 +57,26 @@ preparar() {
   createdb "$banco"
   psql_ -d "$banco" -f "$raiz/scripts/manual/auth-stub.sql"
 
+  # `authenticated` e `anon` precisam existir ANTES das migrations.
+  #
+  # No Supabase são os papéis que o PostgREST assume — logado e anônimo — e
+  # várias migrations fazem `grant`/`revoke` sobre eles dentro de um
+  # `if exists (select 1 from pg_roles ...)`. Sem os papéis no cluster esse
+  # `if` é sempre falso, TODO bloco de concessão vira código morto, e o
+  # ambiente de teste perde a capacidade de enxergar um grant errado.
+  #
+  # Foi por essa fresta que a 0022 concedeu a `authenticated` uma função
+  # `security definer` que recebia a área por parâmetro, sem nenhuma suíte
+  # reclamar. Ver `supabase/tests/rls-avancado.sql`.
+  psql_ -d postgres -c "do \$\$ begin
+    if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+      create role authenticated nologin;
+    end if;
+    if not exists (select 1 from pg_roles where rolname = 'anon') then
+      create role anon nologin;
+    end if;
+  end \$\$;"
+
   for arquivo in "$raiz"/supabase/migrations/*.sql; do
     pular "$banco" "$(basename "$arquivo")" && continue
     psql_ -d "$banco" -f "$arquivo" > /dev/null

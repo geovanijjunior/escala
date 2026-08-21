@@ -198,6 +198,33 @@ class Consulta {
   lt(col, val) { this.onde.push(`${cita(col)} < ${this._p(val)}`); return this; }
   in(col, vals) { this.onde.push(`${cita(col)} = any(${this._p(vals)})`); return this; }
   is(col, val) { this.onde.push(`${cita(col)} is ${val === null ? 'null' : val}`); return this; }
+
+  /**
+   * `.not(coluna, operador, valor)`, a negação do PostgREST.
+   *
+   * Faltava, e a falta não aparecia como falta: o console de áreas usa
+   * `.not('conta_id', 'is', null)`, então TODA tela do Administrador Geral
+   * respondia 500 contra o shim. A varredura contava as vinte rotas como
+   * "problema" e seguia — o papel de maior alcance do sistema era o único que
+   * nunca chegava a ser aberto, justamente nas fotos que servem de conferência.
+   *
+   * Só os operadores que o app usa, e erro alto no resto: um `.not` que
+   * ignorasse o que não entende devolveria a linha que deveria excluir, e a
+   * tela ficaria plausível e errada.
+   */
+  not(col, op, val) {
+    if (op === 'is') {
+      this.onde.push(`${cita(col)} is not ${val === null ? 'null' : val}`);
+    } else if (op === 'in') {
+      this.onde.push(`not (${cita(col)} = any(${this._p(val)}))`);
+    } else if (op === 'eq') {
+      this.onde.push(`${cita(col)} is distinct from ${this._p(val)}`);
+    } else {
+      throw new Error(`not("${col}", "${op}", ...) não é suportado pelo shim`);
+    }
+    return this;
+  }
+
   match(obj) { for (const [k, v] of Object.entries(obj)) this.eq(k, v); return this; }
   order(col, o = {}) { this.ordem.push(`${cita(col)} ${o.ascending === false ? 'desc' : 'asc'}`); return this; }
   limit(n) { this.limite = n; return this; }

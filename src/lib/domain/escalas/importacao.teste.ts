@@ -1,4 +1,5 @@
 import { lerPlanilha } from './importacao';
+import { horaNormalizada } from './datas';
 import type { Equipe, Unidade } from './tipos';
 
 let falhas = 0;
@@ -155,6 +156,28 @@ const CAB = 'nome;matricula;equipe;unidade base;admissao';
 
   const igual = ler(`${CAB};entrada;saida\nAna;100;TEC;MOR;01/03/2024;08:00;08:00`);
   ok(igual.linhas[0].erros.some(e => /igual à entrada/.test(e)), 'saída igual à entrada é recusada');
+}
+
+// ── 13b. O parser de horário, direto
+//
+// Ele é a régua dos DOIS caminhos de entrada: esta planilha e o formulário de
+// colaborador. Enquanto morava dentro deste arquivo, só a planilha o usava — o
+// formulário conferia `\d{2}:\d{2}`, que "99:99" satisfaz, e uma sonda de
+// `scripts/manual/hostil.mjs` gravou um colaborador com esse horário.
+{
+  ok(horaNormalizada('8:00') === '08:00', 'completa o zero da frente');
+  ok(horaNormalizada('08:00:00') === '08:00', 'descarta os segundos');
+  ok(horaNormalizada(' 08:00 ') === '08:00', 'ignora espaço em volta');
+  ok(horaNormalizada('00:00') === '00:00', 'meia-noite é horário válido');
+  ok(horaNormalizada('23:59') === '23:59', 'o último minuto do dia também');
+
+  // A forma certa e o valor impossível: é a diferença que a checagem por
+  // formato não enxerga.
+  ok(horaNormalizada('99:99') === null, '99:99 tem o formato mas não é hora');
+  ok(horaNormalizada('24:00') === null, '24:00 não existe no relógio');
+  ok(horaNormalizada('08:60') === null, 'minuto 60 não existe');
+  ok(horaNormalizada('') === null, 'vazio não é hora');
+  ok(horaNormalizada('meio-dia') === null, 'texto não é hora');
 }
 
 // ── 14. Arquivo vazio e só-cabeçalho

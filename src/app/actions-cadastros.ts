@@ -248,11 +248,11 @@ export async function trazerFeriadosNacionais(formData: FormData) {
     voltarComErro(PARAMS, formData, 'Informe um ano entre 2000 e 2100.');
   }
 
+  // Só o ano. A área sai de `conta_id()` DENTRO da função — mandá-la daqui
+  // seria deixar quem chama escolher em que área escrever, e a função roda como
+  // `security definer`: a RLS não estaria lá para desmentir. Ver a 0023.
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('semear_feriados_nacionais', {
-    p_conta_id: sessao.conta.id,
-    p_ano: ano,
-  });
+  const { data, error } = await supabase.rpc('semear_feriados_nacionais', { p_ano: ano });
   if (error) voltarComErro(PARAMS, formData, `Não foi possível trazer os feriados: ${mensagemErroBanco(error)}`);
 
   const novos = Number(data ?? 0);

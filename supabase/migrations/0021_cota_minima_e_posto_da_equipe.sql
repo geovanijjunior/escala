@@ -41,24 +41,39 @@ comment on column cotas_equipe.minimo is
 -- Nulo continua valendo, e significa o que valia antes: posto aberto a
 -- qualquer equipe. Sem isso, os postos já cadastrados virariam inválidos no
 -- instante em que a coluna nascesse.
-alter table postos add column if not exists equipe_id bigint references equipes(id) on delete set null;
+alter table postos add column if not exists equipe_id bigint;
 
 create index if not exists postos_equipe_idx on postos(equipe_id);
 
 comment on column postos.equipe_id is
   'Equipe que cobre este posto. Nulo = qualquer equipe, que é como os postos existiam antes desta coluna.';
 
--- O par (id, conta_id) é o que a 0009 usa para amarrar filho e pai na mesma
--- conta. Sem ele, um posto de uma área poderia apontar para a equipe de outra.
+-- FK no padrão vigente: composta quando a 0009 já rodou, simples quando não.
+--
+-- A versão anterior desta migration declarava a FK composta direto, sem a
+-- escolha. Numa instalação que nunca aplicou a 0009 — e que segue recebendo as
+-- migrations seguintes, que é o caso que `manual_0008` existe para exercitar —
+-- `equipes(id, conta_id)` não tem unicidade, e a migration inteira abortava em
+-- "there is no unique constraint matching given keys".
+--
+-- E o `set null` precisa nomear a coluna. Sem a lista, apagar uma equipe
+-- tentaria anular também o `conta_id` do posto, que é `not null`: a exclusão
+-- falharia com um erro que não fala de equipe nenhuma. O que se quer é soltar o
+-- posto da equipe e deixá-lo aberto a qualquer uma — que é o sentido do nulo.
+--
+-- O `drop` da FK de coluna única vem antes porque a versão com o defeito pode
+-- já ter rodado: sem ele, o banco ficaria com as duas.
+alter table postos drop constraint if exists postos_equipe_id_fkey;
+alter table postos drop constraint if exists postos_equipe_conta_fk;
+
 do $$
 begin
-  if not exists (
-    select 1 from pg_constraint
-     where conrelid = 'postos'::regclass and conname = 'postos_equipe_conta_fk'
-  ) then
-    alter table postos
-      add constraint postos_equipe_conta_fk
-      foreign key (equipe_id, conta_id) references equipes(id, conta_id) on delete set null;
+  if exists (select 1 from pg_constraint where conname = 'equipes_id_conta_id_key') then
+    alter table postos add constraint postos_equipe_conta_fk
+      foreign key (equipe_id, conta_id) references equipes(id, conta_id) on delete set null (equipe_id);
+  else
+    alter table postos add constraint postos_equipe_conta_fk
+      foreign key (equipe_id) references equipes(id) on delete set null;
   end if;
 end $$;
 

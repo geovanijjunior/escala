@@ -152,17 +152,40 @@ que sobra.
 ## Testes
 
 ```bash
-./scripts/testar.sh              # tudo: tipos, lint, motor, propriedades, build, banco
+./scripts/testar.sh              # tudo: tipos, lint, motor, propriedades, autorização, build, banco
 ./scripts/testar.sh propriedades # só o fuzzing
+./scripts/testar.sh migracoes    # fora do "tudo": cria e derruba bancos próprios
 RODADAS=50000 ./scripts/testar.sh propriedades
 ```
 
 | Bateria | O que cobre |
 |---|---|
-| `npm test` | 57 asserções do motor e 38 do leitor de planilha |
+| `npm test` | asserções do motor e do leitor de planilha |
 | `npm run test:propriedades` | 15 invariantes × milhares de meses aleatórios |
+| `supabase/tests/autorizacao.mjs` | toda Server Action abre sessão e checa papel — leitura estática, sem banco |
 | `supabase/tests/rls.sql` | quem enxerga o quê, com testes negativos — inclui mural, anexos, avisos e caixa de saída |
+| `supabase/tests/rls-avancado.sql` | funções `security definer`, que rodam FORA da RLS, e a superfície das migrations recentes |
 | `supabase/tests/integridade.sql` | restrições, cascatas e vínculo entre contas |
+| `supabase/tests/feriados.sql` | a Páscoa e os feriados nacionais, ano a ano, de 2000 a 2100 |
+| `supabase/tests/migracoes.sh` | instalação do zero, reaplicação, o caminho sem a 0009 e o backfill da 0020 |
+| `scripts/manual/hostil.mjs` | dado forjado em cada formulário — o critério é o contrário: precisa NÃO gravar |
+
+Três delas cobrem caminhos que os testes de dado não alcançam, e cada uma nasceu
+de um erro real:
+
+- **`autorizacao.mjs`** trata cada função exportada de um `actions-*.ts` como o
+  que ela é: um endpoint, que aceita POST de quem tiver o id dela. Esconder o
+  botão não fecha nada.
+- **`rls-avancado.sql`** olha para as funções `security definer`, que rodam como
+  o dono e por isso **não passam por policy nenhuma** — e mantém um inventário
+  delas que falha quando aparece uma nova sem exame. Nele o `app_user` entra
+  como membro de `authenticated` em vez de receber `grant` em bloco: conceder em
+  bloco devolveria justamente o que as migrations revogam, e o teste passaria
+  sempre.
+- **`migracoes.sh`** exercita a INSTALAÇÃO, não o dado: aplicar duas vezes,
+  aplicar sem a 0009, e converter massa no formato antigo. Uma migration só
+  roda uma vez na vida de cada banco — ou está certa agora, ou o estrago é
+  silencioso.
 
 As **propriedades** são o que pega o que ninguém imaginou. Em vez de conferir um
 caso escolhido a dedo, geram-se meses inteiros ao acaso — equipes, capacidades,
@@ -413,6 +436,8 @@ português abre sem embaralhar acento).
    | 20º | `0020_entrada_saida_e_ciclo.sql` | horário de saída no lugar da jornada em horas; ciclo 12x36 deixa de ser obrigatório no cadastro |
    | 21º | `0021_cota_minima_e_posto_da_equipe.sql` | cota por equipe vira mínimo; posto passa a ter equipe |
    | 22º | `0022_feriados_nacionais.sql` | feriados nacionais do ano vigente já criados com a área |
+   | 23º | `0023_semeadura_de_feriados_fechada.sql` | a semeadura deixa de aceitar a área por parâmetro; feriados coincidentes viram uma linha |
+   | 24º | `0024_horario_valido.sql` | entrada e saída precisam ser horários que existem no relógio |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

@@ -300,6 +300,50 @@ const base = {
     const conflito = r.conflitos.filter(c => c.msg.includes('Corpo Clínico'));
     ok(conflito.length === 1, 'semana lotada no posto vira conflito', String(conflito.length));
   }
+
+  // ── O posto reservado a uma equipe (0021)
+  const postoDaEquipe1 = [{ id: 7, unidadeId: 1, nome: 'Corpo Clínico', vagas: 1, ativo: true, equipeId: 1 }];
+
+  {
+    const r = gerarEscala({
+      ...base,
+      postos: postoDaEquipe1,
+      colaboradores: [mkColab(1, { equipeId: 1 })],
+      planos: [mkPlano(1, { postos: [{ postoId: 7, dias: 5, semana: 2 }] })],
+    });
+    const noPosto = r.alocacoes.filter(a => a.postoId === 7);
+    ok(noPosto.length === 5, 'quem é da equipe do posto entra normalmente', String(noPosto.length));
+    ok(r.conflitos.length === 0, 'e não gera conflito', String(r.conflitos.length));
+  }
+
+  {
+    // Pessoa da equipe 2 atribuída a um posto da equipe 1. O plano é que está
+    // errado, e o motor precisa DIZER isso: alocar mesmo assim poria alguém de
+    // fora cobrindo o posto sem ninguém notar, que é o estado difícil de achar
+    // depois. Recusar calado seria igualmente ruim — o dia sumiria da escala.
+    const r = gerarEscala({
+      ...base,
+      postos: postoDaEquipe1,
+      colaboradores: [mkColab(1, { equipeId: 2 })],
+      planos: [mkPlano(1, { postos: [{ postoId: 7, dias: 5, semana: 2 }] })],
+    });
+    const conflito = r.conflitos.filter(c => c.msg.includes('Corpo Clínico'));
+    ok(conflito.length === 1, 'posto de outra equipe vira conflito', String(conflito.length));
+    const noPosto = r.alocacoes.filter(a => a.postoId === 7);
+    ok(noPosto.length === 0, 'e ninguém de fora da equipe ocupa o posto', String(noPosto.length));
+  }
+
+  {
+    // `equipeId` nulo é como os postos existiam antes da coluna. Se isso
+    // deixasse de valer, todo posto já cadastrado viraria inválido de uma vez.
+    const r = gerarEscala({
+      ...baseP,
+      colaboradores: [mkColab(1, { equipeId: 2 })],
+      planos: [mkPlano(1, { postos: [{ postoId: 7, dias: 5, semana: 2 }] })],
+    });
+    const noPosto = r.alocacoes.filter(a => a.postoId === 7);
+    ok(noPosto.length === 5, 'posto sem equipe aceita qualquer uma', String(noPosto.length));
+  }
 }
 
 // ── Home office: preferência manda, espalhamento desempata dentro dela

@@ -27,16 +27,29 @@ quer motor        && executa 'Motor'        npx tsx src/lib/domain/escalas/motor
 # se roda antes de commitar — só rodava o motor.
 quer importacao   && executa 'Importação'   npx tsx src/lib/domain/escalas/importacao.teste.ts
 quer propriedades && executa 'Propriedades' npx tsx src/lib/domain/escalas/motor.propriedades.ts
+# Não toca em banco nem em rede: lê os `actions-*.ts` e cobra sessão e papel em
+# cada função exportada. Fica junto dos testes rápidos porque é um deles.
+quer autorizacao  && executa 'Autorização'  node supabase/tests/autorizacao.mjs
 quer build        && executa 'Build'        npm run --silent build
 
 if quer banco; then
   if command -v psql >/dev/null 2>&1 && psql -c 'select 1' >/dev/null 2>&1; then
-    executa 'RLS'         psql -q -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql
-    executa 'Integridade' psql -q -v ON_ERROR_STOP=1 -f supabase/tests/integridade.sql
+    executa 'RLS'          psql -q -v ON_ERROR_STOP=1 -f supabase/tests/rls.sql
+    executa 'RLS avançado' psql -q -v ON_ERROR_STOP=1 -f supabase/tests/rls-avancado.sql
+    executa 'Integridade'  psql -q -v ON_ERROR_STOP=1 -f supabase/tests/integridade.sql
+    executa 'Feriados'     psql -q -v ON_ERROR_STOP=1 -f supabase/tests/feriados.sql
   else
     printf '\n\033[33m── Banco: pulado (sem psql conectável). Defina PGDATABASE/PGHOST.\033[0m\n'
   fi
 fi
+
+# Fora de `banco` porque não roda CONTRA um banco: cria e derruba os seus. E
+# fora de `tudo` — daí a comparação direta em vez de `quer` —, porque recriar
+# quatro bancos a cada commit custaria minutos, e o que ela cobre só muda quando
+# alguém mexe em `supabase/migrations`. Rode-a quando mexer:
+#
+#   ./scripts/testar.sh migracoes
+[ "$alvo" = migracoes ] && executa 'Migrations' ./supabase/tests/migracoes.sh
 
 printf '\n'
 if [ "$falhas" -eq 0 ]; then
