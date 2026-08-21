@@ -160,24 +160,60 @@ if psql_ -d mig_backfill -f supabase/migrations/0020_entrada_saida_e_ciclo.sql >
 then ok 'a 0020 aplica sobre massa no formato antigo'
 else erro 'a 0020 falha sobre massa no formato antigo'; fi
 
-# O esperado é o que a TELA MOSTRAVA antes da 0020, que é o que a migration
-# promete preservar — `somaHoras(entrada, jornada + (jornada > 6 ? 1 : 0))`,
-# repetido em colaboradores, hoje, minha-escala e DetalheDoDia.
+# A hora de intervalo entra no 5x2 e NÃO no 12x36:
 #
-# Daí o 08:00 do 12x36 das 19h, e não 07:00: a fórmula antiga somava 1h de
-# intervalo a QUALQUER jornada acima de seis horas, inclusive à de doze — onde
-# o intervalo é interno ao turno, não um acréscimo a ele. O turno de 12h virava
-# um vão de 13h na tela.
+#   Oito   5x2,   8h a partir das 08:00 → 17:00 (oito de trabalho, uma de almoço)
+#   Seis   5x2,   6h a partir das 08:00 → 14:00 (até seis horas não há acréscimo)
+#   Quatro 5x2,   4h a partir das 13:00 → 17:00
+#   Doze   12x36, 12h a partir das 19:00 → 07:00 (plantão de ponta a ponta)
+#   Meia   12x36,  2h a partir das 23:00 → 01:00 (dá a volta na meia-noite)
 #
-# Esta suíte trava o comportamento em vez de corrigi-lo: consertar aqui mudaria
-# o horário exibido de todo 12x36 já cadastrado, e essa é uma decisão de quem
-# opera a escala, não da migration. Fica registrado para ser decidido.
-esperado='Doze:08:00|Meia:01:00|Oito:17:00|Quatro:17:00|Seis:14:00'
+# O 07:00 do "Doze" é o ponto: a fórmula antiga somava a hora de intervalo a
+# qualquer jornada acima de seis, e esticava o plantão de doze horas para treze.
+esperado='Doze:07:00|Meia:01:00|Oito:17:00|Quatro:17:00|Seis:14:00'
 obtido=$(valor mig_backfill "select string_agg(nome || ':' || saida, '|' order by nome) from colaboradores")
 [ "$obtido" = "$esperado" ] && ok 'toda saída foi calculada certo' \
   || erro "saídas erradas
        esperado: $esperado
        obtido:   $obtido"
+
+# ══════════════════════════════════════════════════════════════
+titulo '4b. A 0025 conserta quem rodou a 0020 antiga'
+# ══════════════════════════════════════════════════════════════
+# A correção da fórmula não alcança quem já migrou: naquele banco `jornada` não
+# existe mais, e o plantão já está gravado com treze horas. A 0025 é a passada
+# de conserto, e precisa mexer SÓ no que está errado.
+psql_ -d mig_backfill > /dev/null 2>&1 <<'SQL'
+-- Repõe à mão o estrago que a 0020 antiga fazia, e mais dois casos que a 0025
+-- não pode tocar: um plantão já correto e um turno de duração incomum que
+-- alguém digitou de propósito.
+update colaboradores set saida = '08:00' where nome = 'Doze';
+insert into colaboradores
+  (conta_id, matricula, nome, cargo, equipe_id, unidade_base_id, regime, turno, entrada, saida, ciclo, admissao)
+values
+  ('99999999-9999-9999-9999-999999999999','M6','Certo',   'tecnico',901,901,'12x36','N','07:00','19:00','IMPAR','2020-01-01'),
+  ('99999999-9999-9999-9999-999999999999','M7','Diferente','tecnico',901,901,'12x36','N','07:00','17:00','PAR',  '2020-01-01');
+SQL
+
+if psql_ -d mig_backfill -f supabase/migrations/0025_plantao_de_doze_horas.sql > /dev/null 2>&1
+then ok 'a 0025 aplica'
+else erro 'a 0025 falha'; fi
+
+for caso in Doze:07:00 Certo:19:00 Diferente:17:00 Oito:17:00; do
+  # `#` e não `##`: o valor é um horário e tem dois-pontos dentro. `##*:` corta
+  # até o ÚLTIMO, e "Doze:07:00" viraria "00".
+  quem="${caso%%:*}"; deveria="${caso#*:}"
+  tem=$(valor mig_backfill "select saida from colaboradores where nome = '$quem'")
+  [ "$tem" = "$deveria" ] && ok "$quem ficou com $tem" \
+    || erro "$quem ficou com $tem, esperado $deveria"
+done
+
+# Repetir não pode tirar mais uma hora: depois da primeira passada nenhum 12x36
+# mede treze horas, que é justamente a condição que a migration procura.
+psql_ -d mig_backfill -f supabase/migrations/0025_plantao_de_doze_horas.sql > /dev/null 2>&1
+tem=$(valor mig_backfill "select saida from colaboradores where nome = 'Doze'")
+[ "$tem" = '07:00' ] && ok 'repetir a 0025 não tira outra hora' \
+                     || erro "repetir a 0025 levou Doze para $tem"
 
 # ══════════════════════════════════════════════════════════════
 titulo '5. Backfill sobre banco vazio'

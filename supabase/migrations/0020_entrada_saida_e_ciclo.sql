@@ -11,8 +11,14 @@
 -- uma hora de intervalo quando passava de seis. Quem cadastra sabe a que horas
 -- a pessoa entra e sai; a duração é que era derivada disso, e não o contrário.
 --
--- A conversão preserva o dado: para cada colaborador, a saída é exatamente o
--- fim de turno que o sistema vinha exibindo. Nada muda na tela depois de rodar.
+-- A conversão corrige a regra antiga num ponto, em vez de copiá-la: o
+-- acréscimo de uma hora NÃO vale para o 12x36.
+--
+-- No 5x2 o intervalo é um acréscimo ao expediente — quem trabalha oito horas a
+-- partir das 08:00 sai às 17:00, e o vão de nove horas está certo. No 12x36 o
+-- intervalo é interno ao plantão: o turno É de doze horas de ponta a ponta,
+-- 19:00 às 07:00. Somar a hora ali esticava o plantão para treze horas, e era o
+-- que todas as quatro telas exibiam.
 alter table colaboradores add column if not exists saida text;
 
 -- A conversão precisa ser SQL dinâmico, e não um `update ... where exists (a
@@ -30,7 +36,9 @@ begin
     execute $sql$
       update colaboradores
          set saida = to_char(
-               entrada::time + ((jornada + case when jornada > 6 then 1 else 0 end)::text || ' hours')::interval,
+               entrada::time + ((
+                 jornada + case when regime <> '12x36' and jornada > 6 then 1 else 0 end
+               )::text || ' hours')::interval,
                'HH24:MI')
        where saida is null
     $sql$;

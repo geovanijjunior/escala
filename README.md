@@ -334,6 +334,10 @@ dos dois enxerga o que não lhe cabe.
   termina no seguinte bloqueia os dois. Sobreposições são recusadas na gravação.
 - **Ciclo 12x36 pela paridade de dias** desde um mês âncora configurável — exato
   em qualquer direção, inclusive em fevereiro bissexto.
+- **O intervalo é acréscimo no 5x2 e parte do turno no 12x36.** Oito horas de
+  trabalho a partir das 08:00 terminam às 17:00 — o almoço estica o expediente.
+  O plantão 12x36 são doze horas de ponta a ponta, 19:00 às 07:00, com o
+  intervalo dentro. Tratar os dois igual esticava o plantão para treze horas.
 - **Geração determinística**: os critérios de desempate terminam no id, com teste
   garantindo que a mesma entrada produz a mesma escala.
 - **Aprovar uma solicitação altera a escala**: troca de unidade, troca de
@@ -438,6 +442,7 @@ português abre sem embaralhar acento).
    | 22º | `0022_feriados_nacionais.sql` | feriados nacionais do ano vigente já criados com a área |
    | 23º | `0023_semeadura_de_feriados_fechada.sql` | a semeadura deixa de aceitar a área por parâmetro; feriados coincidentes viram uma linha |
    | 24º | `0024_horario_valido.sql` | entrada e saída precisam ser horários que existem no relógio |
+   | 25º | `0025_plantao_de_doze_horas.sql` | tira do 12x36 a hora de intervalo que a fórmula antiga somava — o plantão volta a medir doze horas |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

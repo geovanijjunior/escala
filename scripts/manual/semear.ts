@@ -192,15 +192,27 @@ async function main() {
   const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 
   for (const [i, p] of pessoas.entries()) {
+    // O 12x36 é plantão noturno de doze horas de ponta a ponta; o 5x2 é
+    // expediente de oito com uma hora de almoço no meio, que fecha nove de vão.
+    //
+    // Antes todo mundo entrava às 08:00 e saía às 17:00, inclusive quem é
+    // 12x36 — um "plantão" diurno de nove horas, que não é plantão nenhum. As
+    // fotos do manual saíam com esse horário e a varredura conferia uma tela
+    // que não existe na operação.
+    const plantao = p.regime === '12x36';
+    const turno = plantao ? 'N' : 'D';
+    const entrada = plantao ? '19:00' : '08:00';
+    const saida = plantao ? '07:00' : '17:00';
+
     await db.query(
       `insert into colaboradores
         (id, conta_id, perfil_id, nome, matricula, email, cargo, equipe_id, gestor_id,
          regime, turno, ciclo, entrada, saida, unidade_base_id, eleg_home, status, admissao)
        overriding system value
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'D',$11,'08:00','17:00',$12,$13,'ativo','2024-03-01')`,
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'ativo','2024-03-01')`,
       [i + 1, CONTA, p.perfil ?? null, p.nome, String(1000 + i),
        semAcento(p.nome.toLowerCase().replace(/ /g, '.')) + '@saolucas.com',
-       p.cargo, p.equipe, RICARDO, p.regime, p.ciclo ?? null,
+       p.cargo, p.equipe, RICARDO, p.regime, turno, p.ciclo ?? null, entrada, saida,
        p.morumbi >= 50 ? 1 : 2, !!p.home]);
   }
   // As tabelas acima receberam ids explícitos (`overriding system value`), o que
