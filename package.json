@@ -10,6 +10,7 @@
     "test": "tsx src/lib/domain/escalas/motor.teste.ts && tsx src/lib/domain/escalas/importacao.teste.ts",
     "test:propriedades": "tsx src/lib/domain/escalas/motor.propriedades.ts",
     "test:tudo": "./scripts/testar.sh",
+    "test:slot": "vitest run",
     "manual:pdf": "node scripts/manual-pdf.mjs",
     "manual:fotos": "node scripts/manual/fotografar.mjs",
     "manual:varrer": "node scripts/manual/varrer.mjs",
@@ -33,6 +34,7 @@
     "pg": "^8.23.0",
     "tailwindcss": "^4",
     "tsx": "^4.20.7",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

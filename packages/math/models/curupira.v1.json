@@ -1,0 +1,36 @@
+{
+  "modelId": "curupira.v1",
+  "betLines": 5,
+  "symbols": ["CUR", "COC", "POT", "TAT", "FLR", "FOL", "PEG"],
+  "paytable": {
+    "CUR": { "payLine": 900 },
+    "COC": { "payLine": 400 },
+    "POT": { "payLine": 200 },
+    "TAT": { "payLine": 90 },
+    "FLR": { "payLine": 40 },
+    "FOL": { "payLine": 16 },
+    "PEG": { "payLine": 4 }
+  },
+  "reels": {
+    "reel1": ["PEG","FLR","FLR","FOL","PEG","FLR","FLR","FOL","TAT","PEG","FOL","FOL","PEG","FOL","PEG","PEG","FOL","PEG","TAT","PEG","FLR","TAT","TAT","POT","PEG","FOL","PEG","TAT","FOL","PEG","FOL","CUR","PEG","PEG","FOL","FLR","PEG","COC","PEG","FOL","PEG","FOL","FLR","PEG","PEG","COC","PEG","PEG","POT","PEG","PEG","FOL","PEG","POT","FLR","FOL","PEG","PEG","FOL","FOL"],
+    "reel2": ["FOL","FOL","PEG","FLR","FOL","PEG","TAT","POT","FLR","PEG","PEG","FOL","FOL","PEG","FOL","FOL","PEG","FLR","PEG","PEG","POT","PEG","PEG","COC","COC","PEG","FOL","TAT","PEG","PEG","FLR","PEG","FLR","PEG","FLR","FOL","FOL","FLR","FOL","TAT","TAT","PEG","TAT","FLR","PEG","CUR","PEG","FOL","PEG","PEG","FOL","POT","PEG","FOL","FOL","PEG","PEG","FOL","PEG","PEG"],
+    "reel3": ["FOL","PEG","PEG","COC","PEG","FLR","PEG","FOL","PEG","FOL","TAT","PEG","POT","FOL","FLR","FOL","PEG","FOL","FLR","COC","PEG","POT","TAT","PEG","FLR","FOL","PEG","PEG","FLR","PEG","FOL","PEG","FOL","PEG","PEG","FLR","PEG","FOL","PEG","FOL","TAT","FOL","FLR","PEG","FOL","PEG","FOL","CUR","PEG","FLR","PEG","FOL","TAT","PEG","POT","PEG","PEG","FOL","TAT","PEG"]
+  },
+  "paylines": [
+    { "id": "L1", "rows": [0, 0, 0] },
+    { "id": "L2", "rows": [1, 1, 1] },
+    { "id": "L3", "rows": [2, 2, 2] },
+    { "id": "L4", "rows": [0, 1, 2] },
+    { "id": "L5", "rows": [2, 1, 0] }
+  ],
+  "respin": {
+    "reel": 3,
+    "triggerRow": 1,
+    "probability": 0.35
+  },
+  "multiplier": {
+    "probability": 0.065,
+    "values": [2, 4, 10],
+    "weights": [70, 25, 5]
+  }
+}
