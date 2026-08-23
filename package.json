@@ -11,6 +11,8 @@
     "test:propriedades": "tsx src/lib/domain/escalas/motor.propriedades.ts",
     "test:tudo": "./scripts/testar.sh",
     "test:slot": "vitest run",
+    "test:slot:uniformidade": "tsx tests/sim/03-uniformidade.ts",
+    "test:slot:independencia": "tsx tests/sim/04-independencia.ts",
     "manual:pdf": "node scripts/manual-pdf.mjs",
     "manual:fotos": "node scripts/manual/fotografar.mjs",
     "manual:varrer": "node scripts/manual/varrer.mjs",
