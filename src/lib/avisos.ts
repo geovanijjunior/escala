@@ -92,6 +92,42 @@ export async function avisarAlteracaoDaEscala(
   return linhas.length;
 }
 
+/**
+ * Avisa o colega convidado para uma troca de plantão.
+ *
+ * Sem isto o pedido fica parado em `AGUARDA_PARCEIRO`, esperando alguém que
+ * não sabe que foi convidado — e o prazo corre. A tela dele já traz o selo
+ * "Aguarda sua resposta"; o sino é o que o faz ir olhar.
+ */
+export async function avisarConviteDeTroca(
+  sessao: Sessao,
+  { parceiroId, data }: { parceiroId: number; data: string },
+): Promise<number> {
+  const supabase = await createClient();
+
+  const { data: colega } = await supabase
+    .from('colaboradores')
+    .select('perfil_id')
+    .eq('id', parceiroId)
+    .maybeSingle();
+
+  // Nem todo colaborador tem login. Quem não tem é avisado fora do sistema, e
+  // o pedido segue de pé — o Planejamento ainda pode resolvê-lo na triagem.
+  const perfil = (colega as { perfil_id: string | null } | null)?.perfil_id;
+  if (!perfil || perfil === sessao.usuario.id) return 0;
+
+  await supabase.from('avisos').insert({
+    conta_id: sessao.conta.id,
+    perfil_id: perfil,
+    titulo: `Troca de plantão em ${formatarData(data)}`,
+    detalhe: `${sessao.usuario.nome} pediu para trocar com você. Aceite ou recuse na sua escala.`,
+    rota: '/minha-escala',
+    por_id: sessao.usuario.id,
+    por_nome: sessao.usuario.nome,
+  });
+  return 1;
+}
+
 /** Avisa um conjunto de perfis sobre um comunicado novo no mural. */
 export async function avisarComunicado(
   sessao: Sessao,

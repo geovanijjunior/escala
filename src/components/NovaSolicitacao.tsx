@@ -22,10 +22,12 @@ const formatar = (iso: string) => iso.split('-').reverse().join('/');
  * exige — campo irrelevante visível e vazio é convite a preencher errado.
  */
 export function NovaSolicitacao({
-  unidades, tipos,
+  unidades, tipos, colegas,
 }: {
   unidades: { id: number; nome: string }[];
   tipos: { chave: string; label: string; sla: number }[];
+  /** Colegas ativos da própria equipe, para a troca de plantão ter com quem. */
+  colegas: { id: number; nome: string }[];
 }) {
   const [tipo, setTipo] = useState(tipos[0]?.chave ?? '');
   const [opcao, setOpcao] = useState(OPCOES_FERIAS[0].chave);
@@ -124,7 +126,30 @@ export function NovaSolicitacao({
             </select>
           </label>
         )}
+
+        {/* Troca de plantão: com quem.
+            Opcional de propósito. Quando a pessoa já combinou com um colega,
+            nomeá-lo faz o pedido ir primeiro a ele — ninguém é trocado sem
+            saber. Quando ela só precisa sair daquele dia e não tem par, o campo
+            fica em "ainda não sei" e o pedido vai direto para a triagem, que é
+            como funcionava antes. */}
+        {tipo === 'TROCA_HORARIO' && (
+          <label className="block">
+            <span className="esc-rotulo">Trocar com</span>
+            <select name="parceiroId" defaultValue="" className="esc-input">
+              <option value="">Ainda não sei — o Planejamento encontra o par</option>
+              {colegas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </label>
+        )}
       </div>
+
+      {tipo === 'TROCA_HORARIO' && colegas.length > 0 && (
+        <p className="text-[12px]" style={{ color: 'var(--muted)' }}>
+          Escolhendo um colega, o pedido vai <strong>primeiro para ele aceitar</strong>. Só depois do
+          aceite chega ao Planejamento, e daí segue o caminho normal de qualquer solicitação.
+        </p>
+      )}
 
       {tipo === 'FERIAS' && (
         <div className="rounded-md border p-3 space-y-2" style={{ borderColor: 'var(--line-2)' }}>

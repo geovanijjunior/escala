@@ -302,13 +302,14 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
 
       <Bloco
         titulo="Abrir solicitação"
-        desc="Troca de plantão precisa do aceite do colega, depois passa pela triagem do Planejamento e só então vai ao gestor."
+        desc="Escolhendo um colega na troca de plantão, o pedido vai primeiro a ele; depois passa pela triagem do Planejamento e só então vai ao gestor."
       >
         <form action={abrirSolicitacao} className="px-4 py-4">
           <input type="hidden" name="volta" value="/minha-escala" />
           <NovaSolicitacao
             unidades={unidades.filter(u => u.ativa).map(u => ({ id: u.id, nome: u.nome }))}
             tipos={Object.entries(TIPOS_SOLICITACAO).map(([k, v]) => ({ chave: k, label: v.label, sla: v.sla }))}
+            colegas={equipe.map(c => ({ id: c.id, nome: c.nome }))}
           />
         </form>
       </Bloco>

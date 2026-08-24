@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirAprovador, exigirPlanejamento, type Sessao } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
+import { avisarConviteDeTroca } from '@/lib/avisos';
 import { voltar, rotaComErro } from '@/lib/volta';
 import { getGeracaoAtual } from '@/lib/data/escalas';
 import { mensagemErroBanco } from '@/lib/erros-banco';
@@ -107,11 +108,40 @@ export async function abrirSolicitacao(formData: FormData) {
     motivo = escolhido;
   }
 
-  // Troca de horário entra direto na triagem: quem encontra o par é o
-  // Planejamento, ao encaixar na escala. Exigir o nome do colega na abertura
-  // obrigava a inventar um antes de saber se a troca era possível.
-  const status = 'TRIAGEM';
-  const parceiroId: number | null = null;
+  // Troca de plantão com um colega nomeado passa PRIMEIRO por ele.
+  //
+  // A máquina de estados já previa este caminho (`AGUARDA_PARCEIRO` →
+  // `TRIAGEM`), mas a abertura fixava triagem e parceiro nulo — não havia como
+  // escolher alguém, porque o colaborador não enxergava a própria equipe. Com
+  // a 0026 ele passou a enxergar, e o caminho previsto pode enfim ser usado.
+  //
+  // O parceiro segue OPCIONAL. Quem já combinou a troca nomeia o colega, e o
+  // pedido vai a ele — ninguém é trocado sem saber. Quem só precisa sair
+  // daquele dia e não tem par deixa em branco, e o pedido vai direto à
+  // triagem, como antes: exigir um nome obrigaria a inventar um antes de saber
+  // se a troca é possível.
+  let parceiroId: number | null = null;
+  if (tipo === 'TROCA_HORARIO') {
+    const escolhido = Number(formData.get('parceiroId') ?? 0) || null;
+    if (escolhido) {
+      if (escolhido === colaboradorId) erro(volta, 'A troca precisa ser com outra pessoa.');
+
+      // A conferência é feita pelo client sob RLS, e por isso ela É a
+      // validação: depois da 0026 esta leitura só devolve colega ATIVO da
+      // própria equipe. Um id forjado de outra equipe — ou de outra área — não
+      // traz linha nenhuma.
+      const { data: colega } = await supabase
+        .from('colaboradores')
+        .select('id')
+        .eq('id', escolhido)
+        .eq('status', 'ativo')
+        .maybeSingle();
+      if (!colega) erro(volta, 'Escolha um colega ativo da sua equipe para a troca.');
+      parceiroId = escolhido;
+    }
+  }
+
+  const status = parceiroId ? 'AGUARDA_PARCEIRO' : 'TRIAGEM';
 
   const { data: nova, error } = await supabase
     .from('solicitacoes')
@@ -137,6 +167,10 @@ export async function abrirSolicitacao(formData: FormData) {
 
   await registrarEvento(sessao, nova.id, 'Aberta', `${TIPOS_SOLICITACAO[tipo].label} para ${formatarData(data)}`);
   await registrarLog(sessao, 'Solicitação aberta', `#${nova.id} · ${TIPOS_SOLICITACAO[tipo].label} · ${formatarData(data)}`);
+
+  // O convite só serve se o convidado souber dele: o pedido fica parado em
+  // `AGUARDA_PARCEIRO` até ele responder, e o prazo corre nesse meio-tempo.
+  if (parceiroId) await avisarConviteDeTroca(sessao, { parceiroId, data });
 
   revalidatePath('/', 'layout');
   voltar(volta, formData);
