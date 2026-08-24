@@ -169,10 +169,57 @@ set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000002';
 select count(*) as colaboradores_visiveis from colaboradores;
 select count(*) as ausencias_visiveis from ausencias;
 
-\echo '=== Colaborador A: só a si mesmo ==='
+\echo '=== Colaborador A: a si mesmo e a própria equipe ==='
 set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000003';
 select count(*) as colaboradores_visiveis from colaboradores;
 select count(*) as ausencias_visiveis from ausencias;
+
+-- Colab A (1) e Colab A2 (2) são a equipe 1. "Fora" (3) é da equipe 2, na mesma
+-- área, e continua invisível: o recorte é a EQUIPE, não a área.
+do $$
+declare eu int; colega int; outra_equipe int; outra_area int;
+begin
+  select count(*) into eu           from colaboradores where id = 1;
+  select count(*) into colega       from colaboradores where id = 2;
+  select count(*) into outra_equipe from colaboradores where id = 3;
+  select count(*) into outra_area   from colaboradores where id = 4;
+
+  if eu <> 1     then raise exception 'FALHA: o colaborador nao enxerga a si mesmo'; end if;
+  if colega <> 1 then raise exception 'FALHA: o colaborador nao enxerga o colega da propria equipe'; end if;
+  if outra_equipe <> 0 then
+    raise exception 'FALHA DE SEGURANCA: enxergou colaborador de OUTRA equipe da mesma area';
+  end if;
+  if outra_area <> 0 then
+    raise exception 'FALHA DE SEGURANCA: enxergou colaborador de outra area';
+  end if;
+  raise notice 'ok: ve a propria equipe, e nada fora dela';
+end $$;
+
+\echo '=== Colaborador A: colega desligado some da equipe ==='
+-- A RLS libera a LINHA inteira, e a linha de quem saiu carrega o motivo da
+-- saída. É por isso que o recorte da equipe é só de gente ativa.
+do $$
+declare visivel int;
+begin
+  reset role;
+  -- `desligamento = admissao` porque existe um CHECK exigindo que a saída não
+  -- anteceda a entrada, e a massa desta suíte não fixa a data de admissão.
+  update colaboradores set status = 'desligado', desligamento = admissao
+   where id = 2;
+  set role app_user;
+  set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000003';
+
+  select count(*) into visivel from colaboradores where id = 2;
+  if visivel <> 0 then
+    raise exception 'FALHA DE SEGURANCA: colega desligado continua visivel para a equipe';
+  end if;
+
+  reset role;
+  update colaboradores set status = 'ativo', desligamento = null where id = 2;
+  set role app_user;
+  set request.jwt.claim.sub = 'aaaaaaa1-0000-0000-0000-000000000003';
+  raise notice 'ok: quem saiu sai da grade da equipe';
+end $$;
 
 \echo '=== Colaborador A: rascunho de escala NÃO aparece ==='
 select count(*) as geracoes_visiveis from geracoes;

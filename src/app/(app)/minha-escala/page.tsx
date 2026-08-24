@@ -43,6 +43,15 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
   const eu = ctx.colaboradores.find(c => c.id === sessao.colaboradorId);
   const alocacoes = geracao ? await listarAlocacoes(geracao.id) : [];
   const minhas = alocacoes.filter(a => a.colaboradorId === sessao.colaboradorId);
+
+  // Os colegas de equipe. Quem faz o recorte é a RLS — `ctx.colaboradores` já
+  // chega contendo só quem este login pode ver —, então o filtro aqui é de
+  // apresentação: tirar a mim mesmo, que tenho o meu próprio calendário logo
+  // acima, e ordenar por nome.
+  const equipe = ctx.colaboradores
+    .filter(c => c.id !== sessao.colaboradorId && c.equipeId === eu?.equipeId && c.status === 'ativo')
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const nomeDaEquipe = ctx.equipes.find(e => e.id === eu?.equipeId)?.nome ?? 'minha equipe';
   const porData = new Map(minhas.map(a => [a.data, a]));
 
   // O posto diz onde dentro da unidade a pessoa fica. Quem foi destacado para
@@ -209,6 +218,85 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
               </div>
             </div>
           </Bloco>
+
+          {/* A equipe no mês.
+              "Onde eu trabalho amanhã" é metade da pergunta; a outra é "quem
+              está comigo". Sem isto, combinar uma troca começava por perguntar
+              no grupo quem estava escalado — o sistema tinha a resposta e a
+              guardava. O recorte é da RLS, não daqui: `pode_ver_colaborador`
+              devolve os colegas ativos da mesma equipe, e `alocacoes_select` só
+              entrega escala publicada. */}
+          {equipe.length > 0 && (
+            <Bloco
+              titulo={`Minha equipe em ${formatarCompetencia(competencia)}`}
+              desc={`${equipe.length} colega(s) na ${nomeDaEquipe}. Role para o lado para ver o mês inteiro.`}
+            >
+              <div className="overflow-x-auto px-4 py-3">
+                <table className="esc-tabela" style={{ minWidth: `${150 + nDias * 26}px` }}>
+                  <thead>
+                    <tr>
+                      <th style={{ position: 'sticky', left: 0, background: 'var(--surface)' }}>Colega</th>
+                      {Array.from({ length: nDias }, (_, i) => {
+                        const d = i + 1;
+                        const dow = diaSemana(ano, mes, d);
+                        return (
+                          <th
+                            key={d}
+                            className="text-center esc-num"
+                            style={{ padding: '4px 0', color: dow === 0 || dow === 6 ? 'var(--faint)' : undefined }}
+                          >
+                            {d}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipe.map(colega => {
+                      const dele = new Map(
+                        alocacoes.filter(a => a.colaboradorId === colega.id).map(a => [a.data, a]),
+                      );
+                      return (
+                        <tr key={colega.id}>
+                          <td
+                            className="whitespace-nowrap"
+                            style={{ position: 'sticky', left: 0, background: 'var(--surface)' }}
+                          >
+                            <div className="font-medium">{colega.nome}</div>
+                            <div className="text-[10.5px]" style={{ color: 'var(--muted)' }}>{colega.cargo}</div>
+                          </td>
+                          {Array.from({ length: nDias }, (_, i) => {
+                            const data = iso(ano, mes, i + 1);
+                            const a = dele.get(data);
+                            const ap = a ? aparencia(a.modalidade, a.unidadeId, unidades) : null;
+                            // Descanso fica em branco de propósito: o que se
+                            // procura aqui é quem ESTÁ, e pintar a folga de
+                            // cinza encheria a grade de ruído.
+                            const mostra = a && ap && a.modalidade !== 'DESCANSO';
+                            return (
+                              <td key={data} className="text-center" style={{ padding: '2px' }}>
+                                {mostra ? (
+                                  <span
+                                    title={`${formatarData(data)} · ${ap.label}`}
+                                    className="inline-block w-full rounded text-[9px] font-semibold esc-num"
+                                    style={{ background: ap.bg, color: ap.cor, padding: '2px 0' }}
+                                  >
+                                    {ap.sigla}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--faint)' }}>·</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Bloco>
+          )}
         </>
       )}
 
