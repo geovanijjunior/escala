@@ -370,6 +370,12 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
           unidades={ctx.unidades}
           postos={ctx.postos}
           ocorrencias={ocorrencias.filter(o => o.data === dia)}
+          capacidades={ctx.capacidades}
+          // A conferência já rodou acima, sobre o que está no banco agora; aqui
+          // só se recorta o dia aberto. Assim o estrago aparece no mesmo lugar
+          // em que é feito, e não apenas no total do mês.
+          conflitos={conflitos.filter(c => c.data === dia)}
+          alertas={alertas.filter(a => a.data === dia)}
           feriado={ctx.feriados[dia]}
           podeEditar={podeEditarEscala(sessao.papel, geracao.status)}
 

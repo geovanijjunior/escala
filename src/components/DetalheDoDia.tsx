@@ -4,7 +4,10 @@ import { MODALIDADES, TIPOS_OCORRENCIA } from '@/lib/domain/escalas/constantes';
 import { alternarTrava, reposicionarAlocacao } from '@/app/actions-geracao';
 import { LinhaDoColaborador } from './LinhaDoColaborador';
 import { Badge, Bloco, aparencia } from './Ui';
-import type { Alocacao, Colaborador, Equipe, Posto, Unidade } from '@/lib/domain/escalas/tipos';
+import { capacidadeOperacional } from '@/lib/domain/escalas/conferencia';
+import type {
+  Alocacao, Aviso, CapacidadeOverride, Colaborador, Equipe, Posto, Unidade,
+} from '@/lib/domain/escalas/tipos';
 import type { Ocorrencia } from '@/lib/data/escalas';
 
 interface Props {
@@ -16,6 +19,18 @@ interface Props {
   unidades: Unidade[];
   postos: Posto[];
   ocorrencias: Ocorrencia[];
+  /** Capacidade da área, para o painel dizer quantos lugares a unidade tem. */
+  capacidades: CapacidadeOverride[];
+  /**
+   * O que a conferência apontou NESTE dia — conflitos (erro) e alertas (aviso).
+   *
+   * Vem calculado de fora, sobre o que está no banco agora. Sem isto, quem
+   * remaneja uma escala publicada só descobria que estourou a unidade depois
+   * de fechar o painel e reparar no número do cabeçalho do mês — quando o
+   * aviso para a equipe já tinha saído.
+   */
+  conflitos: Aviso[];
+  alertas: Aviso[];
   feriado?: string;
   podeEditar: boolean;
   podeLancarOcorrencia: boolean;
@@ -33,7 +48,7 @@ function faixaHoraria(c: Colaborador, dow: number): string {
  */
 export function DetalheDoDia({
   data, competencia, alocacoes, colaboradores, equipes, unidades, postos, ocorrencias,
-  feriado, podeEditar, podeLancarOcorrencia, fecharHref, volta,
+  capacidades, conflitos, alertas, feriado, podeEditar, podeLancarOcorrencia, fecharHref, volta,
 }: Props) {
   const dow = dowDeIso(data);
   const colabPorId = new Map(colaboradores.map(c => [c.id, c]));
@@ -52,19 +67,82 @@ export function DetalheDoDia({
 
   const contar = (fn: (a: Alocacao) => boolean) => alocacoes.filter(fn).length;
 
+  /**
+   * Quem NÃO está neste dia, e por isso pode ser trazido para ele.
+   *
+   * Duas origens: quem está de descanso (o motor grava a linha) e quem não tem
+   * linha nenhuma — admitido depois da geração, por exemplo. Ausência de
+   * verdade fica de fora: férias e afastamento não são vaga a preencher, são
+   * decisão registrada, e trazer alguém de férias pelo seletor do dia seria
+   * desfazer uma aprovação sem passar por ela.
+   */
+  const foraDoDia = colaboradores
+    .filter(c => c.status === 'ativo')
+    .filter(c => {
+      const a = alocacoes.find(x => x.colaboradorId === c.id);
+      return !a || a.modalidade === 'DESCANSO';
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+
+  // A lotação de cada unidade neste dia. `capacidadeOperacional` é a mesma
+  // função que a conferência usa para decidir se estourou — a tela não recalcula
+  // a regra por conta própria.
+  const lotacao = ativas.map(u => ({
+    unidade: u,
+    dentro: contar(a => a.modalidade === 'UNIDADE' && a.unidadeId === u.id),
+    lugares: capacidadeOperacional(u, data, dow, capacidades),
+  }));
+
   return (
     <Bloco
       titulo={`${DIAS_ABREV[dow]}, ${formatarData(data)}${feriado ? ` · ${feriado}` : ''}`}
       desc={`${trabalhando.length} pessoa(s) em atividade neste dia.`}
       acoes={<Link href={fecharHref} className="esc-btn esc-btn-ghost esc-btn-sm">Fechar</Link>}
     >
+      {/* O que está errado neste dia, antes de qualquer outra coisa. Conflito
+          é vermelho e alerta é âmbar, a mesma distinção da tela de geração:
+          conflito quebra uma regra rígida, alerta é algo a olhar. Nenhum dos
+          dois impede salvar — remanejar um mês às vezes passa por um estado
+          inválido para chegar num válido. */}
+      {(conflitos.length > 0 || alertas.length > 0) && (
+        <div className="px-4 py-2.5 border-b space-y-1" style={{ borderColor: 'var(--line)' }}>
+          {conflitos.map((c, i) => (
+            <p key={`c${i}`} className="text-[11.5px] font-medium" style={{ color: 'var(--rose)' }}>
+              {c.colaborador ? `${c.colaborador}: ` : ''}{c.msg}
+            </p>
+          ))}
+          {alertas.map((a, i) => (
+            <p key={`a${i}`} className="text-[11.5px]" style={{ color: 'var(--amber)' }}>
+              {a.colaborador ? `${a.colaborador}: ` : ''}{a.msg}
+            </p>
+          ))}
+        </div>
+      )}
+
       <div className="px-4 py-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 border-b" style={{ borderColor: 'var(--line)' }}>
-        {ativas.map(u => {
-          const n = contar(a => a.modalidade === 'UNIDADE' && a.unidadeId === u.id);
+        {lotacao.map(({ unidade: u, dentro, lugares }) => {
+          // Lotada é diferente de estourada: uma é o limite atingido, a outra
+          // é o limite ultrapassado, e só a segunda é problema.
+          const estourou = dentro > lugares;
+          const cheia = dentro === lugares;
           return (
-            <div key={u.id} className="rounded-lg border px-3 py-2" style={{ borderColor: 'var(--line)' }}>
+            <div
+              key={u.id}
+              className="rounded-lg border px-3 py-2"
+              style={{ borderColor: estourou ? 'var(--rose)' : 'var(--line)' }}
+            >
               <div className="esc-rotulo mb-1" style={{ color: u.cor }}>{u.nome}</div>
-              <div className="text-[20px] font-semibold esc-num leading-none">{n}</div>
+              <div className="flex items-baseline gap-1.5">
+                <span
+                  className="text-[20px] font-semibold esc-num leading-none"
+                  style={{ color: estourou ? 'var(--rose)' : undefined }}
+                >
+                  {dentro}
+                </span>
+                <span className="text-[12px] esc-num" style={{ color: 'var(--muted)' }}>de {lugares}</span>
+                {estourou && <Badge cor="var(--rose)" bg="var(--rose-bg)">estourou</Badge>}
+                {cheia && !estourou && <Badge cor="var(--amber)" bg="var(--amber-bg)">lotada</Badge>}
+              </div>
             </div>
           );
         })}
@@ -197,6 +275,47 @@ export function DetalheDoDia({
           </tbody>
         </table>
       </div>
+
+      {/* Trazer alguém para o dia.
+          A tabela acima só lista quem já está escalado, então dava para MOVER e
+          para tirar (mandando para folga), mas não para acrescentar: quem
+          estava de descanso simplesmente não aparecia em lugar nenhum do
+          painel. Para incluir a pessoa era preciso voltar ao plano do mês e
+          gerar de novo — o que refaz o mês inteiro e desfaz os outros ajustes
+          manuais. */}
+      {podeEditar && foraDoDia.length > 0 && (
+        <div className="px-4 py-3 border-t" style={{ borderColor: 'var(--line)' }}>
+          <form action={reposicionarAlocacao} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="data" value={data} />
+            <input type="hidden" name="competencia" value={competencia} />
+            <input type="hidden" name="volta" value={volta} />
+            <label className="block">
+              <span className="esc-rotulo">Trazer para este dia</span>
+              <select name="colaboradorId" className="esc-input w-56 py-1" aria-label="Quem trazer para este dia">
+                {foraDoDia.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome} — {equipePorId.get(c.equipeId)?.nome ?? 'sem equipe'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="esc-rotulo">Alocação</span>
+              <select name="destino" className="esc-input w-48 py-1" aria-label="Alocação de quem entra">
+                {ativas.map(u => <option key={u.id} value={`UNIDADE:${u.id}`}>{u.nome}</option>)}
+                {(['HOME', 'EXTERNO', 'EVENTO', 'TREINA'] as const).map(m => (
+                  <option key={m} value={m}>{MODALIDADES[m].label}</option>
+                ))}
+              </select>
+            </label>
+            <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Adicionar</button>
+          </form>
+          <p className="text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
+            {foraDoDia.length} pessoa(s) de folga ou sem escala neste dia. Quem está de férias ou afastado
+            não aparece aqui — para trazer alguém nessa situação, a ausência precisa ser desfeita primeiro.
+          </p>
+        </div>
+      )}
 
     </Bloco>
   );

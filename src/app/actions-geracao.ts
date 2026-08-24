@@ -251,12 +251,24 @@ export async function reposicionarAlocacao(formData: FormData) {
     .eq('data', data)
     .maybeSingle();
 
-  await supabase
-    .from('alocacoes')
-    .update({ modalidade, unidade_id: unidadeId, travado: true })
-    .eq('geracao_id', geracao.id)
-    .eq('colaborador_id', colaboradorId)
-    .eq('data', data);
+  // `upsert`, e não `update`: quem é TRAZIDO para o dia pelo seletor do painel
+  // pode não ter linha nenhuma naquela data — admitido depois da geração, ou
+  // nunca alocado ali. Um `update` não acharia o que atualizar e voltaria como
+  // sucesso, com a tela recarregando sem a pessoa e sem dizer por quê. A
+  // unicidade (geracao_id, colaborador_id, data) é o que decide entre criar e
+  // substituir.
+  await supabase.from('alocacoes').upsert(
+    {
+      conta_id: sessao.conta.id,
+      geracao_id: geracao.id,
+      colaborador_id: colaboradorId,
+      data,
+      modalidade,
+      unidade_id: unidadeId,
+      travado: true,
+    },
+    { onConflict: 'geracao_id,colaborador_id,data' },
+  );
 
   await supabase.from('pins').upsert(
     {

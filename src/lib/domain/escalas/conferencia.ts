@@ -3,6 +3,28 @@ import type {
   Alocacao, Ausencia, Aviso, CapacidadeOverride, Colaborador, Equipe, Unidade,
 } from './tipos';
 
+/**
+ * Quantos lugares a unidade tem naquele dia, já descontadas as reservadas.
+ *
+ * A capacidade tem três origens, da mais específica para a mais geral: um
+ * ajuste para AQUELA data, um ajuste para aquele dia da semana, e o padrão da
+ * unidade. A regra estava embutida na conferência, e a tela do dia precisa do
+ * mesmo número para poder dizer "4 de 4" — recalculá-lo lá seria uma segunda
+ * cópia, do tipo que fica para trás quando a primeira muda.
+ */
+export function capacidadeOperacional(
+  unidade: Unidade,
+  data: string,
+  dow: number,
+  capacidades: CapacidadeOverride[],
+): number {
+  const especifica = capacidades.find(c => c.unidadeId === unidade.id && c.data === data);
+  const semanal = capacidades.find(c => c.unidadeId === unidade.id && !c.data && c.dow === dow);
+  const cfg = especifica ?? semanal
+    ?? { total: unidade.capacidadeTotal, reservadas: unidade.capacidadeReservadas };
+  return Math.max(0, cfg.total - cfg.reservadas);
+}
+
 export interface ConferirAlocacoesInput {
   alocacoes: Alocacao[];
   colaboradores: Colaborador[];

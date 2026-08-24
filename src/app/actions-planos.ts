@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { listarUnidades } from '@/lib/data/escalas';
-import { addDias, diffDias, formatarCompetencia } from '@/lib/domain/escalas/datas';
+import { addDias, cicloEfetivo, diffDias, formatarCompetencia } from '@/lib/domain/escalas/datas';
 
 const VOLTA = '/planos';
 
@@ -200,7 +200,14 @@ export async function copiarPlanosDoMes(formData: FormData) {
         conta_id: sessao.conta.id,
         colaborador_id: p.colaborador_id,
         competencia: destino,
-        ciclo: p.ciclo,
+        // A paridade do 12x36 vira a cada mês de 31 dias, então copiá-la
+        // literal gravaria no destino a paridade da ORIGEM. `cicloEfetivo`
+        // conta os dias entre os dois meses e vira quando precisa.
+        //
+        // A herança implícita já fazia isso (`cicloDoMes`); a cópia explícita
+        // continuava congelando — e o resultado dela é pior, porque fica
+        // gravado no destino com cara de decisão tomada para aquele mês.
+        ciclo: p.ciclo ? cicloEfetivo(p.ciclo, destino, origem) : null,
         ho_modo: p.ho_modo,
         ho_dias_semana: p.ho_dias_semana,
         ho_quantidade: p.ho_quantidade,
