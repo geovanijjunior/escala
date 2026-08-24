@@ -275,8 +275,15 @@ primeira área junto com o administrador dela — é ele quem cria o Planejament
       desta etapa ela não existe. Os números se refazem a cada ajuste, porque
       saem do que está gravado — não da lembrança da geração.
 
-      A edição é **por célula**: clica-se no cruzamento da pessoa com o dia que
-      se quer mudar, e abre um painel só daquele par — com a lotação de cada
+      No topo da etapa ficam **Ajustes manuais**, com as três ações separadas e
+      cada botão fazendo o que o nome diz: *adicionar pessoa a um dia*, *remover
+      pessoa de um dia* e *lançar férias ou folga*. As duas primeiras mexem na
+      escala daquele dia; a terceira cria uma **ausência**, que vale por período,
+      entra no histórico e é respeitada pelas gerações seguintes — inclusive nos
+      meses à frente.
+
+      A edição também é **por célula**: clica-se no cruzamento da pessoa com o
+      dia que se quer mudar, e abre um painel só daquele par — com a lotação de cada
       unidade naquele dia ao lado do seletor que vai mudá-la. Célula de folga
       também é clicável: é por ela que se escala quem estava fora. Acima da
       grade há busca por nome, filtro por equipe, por unidade e "só quem tem

@@ -15,9 +15,14 @@ const VOLTA = '/planos';
  * certo, ancorado. Voltar para o topo da lista com a mensagem lá em cima faz o
  * usuário perder o contexto e parecer que o botão não fez nada.
  */
-function erro(competencia: string, msg: string, colaboradorId?: number): never {
+function erro(competencia: string, msg: string, colaboradorId?: number, volta?: string): never {
   const q = new URLSearchParams({ competencia, erro: msg });
   if (colaboradorId) q.set('colab', String(colaboradorId));
+  // Com `volta`, o erro cai na tela que chamou. Sem ele, no editor do plano —
+  // que era o único chamador quando isto nasceu. Lançar férias a partir da
+  // revisão da escala e ser cuspido no editor do plano faria parecer que o
+  // botão levou a outro lugar por engano.
+  if (volta) return redirect(`${volta}?${q}`);
   redirect(`${VOLTA}?${q}${colaboradorId ? '#editor-plano' : ''}`);
 }
 
@@ -248,13 +253,17 @@ export async function copiarPlanosDoMes(formData: FormData) {
 export async function salvarAusencia(formData: FormData) {
   const sessao = await getSessao();
   const competencia = String(formData.get('competencia') ?? '');
-  exigirPlanejamento(sessao.papel, `${VOLTA}?competencia=${competencia}`);
+  // Quem chamou. A revisão da escala lança férias e folga tanto quanto o editor
+  // do plano, e cada uma precisa receber a resposta de volta.
+  const daTela = String(formData.get('volta') ?? '').trim();
+  const volta = /^\/[^/]/.test(daTela) ? daTela : '';
+  exigirPlanejamento(sessao.papel, `${volta || VOLTA}?competencia=${competencia}`);
 
   const colaboradorId = Number(formData.get('colaboradorId'));
   const tipo = String(formData.get('tipo') ?? '');
   const inicio = String(formData.get('inicio') ?? '');
-  if (!colaboradorId || !['FERIAS', 'AUSENCIA'].includes(tipo)) erro(competencia, 'Ausência inválida.', colaboradorId);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) erro(competencia, 'Informe a data de início.', colaboradorId);
+  if (!colaboradorId || !['FERIAS', 'AUSENCIA'].includes(tipo)) erro(competencia, 'Ausência inválida.', colaboradorId, volta);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) erro(competencia, 'Informe a data de início.', colaboradorId, volta);
 
   // Os dois tipos vêm como intervalo de datas, que é como as pessoas pensam
   // ("de 10 a 24"). Contar dias corridos de cabeça é trabalho para quem
@@ -262,19 +271,19 @@ export async function salvarAusencia(formData: FormData) {
   // ausência o fim vazio significa um único dia, que é o caso mais comum.
   const fimBruto = String(formData.get('fim') ?? '').trim();
   if (tipo === 'FERIAS' && !/^\d{4}-\d{2}-\d{2}$/.test(fimBruto)) {
-    erro(competencia, 'Informe a data final das férias.', colaboradorId);
+    erro(competencia, 'Informe a data final das férias.', colaboradorId, volta);
   }
   if (fimBruto && !/^\d{4}-\d{2}-\d{2}$/.test(fimBruto)) {
-    erro(competencia, 'Data final inválida.', colaboradorId);
+    erro(competencia, 'Data final inválida.', colaboradorId, volta);
   }
 
   const dias = fimBruto ? diffDias(inicio, fimBruto) + 1 : 1;
-  if (dias < 1) erro(competencia, 'A data final não pode ser anterior à data de início.', colaboradorId);
-  if (dias > 365) erro(competencia, 'O período não pode passar de 365 dias.', colaboradorId);
+  if (dias < 1) erro(competencia, 'A data final não pode ser anterior à data de início.', colaboradorId, volta);
+  if (dias > 365) erro(competencia, 'O período não pode passar de 365 dias.', colaboradorId, volta);
 
   const grupo = tipo === 'AUSENCIA' ? String(formData.get('grupo') ?? '') : '';
   const motivo = tipo === 'AUSENCIA' ? String(formData.get('motivo') ?? '') : '';
-  if (tipo === 'AUSENCIA' && (!grupo || !motivo)) erro(competencia, 'Selecione o grupo e o motivo da ausência.', colaboradorId);
+  if (tipo === 'AUSENCIA' && (!grupo || !motivo)) erro(competencia, 'Selecione o grupo e o motivo da ausência.', colaboradorId, volta);
 
   const fim = addDias(inicio, dias - 1);
   const supabase = await createClient();
@@ -290,7 +299,7 @@ export async function salvarAusencia(formData: FormData) {
     if (a.id === idEdicao) continue;
     const outroFim = addDias(a.inicio, a.dias - 1);
     if (inicio <= outroFim && a.inicio <= fim) {
-      erro(competencia, `Já existe uma ausência entre ${a.inicio.split('-').reverse().join('/')} e ${outroFim.split('-').reverse().join('/')} que se sobrepõe a esse período.`, colaboradorId);
+      erro(competencia, `Já existe uma ausência entre ${a.inicio.split('-').reverse().join('/')} e ${outroFim.split('-').reverse().join('/')} que se sobrepõe a esse período.`, colaboradorId, volta);
     }
   }
 
@@ -314,6 +323,7 @@ export async function salvarAusencia(formData: FormData) {
     `Colaborador ${colaboradorId} · ${inicio} a ${fim}${motivo ? ` · ${grupo} — ${motivo}` : ''}`
   );
   revalidatePath('/', 'layout');
+  if (volta) redirect(`${volta}?competencia=${competencia}&ok=1`);
   redirect(`${VOLTA}?competencia=${competencia}&colab=${colaboradorId}&ok=1#ausencias`);
 }
 

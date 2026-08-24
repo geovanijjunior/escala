@@ -6,7 +6,7 @@ import {
   listarAlteracoesPendentes, listarOcorrencias, pendenciasDoMes,
 } from '@/lib/data/escalas';
 import { conferirAlocacoes } from '@/lib/domain/escalas/conferencia';
-import { DIAS_ABREV, diaSemana, diasNoMes, formatarCompetencia, iso, partesIso } from '@/lib/domain/escalas/datas';
+import { diaSemana, diasNoMes, formatarCompetencia, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { REGRAS_MOTOR, STATUS_GERACAO } from '@/lib/domain/escalas/constantes';
 import { competenciaDaBusca, comFiltros, texto, type Busca } from '@/lib/pagina';
 import { gerarEscalaDoMes, liberarTodasAsTravas, mudarStatusEscala } from '@/app/actions-geracao';
@@ -18,6 +18,7 @@ import { GradeDoMes } from '@/components/GradeDoMes';
 import { DetalheDoDia } from '@/components/DetalheDoDia';
 import { AjusteDoColaborador } from '@/components/AjusteDoColaborador';
 import { AlteracoesPendentes } from '@/components/AlteracoesPendentes';
+import { AjustesManuais } from '@/components/AjustesManuais';
 
 /**
  * O mês inteiro num fluxo só: revisar o plano, gerar, revisar a escala,
@@ -388,6 +389,17 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
           {/* Célula clicada: o ajuste daquela pessoa naquele dia. É a resposta
               a "onde a Maria está no dia 14" — a lista do dia inteiro responde
               outra pergunta, e continua a um clique daqui. */}
+          {podeEditarEscala(sessao.papel, geracao.status) && (
+            <AjustesManuais
+              competencia={competencia}
+              ano={ano}
+              mes={mes}
+              colaboradores={ativos}
+              unidades={ctx.unidades}
+              volta="/gerar"
+            />
+          )}
+
           {dia && emAjuste && (
             <AjusteDoColaborador
               colaborador={emAjuste}
@@ -447,57 +459,6 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
               </>
             }
           >
-            {/* O atalho para ajustar alguém sem caçar a célula na grade. */}
-            {podeEditarEscala(sessao.papel, geracao.status) && (
-              <div
-                className="px-4 py-3 border-b text-[12.5px] leading-relaxed"
-                style={{ borderColor: 'var(--line)', background: 'var(--brand-50)' }}
-              >
-                {/* Um seletor de verdade, e não três rótulos com cara de botão.
-                    A versão anterior desenhava "trocar", "remover" e "adicionar"
-                    como pastilhas coloridas dentro de uma faixa destacada: pareciam
-                    controles, não respondiam a clique nenhum, e mandavam procurar a
-                    célula certa na grade. Aqui a pessoa e o dia são escolhidos
-                    direto, que é como a decisão chega pronta — "a Maria no dia 14".
-                    O destino (unidade, folga, home office) é escolhido no painel que
-                    isto abre, porque depende de ver a lotação daquele dia. */}
-                <form method="get" className="flex flex-wrap items-end gap-2">
-                  <input type="hidden" name="competencia" value={competencia} />
-                  <input type="hidden" name="etapa" value="revisar" />
-                  <label className="block">
-                    <span className="esc-rotulo">Ajustar quem</span>
-                    <select name="colab" defaultValue="" required className="esc-input w-60">
-                      <option value="" disabled>Escolha a pessoa</option>
-                      {[...ativos]
-                        .sort((a, b) => a.nome.localeCompare(b.nome))
-                        .map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="esc-rotulo">Em que dia</span>
-                    <select name="dia" defaultValue="" required className="esc-input w-44">
-                      <option value="" disabled>Escolha o dia</option>
-                      {Array.from({ length: nDias }, (_, i) => {
-                        const data = iso(ano, mes, i + 1);
-                        return (
-                          <option key={data} value={data}>
-                            {DIAS_ABREV[diaSemana(ano, mes, i + 1)]}, {i + 1}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </label>
-                  <button type="submit" className="esc-btn esc-btn-sm">Abrir para ajustar</button>
-                </form>
-
-                <p className="mt-2 text-[11.5px]" style={{ color: 'var(--muted)' }}>
-                  No painel dá para <strong>trocar</strong> a unidade, <strong>remover</strong> do dia
-                  (passando para folga) ou <strong>escalar</strong> quem estava de folga. Clicar direto
-                  numa célula da grade abaixo faz o mesmo, já com a pessoa e o dia preenchidos.
-                </p>
-              </div>
-            )}
-
             {/* Achar a pessoa é o primeiro passo de qualquer ajuste, e com
                 duzentas linhas ele não pode ser rolar a grade. */}
             <form method="get" className="px-4 py-3 flex flex-wrap items-end gap-3 border-b" style={{ borderColor: 'var(--line)' }}>
