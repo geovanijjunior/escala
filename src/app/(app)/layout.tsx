@@ -109,8 +109,12 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
           {
             secao: 'Operação',
             itens: [
-              { href: '/planos', label: 'Planos do mês' },
-              { href: '/gerar', label: 'Gerar escala' },
+              // Um destino só para montar o mês. "Planos do mês" e "Gerar
+              // escala" eram duas entradas de menu para etapas do mesmo
+              // trabalho, e a ordem entre elas não aparecia em lugar nenhum da
+              // tela. As quatro etapas passaram a morar em /gerar; /planos
+              // redireciona para a primeira delas.
+              { href: '/gerar', label: 'Montar a escala' },
               { href: '/calendario', label: 'Calendário' },
               { href: '/ocupacao', label: 'Ocupação' },
               { href: '/solicitacoes', label: 'Solicitações', badge: pendentes },

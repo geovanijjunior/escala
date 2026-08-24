@@ -260,10 +260,27 @@ primeira área junto com o administrador dela — é ele quem cria o Planejament
    "Minha escala" mostrar os dias certos e que permite ao gestor ver a própria
    equipe. Nem todo colaborador precisa de login, e nem todo usuário precisa
    estar na escala.
-4. Em **Planos do mês**, defina distribuição por unidade, unidades fixas por dia
-   da semana, home office, ciclo 12x36 e ausências. A geração fica bloqueada
-   enquanto houver pendência.
-5. Em **Gerar escala**, simule, confirme e publique.
+4. Em **Montar a escala**, o mês inteiro acontece num fluxo de quatro etapas,
+   nesta ordem:
+
+   1. **Revisar o plano do mês** — distribuição por unidade, unidades fixas por
+      dia da semana, home office, ciclo 12x36 e ausências, uma linha por pessoa.
+      Pendência aqui bloqueia a geração: gerar sobre plano incompleto produz uma
+      escala que parece válida e não é.
+   2. **Gerar a escala** — grava a primeira versão como rascunho, invisível para
+      os colaboradores.
+   3. **Revisar e ajustar** — a grade do mês, e é só aqui que aparecem
+      **conflitos, alertas e aderência**: os três descrevem uma escala, e antes
+      desta etapa ela não existe. Clicando num dia abre-se o painel para mover
+      alguém de unidade, tirar do dia ou trazer quem estava de folga. Os números
+      se refazem a cada ajuste, porque saem do que está gravado — não da
+      lembrança da geração.
+   4. **Publicar** — a partir daqui cada colaborador vê os próprios dias, e as
+      alterações seguintes passam pela caixa de saída antes de serem
+      comunicadas.
+
+   A etapa aberta é derivada do estado do mês, e as que ainda não valem ficam
+   apagadas — não há como pedir "publicar" num mês sem escala.
 
 ## Modelo de dados
 
