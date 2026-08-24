@@ -3,10 +3,10 @@ import { redirect } from 'next/navigation';
 import { getSessao, podeEditarEscala } from '@/lib/sessao';
 import {
   carregarContextoMes, colaboradoresDaEscala, getGeracaoAtual, listarAlocacoes,
-  listarOcorrencias, pendenciasDoMes,
+  listarAlteracoesPendentes, listarOcorrencias, pendenciasDoMes,
 } from '@/lib/data/escalas';
 import { conferirAlocacoes } from '@/lib/domain/escalas/conferencia';
-import { diaSemana, diasNoMes, formatarCompetencia, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
+import { diaSemana, diasNoMes, formatarCompetencia, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { REGRAS_MOTOR, STATUS_GERACAO } from '@/lib/domain/escalas/constantes';
 import { competenciaDaBusca, comFiltros, texto, type Busca } from '@/lib/pagina';
 import { gerarEscalaDoMes, liberarTodasAsTravas, mudarStatusEscala } from '@/app/actions-geracao';
@@ -16,6 +16,8 @@ import { PassosDaEscala } from '@/components/PassosDaEscala';
 import { RevisaoDoPlano } from '@/components/RevisaoDoPlano';
 import { GradeDoMes } from '@/components/GradeDoMes';
 import { DetalheDoDia } from '@/components/DetalheDoDia';
+import { AjusteDoColaborador } from '@/components/AjusteDoColaborador';
+import { AlteracoesPendentes } from '@/components/AlteracoesPendentes';
 
 /**
  * O mês inteiro num fluxo só: revisar o plano, gerar, revisar a escala,
@@ -76,7 +78,13 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
   // tiraria a conferência do caminho: o plano completo é o que o motor vai
   // obedecer, e olhá-lo antes é justamente o passo que evita descobrir o erro
   // depois de a escala existir. Quem já conferiu avança pelo próprio botão.
-  const sugerida = !temEscala ? 'plano' : publicada ? 'publicar' : 'revisar';
+  //
+  // Uma URL que carrega um DIA é sobre revisar, mesmo com a escala publicada:
+  // é para onde as ações do painel de ajuste voltam. Sem esta linha, salvar um
+  // ajuste num mês publicado devolvia a pessoa à etapa 4 — fora da grade, longe
+  // da caixa de saída e sem o dia que ela estava mexendo.
+  const dia = texto(busca, 'dia');
+  const sugerida = !temEscala ? 'plano' : dia ? 'revisar' : publicada ? 'publicar' : 'revisar';
   const pedida = texto(busca, 'etapa');
   const etapa = passos.find(p => p.chave === pedida && p.liberado) ? pedida : sugerida;
 
@@ -98,8 +106,43 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
     : { conflitos: [], alertas: [] };
 
   const aderentes = geracao ? geracao.aderencia.filter(a => a.ok).length : 0;
-  const dia = texto(busca, 'dia');
   const ocorrencias = geracao ? await listarOcorrencias(competencia, iso(ano, mes, nDias)) : [];
+
+  // O que já mudou na escala publicada e a equipe ainda não recebeu. Vive aqui
+  // porque é aqui que a mudança é feita — deixá-la só no calendário significaria
+  // ajustar num lugar e comunicar em outro.
+  const podeMexer = !!geracao && podeEditarEscala(sessao.papel, geracao.status);
+  const pendentesDeAviso = geracao && podeMexer ? await listarAlteracoesPendentes(geracao.id) : [];
+
+  // ── Recorte da grade na etapa 3 ───────────────────────────────
+  // Com duzentas pessoas, a grade inteira não é uma tela: é um documento. O
+  // filtro é o que a torna operável — quem vai mexer chega sabendo o nome, a
+  // equipe ou a unidade, e não querendo percorrer tudo.
+  const filtroNome = texto(busca, 'q').toLowerCase();
+  const filtroEquipe = Number(texto(busca, 'equipe')) || null;
+  const filtroUnidade = Number(texto(busca, 'unidade')) || null;
+  const soComAviso = texto(busca, 'avisos') === '1';
+
+  const citados = new Set(
+    [...diagnostico.conflitos, ...diagnostico.alertas]
+      .map(a => a.colaboradorId)
+      .filter((id): id is number => typeof id === 'number'),
+  );
+
+  const naGrade = ativos.filter(c => {
+    if (filtroNome && !`${c.nome} ${c.matricula}`.toLowerCase().includes(filtroNome)) return false;
+    if (filtroEquipe && c.equipeId !== filtroEquipe) return false;
+    if (filtroUnidade && !alocacoes.some(
+      a => a.colaboradorId === c.id && a.modalidade === 'UNIDADE' && a.unidadeId === filtroUnidade,
+    )) return false;
+    if (soComAviso && !citados.has(c.id)) return false;
+    return true;
+  });
+
+  // A pessoa cujo dia está aberto para ajuste. Vem da célula clicada na grade,
+  // que agora carrega os dois: quem e quando.
+  const colabId = Number(texto(busca, 'colab')) || null;
+  const emAjuste = colabId ? ctx.colaboradores.find(c => c.id === colabId) ?? null : null;
 
   const cabecalho = (
     <>
@@ -277,6 +320,15 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
       {/* ══════════ 3. Revisar e ajustar ══════════ */}
       {etapa === 'revisar' && geracao && (
         <>
+          {pendentesDeAviso.length > 0 && (
+            <AlteracoesPendentes
+              volta="/gerar"
+              itens={pendentesDeAviso}
+              competencia={competencia}
+              conflitos={diagnostico.conflitos.length}
+              alertas={diagnostico.alertas.length}
+            />
+          )}
           {/* O diagnóstico da escala aparece aqui, e só aqui: ele descreve o que
               foi gerado. Sai do que está no banco AGORA — depois de um ajuste
               manual, os números guardados na geração descreveriam outra escala. */}
@@ -311,19 +363,60 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
             </Bloco>
           )}
 
-          {geracao.status === 'rascunho' && (
-            <div
-              className="esc-card px-4 py-3 text-[12.5px] leading-relaxed"
-              style={{ borderLeft: '3px solid var(--brand-700)', background: 'var(--brand-50)' }}
-            >
-              <strong>Ainda é rascunho — os colaboradores não enxergam esta escala.</strong>{' '}
-              Clique em qualquer dia da grade para abrir o painel: ali você move uma pessoa de unidade,
-              tira do dia ou traz alguém que estava de folga. O ajuste fica <strong>travado</strong>,
-              sobrevive a uma nova geração, e os números acima se refazem a cada mudança.
-            </div>
+          <div
+            className="esc-card px-4 py-3 text-[12.5px] leading-relaxed"
+            style={{
+              borderLeft: `3px solid ${geracao.status === 'rascunho' ? 'var(--brand-700)' : 'var(--amber)'}`,
+              background: geracao.status === 'rascunho' ? 'var(--brand-50)' : 'var(--amber-bg)',
+            }}
+          >
+            {geracao.status === 'rascunho' ? (
+              <>
+                <strong>Ainda é rascunho — os colaboradores não enxergam esta escala.</strong>{' '}
+                Clique na célula da pessoa e do dia que quer mudar: abre um painel para trocar a
+                unidade, tirar do dia ou escalar quem estava de folga. O ajuste fica{' '}
+                <strong>travado</strong> e sobrevive a uma nova geração; os números acima se refazem a
+                cada mudança.
+              </>
+            ) : geracao.status === 'publicada' ? (
+              <>
+                <strong>Escala publicada — e ainda ajustável.</strong> Clique na célula da pessoa e do
+                dia para tirar alguém ou escalar quem estava de folga. A diferença é o que acontece
+                depois: cada mudança entra numa <strong>caixa de saída</strong> no topo desta tela, e a
+                equipe só é avisada quando você mandar — assim uma reorganização de dez movimentos vira
+                um aviso, não dez.
+              </>
+            ) : (
+              <>
+                <strong>Mês encerrado.</strong> A escala fica como está; nenhum ajuste é aceito.
+              </>
+            )}
+          </div>
+
+          {/* Célula clicada: o ajuste daquela pessoa naquele dia. É a resposta
+              a "onde a Maria está no dia 14" — a lista do dia inteiro responde
+              outra pergunta, e continua a um clique daqui. */}
+          {dia && emAjuste && (
+            <AjusteDoColaborador
+              colaborador={emAjuste}
+              data={dia}
+              competencia={competencia}
+              alocacao={alocacoes.find(a => a.colaboradorId === emAjuste.id && a.data === dia) ?? null}
+              doDia={alocacoes.filter(a => a.data === dia)}
+              equipe={ctx.equipes.find(e => e.id === emAjuste.equipeId)}
+              unidades={ctx.unidades}
+              capacidades={ctx.capacidades}
+              conflitos={diagnostico.conflitos.filter(c => c.data === dia)}
+              alertas={diagnostico.alertas.filter(a => a.data === dia)}
+              feriado={ctx.feriados[dia]}
+              podeEditar={podeEditarEscala(sessao.papel, geracao.status)}
+              fecharHref={`/gerar${comFiltros(busca, { dia: null, colab: null })}`}
+              diaInteiroHref={`/gerar${comFiltros(busca, { colab: null })}`}
+              volta="/gerar"
+            />
           )}
 
-          {dia && (
+          {dia && !emAjuste && (
             <DetalheDoDia
               data={dia}
               competencia={competencia}
@@ -346,7 +439,11 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
 
           <Bloco
             titulo={`Versão ${geracao.versao} · ${formatarCompetencia(competencia)}`}
-            desc={`${geracao.escopo} · gerada em ${formatarData(geracao.geradaEm.slice(0, 10))} por ${geracao.geradaPorNome}. Clique num dia para ajustar.`}
+            desc={
+              naGrade.length === ativos.length
+                ? `${ativos.length} pessoa(s). Clique em qualquer célula — a da pessoa e do dia que você quer mudar.`
+                : `${naGrade.length} de ${ativos.length} pessoa(s) neste filtro. Clique numa célula para ajustar.`
+            }
             acoes={
               <>
                 <Pill cor={STATUS_GERACAO[geracao.status].cor} bg={STATUS_GERACAO[geracao.status].bg}>
@@ -358,11 +455,45 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
               </>
             }
           >
+            {/* Achar a pessoa é o primeiro passo de qualquer ajuste, e com
+                duzentas linhas ele não pode ser rolar a grade. */}
+            <form method="get" className="px-4 py-3 flex flex-wrap items-end gap-3 border-b" style={{ borderColor: 'var(--line)' }}>
+              <input type="hidden" name="competencia" value={competencia} />
+              <input type="hidden" name="etapa" value="revisar" />
+              <label className="block">
+                <span className="esc-rotulo">Buscar</span>
+                <input name="q" defaultValue={texto(busca, 'q')} placeholder="Nome ou matrícula" className="esc-input w-52" />
+              </label>
+              <label className="block">
+                <span className="esc-rotulo">Equipe</span>
+                <select name="equipe" defaultValue={texto(busca, 'equipe')} className="esc-input w-44">
+                  <option value="">Todas</option>
+                  {ctx.equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="esc-rotulo">Passa pela unidade</span>
+                <select name="unidade" defaultValue={texto(busca, 'unidade')} className="esc-input w-44">
+                  <option value="">Qualquer uma</option>
+                  {ctx.unidades.filter(u => u.ativa).map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 text-[12px] pb-1.5">
+                <input type="checkbox" name="avisos" value="1" defaultChecked={soComAviso} />
+                Só quem tem conflito ou alerta
+              </label>
+              <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Aplicar</button>
+              {(filtroNome || filtroEquipe || filtroUnidade || soComAviso) && (
+                <Link href={href('revisar')} className="esc-btn esc-btn-ghost esc-btn-sm">Limpar</Link>
+              )}
+            </form>
+
             <GradeDoMes
+              editavel={podeEditarEscala(sessao.papel, geracao.status)}
               ano={ano}
               mes={mes}
               competencia={competencia}
-              colaboradores={ativos}
+              colaboradores={naGrade}
               equipes={ctx.equipes}
               unidades={ctx.unidades}
               alocacoes={alocacoes}
@@ -379,7 +510,7 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
                   }))];
                 })
               )}
-              baseHref={`/gerar${comFiltros(busca, { etapa: 'revisar', dia: null })}`}
+              baseHref={`/gerar${comFiltros(busca, { etapa: 'revisar', dia: null, colab: null })}`}
             />
           </Bloco>
         </>
@@ -464,6 +595,21 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
               )}
             </div>
           </Bloco>
+
+          {geracao.status === 'publicada' && (
+            <div
+              className="esc-card px-4 py-3 flex flex-wrap items-center gap-3"
+              style={{ borderLeft: '3px solid var(--brand-700)' }}
+            >
+              <span className="text-[12.5px]">
+                <strong>Publicar não fecha o mês.</strong> Dá para remover alguém de um dia ou escalar
+                quem estava de folga a qualquer momento — a equipe é avisada quando você confirmar.
+              </span>
+              <Link href={href('revisar')} className="esc-btn esc-btn-outline esc-btn-sm ml-auto">
+                Ajustar a escala
+              </Link>
+            </div>
+          )}
 
           <div className="esc-card px-4 py-3 flex flex-wrap items-center gap-3">
             <span className="text-[12.5px]" style={{ color: 'var(--muted)' }}>

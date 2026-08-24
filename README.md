@@ -271,13 +271,25 @@ primeira área junto com o administrador dela — é ele quem cria o Planejament
       os colaboradores.
    3. **Revisar e ajustar** — a grade do mês, e é só aqui que aparecem
       **conflitos, alertas e aderência**: os três descrevem uma escala, e antes
-      desta etapa ela não existe. Clicando num dia abre-se o painel para mover
-      alguém de unidade, tirar do dia ou trazer quem estava de folga. Os números
-      se refazem a cada ajuste, porque saem do que está gravado — não da
-      lembrança da geração.
-   4. **Publicar** — a partir daqui cada colaborador vê os próprios dias, e as
-      alterações seguintes passam pela caixa de saída antes de serem
-      comunicadas.
+      desta etapa ela não existe. Os números se refazem a cada ajuste, porque
+      saem do que está gravado — não da lembrança da geração.
+
+      A edição é **por célula**: clica-se no cruzamento da pessoa com o dia que
+      se quer mudar, e abre um painel só daquele par — com a lotação de cada
+      unidade naquele dia ao lado do seletor que vai mudá-la. Célula de folga
+      também é clicável: é por ela que se escala quem estava fora. Acima da
+      grade há busca por nome, filtro por equipe, por unidade e "só quem tem
+      conflito ou alerta" — com duzentas pessoas, achar a linha é o primeiro
+      passo de qualquer ajuste, e ele não pode ser rolar a grade.
+   4. **Publicar** — a partir daqui cada colaborador vê os próprios dias.
+
+      Publicar **não fecha o mês**: o Planejamento continua removendo e
+      acrescentando gente pela mesma grade da etapa 3. O que muda é o que
+      acontece depois — cada alteração entra numa **caixa de saída** no topo
+      daquela etapa, e a equipe só é avisada quando se manda. Assim uma
+      reorganização de dez movimentos vira um aviso, não dez, e nenhum deles
+      descreve um estado intermediário que não durou. Só o mês **encerrado**
+      recusa ajustes.
 
    A etapa aberta é derivada do estado do mês, e as que ainda não valem ficam
    apagadas — não há como pedir "publicar" num mês sem escala.

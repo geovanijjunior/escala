@@ -15,6 +15,12 @@ interface Props {
   feriados: Record<string, string>;
   capacidadeDia: Record<string, Record<number, number>>;
   baseHref: string;
+  /**
+   * Quando verdadeiro, cada célula abre o ajuste daquela pessoa naquele dia —
+   * inclusive as de folga, que é como se escala alguém que estava fora.
+   * Falso deixa a grade só de leitura, que é o papel dela no calendário.
+   */
+  editavel?: boolean;
 }
 
 /**
@@ -25,7 +31,8 @@ interface Props {
  * coluna torna a grade ilegível.
  */
 export function GradeDoMes({
-  ano, mes, competencia, colaboradores, equipes, unidades, alocacoes, feriados, capacidadeDia, baseHref,
+  ano, mes, competencia, colaboradores, equipes, unidades, alocacoes, feriados, capacidadeDia,
+  baseHref, editavel = false,
 }: Props) {
   const nDias = diasNoMes(ano, mes);
   const dias = Array.from({ length: nDias }, (_, i) => i + 1);
@@ -146,10 +153,37 @@ export function GradeDoMes({
                   {dias.map(d => {
                     const data = iso(ano, mes, d);
                     const a = porColabData.get(`${c.id}|${data}`);
+                    const sep = baseHref.includes('?') ? '&' : '?';
+                    const rotuloDia = data.split('-').reverse().join('/');
+
+                    // A célula leva a PESSOA junto com a data. Antes levava só
+                    // `dia=`, e quem foi clicado se perdia no caminho: abria-se
+                    // a lista do dia inteiro para procurar de novo, que com
+                    // duzentas pessoas é justamente o trabalho que a grade
+                    // deveria poupar.
+                    const href = editavel
+                      ? `${baseHref}${sep}dia=${data}&colab=${c.id}`
+                      : `${baseHref}${sep}dia=${data}`;
+
+                    // Folga também é clicável quando a grade edita: é por aqui
+                    // que se traz alguém para um dia. Antes a célula vazia não
+                    // tinha alvo nenhum, e escalar quem estava de folga não
+                    // tinha entrada pela grade.
                     if (!a || a.modalidade === 'DESCANSO') {
                       return (
-                        <td key={d} className="text-center px-0" style={{ color: 'var(--faint)', background: 'var(--bg)' }}>
-                          ·
+                        <td key={d} className="p-0.5 text-center" style={{ background: 'var(--bg)' }}>
+                          {editavel ? (
+                            <Link
+                              href={href}
+                              className="block rounded text-[9.5px] leading-[18px]"
+                              style={{ color: 'var(--faint)' }}
+                              title={`${c.nome} · ${rotuloDia} · de folga — clique para escalar`}
+                            >
+                              ·
+                            </Link>
+                          ) : (
+                            <span className="block text-[9.5px] leading-[18px]" style={{ color: 'var(--faint)' }}>·</span>
+                          )}
                         </td>
                       );
                     }
@@ -157,10 +191,10 @@ export function GradeDoMes({
                     return (
                       <td key={d} className="p-0.5 text-center">
                         <Link
-                          href={`${baseHref}${baseHref.includes('?') ? '&' : '?'}dia=${data}`}
+                          href={href}
                           className="block rounded text-[9.5px] font-semibold leading-[18px] relative"
                           style={{ background: ap.bg, color: ap.cor }}
-                          title={`${c.nome} · ${data.split('-').reverse().join('/')} · ${ap.label}${a.travado ? ' (travado)' : ''}`}
+                          title={`${c.nome} · ${rotuloDia} · ${ap.label}${a.travado ? ' (travado)' : ''}`}
                         >
                           {ap.sigla}
                           {a.travado && (
