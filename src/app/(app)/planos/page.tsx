@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessao } from '@/lib/sessao';
 import { carregarContextoMes, colaboradoresDaEscala, listarCompetencias, pendenciasDoMes } from '@/lib/data/escalas';
-import { DIAS_ABREV, addDias, formatarCompetencia, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
+import { DIAS_ABREV, addDias, cicloDoMes, formatarCompetencia, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { competenciaDaBusca, comFiltros, texto, type Busca } from '@/lib/pagina';
 import { copiarPlanosDoMes } from '@/app/actions-planos';
 import { Aviso, Badge, Bloco, Stat, Vazio } from '@/components/Ui';
@@ -91,6 +91,12 @@ export default async function PlanosPage({ searchParams }: { searchParams: Promi
           unidades={ctx.unidades.filter(u => u.ativa)}
           postos={ctx.postos}
           competencia={competencia}
+          cicloDoMes={cicloDoMes(
+            planoPorColab.get(colabEmEdicao.id) ?? null,
+            colabEmEdicao.ciclo,
+            competencia,
+            ctx.config.cicloAncora,
+          )}
           pendencias={pendenciasPorColab.get(colabEmEdicao.id) ?? []}
           fecharHref={`/planos${comFiltros(busca, { colab: null })}`}
         />
@@ -190,10 +196,17 @@ export default async function PlanosPage({ searchParams }: { searchParams: Promi
                       </td>
                       <td>
                         {c.regime !== '12x36' ? (
+                          // Só o 12x36 tem paridade. Para o 5x2 o campo não
+                          // significa nada, e mostrar "Definir" mandaria o
+                          // Planejamento preencher o que não existe.
                           <span style={{ color: 'var(--faint)' }}>—</span>
                         ) : p?.ciclo ? (
                           <Badge cor="var(--brand-700)" bg="var(--brand-100)">
-                            {p.ciclo === 'IMPAR' ? 'Ímpares' : 'Pares'}
+                            {/* A paridade DESTE mês, não a que está gravada: um
+                                plano herdado de um mês de 31 dias entra virado
+                                aqui, e mostrar o valor cru faria a coluna
+                                discordar da escala que o motor gera. */}
+                            {cicloDoMes(p, c.ciclo, competencia, ctx.config.cicloAncora) === 'IMPAR' ? 'Ímpares' : 'Pares'}
                           </Badge>
                         ) : (
                           <Badge cor="var(--rose)" bg="var(--rose-bg)">Definir</Badge>

@@ -1,6 +1,6 @@
 import {
   addDias,
-  cicloEfetivo,
+  cicloDoMes,
   diaSemana,
   diasNoMes,
   fimAusencia,
@@ -208,11 +208,11 @@ export function gerarEscala(input: GerarEscalaInput): GerarEscalaOutput {
     const ho = plano?.homeOffice;
     const unidadesFixas = plano?.unidadesFixas ?? {};
 
-    const cicloBase: Ciclo = plano?.ciclo ?? c.ciclo ?? 'IMPAR';
-    // O ciclo salvo no plano é decisão explícita do Planejamento e vale como
-    // está; sem plano, deriva-se a paridade do mês a partir da âncora.
+    // A paridade é do MÊS, não da pessoa — ver `cicloDoMes`. Plano salvo neste
+    // mês vale como está; plano herdado tem a paridade virada desde o mês em
+    // que foi decidido; sem plano, deriva-se da âncora da área.
     const ciclo: Ciclo = c.regime === '12x36'
-      ? (plano?.ciclo ?? cicloEfetivo(cicloBase, competencia, cicloAncora))
+      ? cicloDoMes(plano, c.ciclo, competencia, cicloAncora)
       : 'IMPAR';
 
     let ultimoPlantao: number | null = null;

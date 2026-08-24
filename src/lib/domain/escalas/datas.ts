@@ -128,3 +128,35 @@ export function cicloEfetivo(cicloBase: Ciclo, competencia: string, ancora: stri
   if (!inverte) return cicloBase;
   return cicloBase === 'IMPAR' ? 'PAR' : 'IMPAR';
 }
+
+/**
+ * Em que paridade a pessoa entra NESTE mês.
+ *
+ * O ciclo do 12x36 não é atributo da pessoa, é do mês: quem trabalha nos dias
+ * ímpares de janeiro trabalha nos pares de fevereiro, porque janeiro tem 31
+ * dias e o descanso de 36 horas empurra o plantão seguinte para o outro lado da
+ * paridade. Congelá-lo faria a pessoa emendar dois plantões ou folgar dois
+ * dias na virada.
+ *
+ * Três origens, nesta ordem:
+ *
+ * 1. Plano salvo NESTE mês — decisão explícita do Planejamento, vale como está.
+ *    Cai no `cicloEfetivo` com âncora igual à competência, o que dá diferença
+ *    zero e devolve o valor intacto.
+ * 2. Plano HERDADO de um mês anterior. Aqui estava o defeito: o motor lia
+ *    `plano.ciclo` e o usava literal, sem reparar que aquela decisão foi
+ *    tomada para outro mês. A paridade ficava presa à do mês em que alguém
+ *    salvou o plano pela última vez, e quanto mais meses sem revisão, mais
+ *    errada. Agora a paridade vira a partir do mês de origem.
+ * 3. Sem plano nenhum: deriva do ciclo histórico do cadastro contra a âncora
+ *    configurada na área.
+ */
+export function cicloDoMes(
+  plano: { ciclo: Ciclo | null; herdadoDe?: string | null } | null | undefined,
+  cicloCadastro: Ciclo | null,
+  competencia: string,
+  ancora: string,
+): Ciclo {
+  if (plano?.ciclo) return cicloEfetivo(plano.ciclo, competencia, plano.herdadoDe ?? competencia);
+  return cicloEfetivo(cicloCadastro ?? 'IMPAR', competencia, ancora);
+}

@@ -1,5 +1,5 @@
 import { gerarEscala } from './motor';
-import { cicloEfetivo } from './datas';
+import { cicloDoMes, cicloEfetivo, iso } from './datas';
 import type { Colaborador, PlanoMensal, Unidade } from './tipos';
 
 let falhas = 0;
@@ -64,6 +64,57 @@ const base = {
   ok(cicloEfetivo('IMPAR', '2026-03-01', '2026-01-01') === 'PAR', 'fevereiro (28d) mantém em março');
   ok(cicloEfetivo('IMPAR', '2026-04-01', '2026-01-01') === 'IMPAR', 'março (31d) inverte em abril');
   ok(cicloEfetivo('IMPAR', '2025-12-01', '2026-01-01') === 'PAR', 'funciona pra trás da âncora');
+
+  // `cicloDoMes` é quem o motor e a tela consultam. As três origens da
+  // paridade, na ordem em que valem.
+  const ANCORA = '2026-01-01';
+
+  ok(cicloDoMes({ ciclo: 'IMPAR', herdadoDe: null }, null, '2026-02-01', ANCORA) === 'IMPAR',
+    'plano salvo NESTE mês vale como está, mesmo contrariando a virada');
+  ok(cicloDoMes({ ciclo: 'PAR', herdadoDe: null }, 'IMPAR', '2026-08-01', ANCORA) === 'PAR',
+    'decisão do mês ignora o ciclo histórico do cadastro');
+
+  // O defeito que isto trava: um plano herdado de janeiro entrava em fevereiro
+  // com a paridade de janeiro, e a pessoa emendava dois plantões na virada.
+  ok(cicloDoMes({ ciclo: 'IMPAR', herdadoDe: '2026-01-01' }, null, '2026-02-01', ANCORA) === 'PAR',
+    'plano herdado de janeiro (31d) entra virado em fevereiro');
+  ok(cicloDoMes({ ciclo: 'IMPAR', herdadoDe: '2026-01-01' }, null, '2026-03-01', ANCORA) === 'PAR',
+    'fevereiro (28d) não vira de novo em março');
+  ok(cicloDoMes({ ciclo: 'IMPAR', herdadoDe: '2026-01-01' }, null, '2026-04-01', ANCORA) === 'IMPAR',
+    'março (31d) devolve a paridade original em abril');
+
+  ok(cicloDoMes(null, 'IMPAR', '2026-02-01', ANCORA) === 'PAR',
+    'sem plano, deriva do cadastro contra a âncora');
+  ok(cicloDoMes(null, null, ANCORA, ANCORA) === 'IMPAR',
+    'sem plano e sem cadastro, cai em ímpares');
+}
+
+// ── 3b. plano herdado não congela a paridade na escala gerada
+{
+  // O MESMO plano, decidido em janeiro, gerando dois meses seguidos. Janeiro
+  // tem 31 dias, então fevereiro precisa sair na paridade oposta.
+  const plantonista = mkColab(1, { regime: '12x36', ciclo: 'IMPAR', turno: 'N', saida: '07:00' });
+  const herdado = { ciclo: 'IMPAR' as const, herdadoDe: '2026-01-01' };
+
+  const diasDe = (ano: number, mes: number) => gerarEscala({
+    ...base, ano, mes,
+    colaboradores: [plantonista],
+    planos: [mkPlano(1, { ...herdado, competencia: iso(ano, mes, 1) })],
+  }).alocacoes
+    .filter(a => a.modalidade === 'UNIDADE')
+    .map(a => Number(a.data.slice(8)));
+
+  const jan = diasDe(2026, 0);
+  const fev = diasDe(2026, 1);
+
+  ok(jan.length > 0 && jan.every(d => d % 2 === 1),
+    'janeiro sai nos ímpares, como o plano diz', JSON.stringify(jan.slice(0, 4)));
+  ok(fev.length > 0 && fev.every(d => d % 2 === 0),
+    'fevereiro sai nos PARES, virado pelo mês de 31 dias', JSON.stringify(fev.slice(0, 4)));
+
+  // A razão de tudo isto: 31/jan e 1º/fev não podem ser dois plantões seguidos.
+  ok(!(jan.includes(31) && fev.includes(1)),
+    'a virada do mês não emenda dois plantões');
 }
 
 // ── 4. distribuição 50/50 fica dentro da tolerância

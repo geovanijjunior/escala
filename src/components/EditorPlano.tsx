@@ -6,7 +6,7 @@ import { Bloco } from './Ui';
 import { DistribuicaoEPostos } from './DistribuicaoEPostos';
 import { MotivoDependente } from './MotivoDependente';
 import { UnidadesFixasEHomeOffice } from './UnidadesFixasEHomeOffice';
-import type { Ausencia, Colaborador, PlanoMensal, Posto, Unidade } from '@/lib/domain/escalas/tipos';
+import type { Ausencia, Ciclo, Colaborador, PlanoMensal, Posto, Unidade } from '@/lib/domain/escalas/tipos';
 
 interface Props {
   colaborador: Colaborador;
@@ -15,6 +15,13 @@ interface Props {
   unidades: Unidade[];
   postos: Posto[];
   competencia: string;
+  /**
+   * Em que paridade esta pessoa entra NESTE mês, já virada quando o plano veio
+   * herdado de um mês de 31 dias. É o que o motor vai usar, então é o que o
+   * rádio precisa mostrar — não o valor cru gravado no mês de origem. Sem isso,
+   * abrir e salvar sem mexer em nada congelaria a paridade errada.
+   */
+  cicloDoMes: Ciclo;
   pendencias: string[];
   fecharHref: string;
 }
@@ -27,7 +34,7 @@ interface Props {
  * que ninguém consegue explicar depois.
  */
 export function EditorPlano({
-  colaborador: c, plano, ausencias, unidades, postos, competencia, pendencias, fecharHref,
+  colaborador: c, plano, ausencias, unidades, postos, competencia, cicloDoMes, pendencias, fecharHref,
 }: Props) {
   const ho = plano?.homeOffice;
   const ferias = ausencias.find(a => a.tipo === 'FERIAS');
@@ -77,15 +84,24 @@ export function EditorPlano({
                   className="flex items-center gap-2 px-3 py-2 rounded-md border cursor-pointer text-[12.5px]"
                   style={{ borderColor: 'var(--line-2)' }}
                 >
-                  <input type="radio" name="ciclo" value={v} defaultChecked={(plano?.ciclo ?? c.ciclo) === v} required />
+                  <input type="radio" name="ciclo" value={v} defaultChecked={cicloDoMes === v} required />
                   Dias {v === 'IMPAR' ? 'ímpares' : 'pares'}
-                  {c.ciclo === v && <span className="text-[10.5px]" style={{ color: 'var(--muted)' }}>(base do cadastro)</span>}
                 </label>
               ))}
             </div>
             <p className="text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
-              Meses de 31 dias invertem a paridade no mês seguinte para preservar o descanso de 36h. A sugestão do
-              motor já considera isso; aqui você pode sobrepor.
+              {plano?.herdadoDe ? (
+                <>
+                  Meses de 31 dias invertem a paridade no mês seguinte, para preservar o descanso de 36h.
+                  A opção acima já vem virada a partir de {formatarCompetencia(plano.herdadoDe)} — é a
+                  paridade que o motor vai usar neste mês. Se a operação combinou outra, troque aqui.
+                </>
+              ) : (
+                <>
+                  Meses de 31 dias invertem a paridade no mês seguinte, para preservar o descanso de 36h.
+                  Nos meses em que ninguém revisar este plano, a virada é aplicada sozinha.
+                </>
+              )}
             </p>
           </section>
         )}
