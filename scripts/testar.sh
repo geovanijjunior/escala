@@ -30,6 +30,10 @@ quer propriedades && executa 'Propriedades' npx tsx src/lib/domain/escalas/motor
 # Não toca em banco nem em rede: lê os `actions-*.ts` e cobra sessão e papel em
 # cada função exportada. Fica junto dos testes rápidos porque é um deles.
 quer autorizacao  && executa 'Autorização'  node supabase/tests/autorizacao.mjs
+# Mesma ideia, outro invariante: a equipe só é avisada de mudança em escala
+# PUBLICADA. A regra vive espalhada por três pontos de `actions-geracao.ts` e
+# nenhum deles a declara inteira.
+quer avisos       && executa 'Avisos'       node supabase/tests/avisos.mjs
 quer build        && executa 'Build'        npm run --silent build
 
 if quer banco; then

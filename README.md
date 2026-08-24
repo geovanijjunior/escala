@@ -163,6 +163,7 @@ RODADAS=50000 ./scripts/testar.sh propriedades
 | `npm test` | asserções do motor e do leitor de planilha |
 | `npm run test:propriedades` | 15 invariantes × milhares de meses aleatórios |
 | `supabase/tests/autorizacao.mjs` | toda Server Action abre sessão e checa papel — leitura estática, sem banco |
+| `supabase/tests/avisos.mjs` | a equipe só é avisada de mudança em escala **publicada** — também estático |
 | `supabase/tests/rls.sql` | quem enxerga o quê, com testes negativos — inclui mural, anexos, avisos e caixa de saída |
 | `supabase/tests/rls-avancado.sql` | funções `security definer`, que rodam FORA da RLS, e a superfície das migrations recentes |
 | `supabase/tests/integridade.sql` | restrições, cascatas e vínculo entre contas |
