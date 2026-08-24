@@ -6,7 +6,7 @@ import {
   listarAlteracoesPendentes, listarOcorrencias, pendenciasDoMes,
 } from '@/lib/data/escalas';
 import { conferirAlocacoes } from '@/lib/domain/escalas/conferencia';
-import { diaSemana, diasNoMes, formatarCompetencia, iso, partesIso } from '@/lib/domain/escalas/datas';
+import { DIAS_ABREV, diaSemana, diasNoMes, formatarCompetencia, iso, partesIso } from '@/lib/domain/escalas/datas';
 import { REGRAS_MOTOR, STATUS_GERACAO } from '@/lib/domain/escalas/constantes';
 import { competenciaDaBusca, comFiltros, texto, type Busca } from '@/lib/pagina';
 import { gerarEscalaDoMes, liberarTodasAsTravas, mudarStatusEscala } from '@/app/actions-geracao';
@@ -447,31 +447,54 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
               </>
             }
           >
-            {/* As três ações, escritas com as palavras que se procura.
-                A instrução vivia na descrição do bloco, em cinza pequeno, e a
-                pessoa que abria esta etapa atrás de "remover" ou "adicionar"
-                não encontrava nenhuma das duas palavras na tela. */}
+            {/* O atalho para ajustar alguém sem caçar a célula na grade. */}
             {podeEditarEscala(sessao.papel, geracao.status) && (
               <div
                 className="px-4 py-3 border-b text-[12.5px] leading-relaxed"
                 style={{ borderColor: 'var(--line)', background: 'var(--brand-50)' }}
               >
-                <strong>Para ajustar a escala, clique na célula da pessoa e do dia.</strong>{' '}
-                Abre um painel onde você pode:
-                <ul className="mt-1.5 grid gap-1 sm:grid-cols-3">
-                  <li className="flex items-start gap-1.5">
-                    <span className="esc-badge shrink-0" style={{ color: 'var(--brand-800)', background: 'var(--brand-100)' }}>trocar</span>
-                    <span style={{ color: 'var(--muted)' }}>mandar a pessoa para outra unidade ou para home office</span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="esc-badge shrink-0" style={{ color: 'var(--rose)', background: 'var(--rose-bg)' }}>remover</span>
-                    <span style={{ color: 'var(--muted)' }}>tirar do dia, passando para folga ou afastamento</span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="esc-badge shrink-0" style={{ color: 'var(--green)', background: 'var(--green-bg)' }}>adicionar</span>
-                    <span style={{ color: 'var(--muted)' }}>escalar quem está de folga — clique numa célula vazia (·)</span>
-                  </li>
-                </ul>
+                {/* Um seletor de verdade, e não três rótulos com cara de botão.
+                    A versão anterior desenhava "trocar", "remover" e "adicionar"
+                    como pastilhas coloridas dentro de uma faixa destacada: pareciam
+                    controles, não respondiam a clique nenhum, e mandavam procurar a
+                    célula certa na grade. Aqui a pessoa e o dia são escolhidos
+                    direto, que é como a decisão chega pronta — "a Maria no dia 14".
+                    O destino (unidade, folga, home office) é escolhido no painel que
+                    isto abre, porque depende de ver a lotação daquele dia. */}
+                <form method="get" className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="competencia" value={competencia} />
+                  <input type="hidden" name="etapa" value="revisar" />
+                  <label className="block">
+                    <span className="esc-rotulo">Ajustar quem</span>
+                    <select name="colab" defaultValue="" required className="esc-input w-60">
+                      <option value="" disabled>Escolha a pessoa</option>
+                      {[...ativos]
+                        .sort((a, b) => a.nome.localeCompare(b.nome))
+                        .map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="esc-rotulo">Em que dia</span>
+                    <select name="dia" defaultValue="" required className="esc-input w-44">
+                      <option value="" disabled>Escolha o dia</option>
+                      {Array.from({ length: nDias }, (_, i) => {
+                        const data = iso(ano, mes, i + 1);
+                        return (
+                          <option key={data} value={data}>
+                            {DIAS_ABREV[diaSemana(ano, mes, i + 1)]}, {i + 1}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+                  <button type="submit" className="esc-btn esc-btn-sm">Abrir para ajustar</button>
+                </form>
+
+                <p className="mt-2 text-[11.5px]" style={{ color: 'var(--muted)' }}>
+                  No painel dá para <strong>trocar</strong> a unidade, <strong>remover</strong> do dia
+                  (passando para folga) ou <strong>escalar</strong> quem estava de folga. Clicar direto
+                  numa célula da grade abaixo faz o mesmo, já com a pessoa e o dia preenchidos.
+                </p>
               </div>
             )}
 
