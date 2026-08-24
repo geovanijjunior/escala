@@ -79,13 +79,62 @@ export async function convidarUsuario(formData: FormData) {
   // do formulário ainda daria a volta pela query string.
   const senha = senhaTemporaria();
 
-  // 1. O colaborador é validado primeiro, com `perfilId` ainda nulo — o id só
-  //    existe depois do passo 2, e é preenchido na hora de gravar.
   const supabase = await createClient();
-  const dados = papel === 'colaborador'
+
+  // Duas origens para o cadastro na escala.
+  //
+  // Quem cadastrou o colaborador ANTES de criar o login caía num beco: esta
+  // ação sempre inseria um colaborador novo, o banco recusava por matrícula
+  // repetida, e como o login só nasce aqui, não havia como dar acesso àquela
+  // pessoa por caminho nenhum. Agora o formulário permite apontar o cadastro
+  // existente, e o que acontece é um VÍNCULO, não uma segunda inserção.
+  const existenteBruto = papel === 'colaborador'
+    ? Number(formData.get('colaboradorExistente') ?? 0) || null
+    : null;
+
+  let existente: { id: number; nome: string; matricula: string } | null = null;
+  if (existenteBruto) {
+    // Sob RLS, então esta leitura já é a checagem de área. `perfil_id is null`
+    // é o que impede roubar o vínculo de alguém que já tem acesso — sem isso,
+    // um id trocado deixaria a pessoa antiga órfã e sem aviso nenhum.
+    const { data } = await supabase
+      .from('colaboradores')
+      .select('id, nome, matricula')
+      .eq('id', existenteBruto)
+      .is('perfil_id', null)
+      .maybeSingle();
+    if (!data) erro('Esse colaborador não existe nesta área ou já tem acesso ligado a ele.');
+    existente = data as { id: number; nome: string; matricula: string };
+  }
+
+  // 1. O colaborador é validado primeiro, com `perfilId` ainda nulo — o id só
+  //    existe depois do passo 2, e é preenchido na hora de gravar. Quando o
+  //    cadastro já existe, não há o que montar.
+  const dados = papel === 'colaborador' && !existente
     ? await montarColaborador(supabase, sessao.conta.id, formData, { perfilId: null, nome, email })
     : null;
   if (dados && !dados.ok) erro(dados.erro);
+
+  // Matrícula repetida é o sintoma de quem cadastrou o colaborador antes e não
+  // reparou na opção de vincular. Conferir aqui, ANTES de tocar no Auth, troca
+  // um erro de banco cru — que ainda por cima chegava depois de o login existir,
+  // exigindo desfazê-lo — por uma frase que diz o que fazer.
+  if (dados?.ok) {
+    const { data: mesmaMatricula } = await supabase
+      .from('colaboradores')
+      .select('nome, perfil_id')
+      .eq('matricula', dados.registro.matricula)
+      .maybeSingle();
+    if (mesmaMatricula) {
+      const alvo = mesmaMatricula as { nome: string; perfil_id: string | null };
+      erro(
+        alvo.perfil_id
+          ? `A matrícula ${dados.registro.matricula} já é de ${alvo.nome}, que também já tem acesso. Confira a matrícula.`
+          : `${alvo.nome} já está cadastrado na escala com a matrícula ${dados.registro.matricula}. `
+            + 'Para dar acesso a essa pessoa, escolha "Já está cadastrado" acima e selecione o nome dela.',
+      );
+    }
+  }
 
   // 2. O login.
   const admin = createAdminClient();
@@ -98,23 +147,30 @@ export async function convidarUsuario(formData: FormData) {
 
   if (error || !criado?.user) erro(mensagemErroAuth(error));
 
-  // 3. O colaborador, apontando para o perfil que o trigger acabou de criar.
-  if (dados?.ok) {
-    const { error: erroColab } = await supabase
-      .from('colaboradores')
-      .insert({ ...dados.registro, perfil_id: criado.user.id });
+  // 3. O colaborador, apontando para o perfil que o trigger acabou de criar —
+  //    seja o que acabou de nascer, seja o que já estava lá.
+  if (dados?.ok || existente) {
+    const { error: erroColab } = existente
+      ? await supabase.from('colaboradores').update({ perfil_id: criado.user.id }).eq('id', existente.id)
+      : await supabase.from('colaboradores').insert({ ...dados!.registro, perfil_id: criado.user.id });
 
     // 4. Não deu: o login volta atrás para não sobrar acesso órfão.
     if (erroColab) {
       await admin.auth.admin.deleteUser(criado.user.id);
-      erro(`O acesso não foi criado porque o cadastro na escala falhou: ${mensagemErroBanco(erroColab)}`);
+      erro(
+        existente
+          ? `O acesso não foi criado porque o vínculo com ${existente.nome} falhou: ${mensagemErroBanco(erroColab)}`
+          : `O acesso não foi criado porque o cadastro na escala falhou: ${mensagemErroBanco(erroColab)}`,
+      );
     }
   }
 
   await registrarLog(
     sessao,
     'Usuário criado',
-    `${nome} (${email}) · ${papel}${dados?.ok ? ` · colaborador ${dados.registro.matricula}` : ''}`,
+    `${nome} (${email}) · ${papel}`
+      + (dados?.ok ? ` · colaborador ${dados.registro.matricula}` : '')
+      + (existente ? ` · vinculado ao colaborador ${existente.matricula} (${existente.nome})` : ''),
   );
   revalidatePath('/', 'layout');
   redirect(`${VOLTA}?criado=${encodeURIComponent(email)}&senha=${encodeURIComponent(senha)}`);

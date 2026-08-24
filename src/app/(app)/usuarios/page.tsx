@@ -26,10 +26,19 @@ export default async function UsuariosPage({
 
   // Equipes e unidades alimentam os campos de escala que aparecem quando o
   // papel escolhido é colaborador.
-  const [perfisRes, equipesRes, unidadesRes] = await Promise.all([
+  const [perfisRes, equipesRes, unidadesRes, semAcessoRes] = await Promise.all([
     supabase.from('perfis').select('id, nome, email, papel, bloqueado, criado_em').order('nome'),
     supabase.from('equipes').select('id, nome, regime').order('nome'),
     supabase.from('unidades').select('id, nome').eq('ativa', true).order('ordem'),
+    // Quem já está na escala e ainda não tem login. É a lista que resolve o
+    // caso de quem cadastrou o colaborador primeiro: sem ela, dar acesso a
+    // essa pessoa exigia criar um segundo cadastro, que o banco recusa.
+    supabase
+      .from('colaboradores')
+      .select('id, nome, matricula')
+      .is('perfil_id', null)
+      .eq('status', 'ativo')
+      .order('nome'),
   ]);
 
   const usuarios = (perfisRes.data ?? []) as {
@@ -37,6 +46,7 @@ export default async function UsuariosPage({
   }[];
   const equipes = (equipesRes.data ?? []) as { id: number; nome: string; regime: string }[];
   const unidades = (unidadesRes.data ?? []) as { id: number; nome: string }[];
+  const semAcesso = (semAcessoRes.data ?? []) as { id: number; nome: string; matricula: string }[];
 
   return (
     <>
@@ -141,7 +151,7 @@ export default async function UsuariosPage({
         titulo="Adicionar pessoa"
         desc="Cria o login já dentro desta organização. A senha temporária é gerada automaticamente e mostrada uma única vez depois de salvar."
       >
-        <FormNovoUsuario papeis={PAPEIS} equipes={equipes} unidades={unidades} />
+        <FormNovoUsuario papeis={PAPEIS} equipes={equipes} unidades={unidades} semAcesso={semAcesso} />
 
         <ul className="px-4 pb-4 space-y-1.5">
           {PAPEIS.map(p => (

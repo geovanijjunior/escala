@@ -130,6 +130,9 @@ export function AjustesManuais({
         <form action={salvarAusencia} className="px-4 py-4 space-y-3">
           <input type="hidden" name="competencia" value={competencia} />
           <input type="hidden" name="volta" value={volta} />
+          {/* A etapa volta junto: sem ela, a resposta cai na etapa que o estado
+              do mês sugere, que numa escala publicada é a de publicar. */}
+          <input type="hidden" name="etapa" value="revisar" />
           <div>
             <h3 className="text-[13px] font-semibold" style={{ color: 'var(--amber)' }}>Lançar férias ou folga</h3>
             <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>

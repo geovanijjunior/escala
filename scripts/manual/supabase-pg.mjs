@@ -419,6 +419,29 @@ function cliente(admin = false) {
         // coluna `perfis.bloqueado`, que a tela lê, é escrita pela própria
         // action logo depois — então a varredura ainda verifica o efeito.
         updateUserById: async () => ({ data: { user: usuarioAtual() }, error: null }),
+
+        /**
+         * Desfaz um login recém-criado.
+         *
+         * É o passo de rollback de `convidarUsuario`: se o cadastro na escala
+         * falhar depois de o login existir, o login volta atrás para não sobrar
+         * acesso órfão. Faltava aqui, e a falta escondia o erro de verdade —
+         * o caminho de erro morria em "deleteUser is not a function" e a tela
+         * mostrava um 500 sem relação com a causa.
+         *
+         * O `delete` em `auth.users` cascateia para `perfis`, como no Supabase.
+         */
+        deleteUser: async (id) => {
+          const conexao = await pool.connect();
+          try {
+            await conexao.query('delete from auth.users where id = $1', [id]);
+            return { data: { user: null }, error: null };
+          } catch (e) {
+            return { data: null, error: { message: e.message } };
+          } finally {
+            conexao.release();
+          }
+        },
       },
     },
   };

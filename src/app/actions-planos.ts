@@ -7,6 +7,7 @@ import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { listarUnidades } from '@/lib/data/escalas';
 import { addDias, cicloEfetivo, diffDias, formatarCompetencia } from '@/lib/domain/escalas/datas';
+import { MODALIDADES } from '@/lib/domain/escalas/constantes';
 
 const VOLTA = '/planos';
 
@@ -250,6 +251,118 @@ export async function copiarPlanosDoMes(formData: FormData) {
    AUSÊNCIAS E FÉRIAS
    ============================================================ */
 
+/**
+ * Leva a ausência para dentro da escala que já existe.
+ *
+ * Gravar em `ausencias` fazia o motor respeitar o período na PRÓXIMA geração —
+ * e só. Numa escala já gerada, e pior, já publicada, a pessoa continuava
+ * aparecendo escalada nos dias das próprias férias: o dado estava certo no
+ * lugar dele e a tela que todo mundo olha dizia o contrário.
+ *
+ * Aqui os dias do período são reescritos em toda geração que os cobre. Um
+ * período pode atravessar meses, então são todas as gerações que o intersectam,
+ * e não só a do mês em que se estava.
+ *
+ * O que NÃO se faz aqui: travar o dia. Trava é sobreposição manual, "não
+ * recalcule isto"; a ausência não precisa dela porque o motor já a respeita
+ * sozinho na regeração. Travar faria a folga sobreviver até à remoção da
+ * ausência, que é o oposto do que se quer.
+ *
+ * Em escala PUBLICADA cada dia vai para a caixa de saída, como qualquer outra
+ * alteração manual — a equipe é avisada quando alguém mandar, não a cada dia
+ * gravado. Em rascunho não há o que comunicar.
+ */
+async function aplicarNaEscala(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessao: Awaited<ReturnType<typeof getSessao>>,
+  { colaboradorId, tipo, inicio, fim }:
+    { colaboradorId: number; tipo: 'FERIAS' | 'AUSENCIA'; inicio: string; fim: string },
+): Promise<number> {
+  // A modalidade espelha o que o motor emite para cada tipo, e é a mesma que o
+  // calendário usa ao desenhar ausência sobre mês ainda não gerado.
+  const modalidade = tipo === 'FERIAS' ? 'FERIAS' : 'FOLGA';
+
+  const { data: geracoes } = await supabase
+    .from('geracoes')
+    .select('id, competencia, status')
+    .lte('competencia', fim);
+
+  const cobrem = ((geracoes ?? []) as { id: number; competencia: string; status: string }[])
+    // A competência é o 1º do mês; o mês termina no dia anterior ao 1º seguinte.
+    .filter(g => {
+      const [ano, mes] = [Number(g.competencia.slice(0, 4)), Number(g.competencia.slice(5, 7))];
+      const fimDoMes = new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10);
+      return g.competencia <= fim && fimDoMes >= inicio;
+    });
+
+  let ajustados = 0;
+
+  for (const g of cobrem) {
+    // Só os dias em que a pessoa faria alguma coisa. Reescrever um descanso
+    // como folga não muda nada para ninguém e encheria a caixa de saída de
+    // avisos sobre dias em que a pessoa já não trabalhava.
+    const { data: afetadas } = await supabase
+      .from('alocacoes')
+      .select('data, modalidade, unidade_id')
+      .eq('geracao_id', g.id)
+      .eq('colaborador_id', colaboradorId)
+      .gte('data', inicio)
+      .lte('data', fim);
+
+    const mexer = ((afetadas ?? []) as { data: string; modalidade: string; unidade_id: number | null }[])
+      .filter(a => a.modalidade !== modalidade && a.modalidade !== 'DESCANSO');
+    if (mexer.length === 0) continue;
+
+    await supabase
+      .from('alocacoes')
+      .update({ modalidade, unidade_id: null })
+      .eq('geracao_id', g.id)
+      .eq('colaborador_id', colaboradorId)
+      .gte('data', inicio)
+      .lte('data', fim)
+      .neq('modalidade', 'DESCANSO');
+
+    ajustados += mexer.length;
+
+    if (g.status !== 'publicada') continue;
+
+    const rotulo = tipo === 'FERIAS' ? 'Férias' : 'Folga';
+
+    for (const a of mexer) {
+      const de = a.modalidade === 'UNIDADE' && a.unidade_id
+        ? (await supabase.from('unidades').select('nome').eq('id', a.unidade_id).maybeSingle())
+            .data?.nome ?? 'Unidade'
+        : MODALIDADES[a.modalidade as keyof typeof MODALIDADES]?.label ?? a.modalidade;
+
+      // O dia pode já estar na caixa de saída por um ajuste anterior. Não há
+      // unicidade na tabela — a mesma razão pela qual `reposicionarAlocacao`
+      // procura antes de decidir —, e o que a equipe precisa ver é o estado
+      // FINAL: o ponto de partida continua sendo o que ela viu por último.
+      const chave = { geracao_id: g.id, colaborador_id: colaboradorId, data: a.data };
+      const { data: jaPendente } = await supabase
+        .from('alteracoes_pendentes').select('id').match(chave).maybeSingle();
+
+      if (jaPendente) {
+        await supabase
+          .from('alteracoes_pendentes')
+          .update({ para: rotulo, por_id: sessao.usuario.id, por_nome: sessao.usuario.nome })
+          .eq('id', (jaPendente as { id: number }).id);
+      } else {
+        await supabase.from('alteracoes_pendentes').insert({
+          conta_id: sessao.conta.id,
+          ...chave,
+          de,
+          para: rotulo,
+          por_id: sessao.usuario.id,
+          por_nome: sessao.usuario.nome,
+        });
+      }
+    }
+  }
+
+  return ajustados;
+}
+
 export async function salvarAusencia(formData: FormData) {
   const sessao = await getSessao();
   const competencia = String(formData.get('competencia') ?? '');
@@ -257,6 +370,12 @@ export async function salvarAusencia(formData: FormData) {
   // do plano, e cada uma precisa receber a resposta de volta.
   const daTela = String(formData.get('volta') ?? '').trim();
   const volta = /^\/[^/]/.test(daTela) ? daTela : '';
+  // A etapa do fluxo, quando quem chamou está dentro dele. Sem ela a volta cai
+  // na etapa que o estado do mês sugere — a de publicar, numa escala já
+  // publicada — e quem lançou férias da revisão era cuspido para fora da grade,
+  // longe da caixa de saída que a própria ação acabou de alimentar.
+  const etapa = String(formData.get('etapa') ?? '').trim();
+  const sufixo = etapa ? `&etapa=${encodeURIComponent(etapa)}` : '';
   exigirPlanejamento(sessao.papel, `${volta || VOLTA}?competencia=${competencia}`);
 
   const colaboradorId = Number(formData.get('colaboradorId'));
@@ -317,13 +436,18 @@ export async function salvarAusencia(formData: FormData) {
   if (idEdicao) await supabase.from('ausencias').update(registro).eq('id', idEdicao);
   else await supabase.from('ausencias').insert(registro);
 
+  const aplicadas = await aplicarNaEscala(supabase, sessao, {
+    colaboradorId, tipo: tipo as 'FERIAS' | 'AUSENCIA', inicio, fim,
+  });
+
   await registrarLog(
     sessao,
     tipo === 'FERIAS' ? 'Férias lançadas' : 'Ausência lançada',
     `Colaborador ${colaboradorId} · ${inicio} a ${fim}${motivo ? ` · ${grupo} — ${motivo}` : ''}`
+      + (aplicadas ? ` · ${aplicadas} dia(s) ajustado(s) na escala` : '')
   );
   revalidatePath('/', 'layout');
-  if (volta) redirect(`${volta}?competencia=${competencia}&ok=1`);
+  if (volta) redirect(`${volta}?competencia=${competencia}${sufixo}&ok=1`);
   redirect(`${VOLTA}?competencia=${competencia}&colab=${colaboradorId}&ok=1#ausencias`);
 }
 
