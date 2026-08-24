@@ -269,6 +269,34 @@ main, main > *, .esc-card, .esc-card > * { min-width: 0; }
   .esc-tabela tbody tr:hover td { background: var(--brand-50); }
   .esc-tabela tbody tr:last-child td { border-bottom: 0; }
 
+  /*
+   * Célula editável da grade do mês.
+   *
+   * Sem isto a célula é um link que não parece um: as siglas coloridas leem-se
+   * como etiqueta de leitura, e quem precisava ajustar a escala não achava onde
+   * clicar. O cursor e o contorno no hover são o que diz "isto responde".
+   */
+  .esc-celula {
+    display: block;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: box-shadow .1s, transform .1s;
+  }
+  .esc-celula:hover {
+    box-shadow: 0 0 0 2px var(--accent);
+    transform: scale(1.15);
+  }
+
+  /* A de folga fica quase vazia até o ponteiro chegar; aí vira um "+". */
+  .esc-celula-vazia:hover {
+    background: var(--brand-100);
+    color: var(--brand-800);
+    font-weight: 700;
+  }
+  .esc-celula-vazia:hover .esc-ponto { display: none; }
+  .esc-celula-vazia .esc-mais { display: none; }
+  .esc-celula-vazia:hover .esc-mais { display: inline; }
+
   .esc-aba {
     padding: 6px 12px;
     border-radius: 6px;

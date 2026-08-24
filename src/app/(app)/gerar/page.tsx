@@ -354,14 +354,6 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
             />
           </div>
 
-          {(diagnostico.conflitos.length > 0 || diagnostico.alertas.length > 0) && (
-            <Bloco
-              titulo="O que o motor apontou"
-              desc="Conflito quebra uma regra rígida; alerta é algo a olhar. Nenhum dos dois impede publicar — quem decide é você."
-            >
-              <ListaAvisos itens={[...diagnostico.conflitos, ...diagnostico.alertas]} limite={30} />
-            </Bloco>
-          )}
 
           <div
             className="esc-card px-4 py-3 text-[12.5px] leading-relaxed"
@@ -455,6 +447,34 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
               </>
             }
           >
+            {/* As três ações, escritas com as palavras que se procura.
+                A instrução vivia na descrição do bloco, em cinza pequeno, e a
+                pessoa que abria esta etapa atrás de "remover" ou "adicionar"
+                não encontrava nenhuma das duas palavras na tela. */}
+            {podeEditarEscala(sessao.papel, geracao.status) && (
+              <div
+                className="px-4 py-3 border-b text-[12.5px] leading-relaxed"
+                style={{ borderColor: 'var(--line)', background: 'var(--brand-50)' }}
+              >
+                <strong>Para ajustar a escala, clique na célula da pessoa e do dia.</strong>{' '}
+                Abre um painel onde você pode:
+                <ul className="mt-1.5 grid gap-1 sm:grid-cols-3">
+                  <li className="flex items-start gap-1.5">
+                    <span className="esc-badge shrink-0" style={{ color: 'var(--brand-800)', background: 'var(--brand-100)' }}>trocar</span>
+                    <span style={{ color: 'var(--muted)' }}>mandar a pessoa para outra unidade ou para home office</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="esc-badge shrink-0" style={{ color: 'var(--rose)', background: 'var(--rose-bg)' }}>remover</span>
+                    <span style={{ color: 'var(--muted)' }}>tirar do dia, passando para folga ou afastamento</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="esc-badge shrink-0" style={{ color: 'var(--green)', background: 'var(--green-bg)' }}>adicionar</span>
+                    <span style={{ color: 'var(--muted)' }}>escalar quem está de folga — clique numa célula vazia (·)</span>
+                  </li>
+                </ul>
+              </div>
+            )}
+
             {/* Achar a pessoa é o primeiro passo de qualquer ajuste, e com
                 duzentas linhas ele não pode ser rolar a grade. */}
             <form method="get" className="px-4 py-3 flex flex-wrap items-end gap-3 border-b" style={{ borderColor: 'var(--line)' }}>
@@ -513,6 +533,23 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
               baseHref={`/gerar${comFiltros(busca, { etapa: 'revisar', dia: null, colab: null })}`}
             />
           </Bloco>
+
+          {(diagnostico.conflitos.length > 0 || diagnostico.alertas.length > 0) && (
+            <details className="esc-card">
+              <summary className="px-4 py-3 cursor-pointer text-[12.5px] font-semibold">
+                O que o motor apontou — {diagnostico.conflitos.length} conflito(s) e{' '}
+                {diagnostico.alertas.length} alerta(s)
+                <span className="font-normal ml-2" style={{ color: 'var(--muted)' }}>
+                  (clique para abrir)
+                </span>
+              </summary>
+              <p className="px-4 pb-2 text-[11.5px]" style={{ color: 'var(--muted)' }}>
+                Conflito quebra uma regra rígida; alerta é algo a olhar. Nenhum dos dois impede
+                publicar — quem decide é você.
+              </p>
+              <ListaAvisos itens={[...diagnostico.conflitos, ...diagnostico.alertas]} limite={30} />
+            </details>
+          )}
         </>
       )}
 

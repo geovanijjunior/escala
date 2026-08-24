@@ -175,11 +175,12 @@ export function GradeDoMes({
                           {editavel ? (
                             <Link
                               href={href}
-                              className="block rounded text-[9.5px] leading-[18px]"
+                              className="esc-celula esc-celula-vazia text-[9.5px] leading-[18px]"
                               style={{ color: 'var(--faint)' }}
                               title={`${c.nome} · ${rotuloDia} · de folga — clique para escalar`}
                             >
-                              ·
+                              <span className="esc-ponto">·</span>
+                              <span className="esc-mais">+</span>
                             </Link>
                           ) : (
                             <span className="block text-[9.5px] leading-[18px]" style={{ color: 'var(--faint)' }}>·</span>
@@ -192,7 +193,7 @@ export function GradeDoMes({
                       <td key={d} className="p-0.5 text-center">
                         <Link
                           href={href}
-                          className="block rounded text-[9.5px] font-semibold leading-[18px] relative"
+                          className={`${editavel ? 'esc-celula' : 'block rounded'} text-[9.5px] font-semibold leading-[18px] relative`}
                           style={{ background: ap.bg, color: ap.cor }}
                           title={`${c.nome} · ${rotuloDia} · ${ap.label}${a.travado ? ' (travado)' : ''}`}
                         >
