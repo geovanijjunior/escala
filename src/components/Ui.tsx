@@ -170,7 +170,9 @@ export function Aviso({ erro, ok }: { erro?: string; ok?: string }) {
       }}
       role="status"
     >
-      {erro ?? 'Alteração salva.'}
+      {/* `ok=1` é o valor genérico que a maioria das actions manda; qualquer
+          outro texto é uma mensagem específica e vale mais do que o padrão. */}
+      {erro ?? (ok && ok !== '1' ? ok : 'Alteração salva.')}
     </div>
   );
 }

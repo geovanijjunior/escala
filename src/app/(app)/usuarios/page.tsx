@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
 import { ROTULO_PAPEL } from '@/lib/supabase/types';
@@ -26,19 +27,10 @@ export default async function UsuariosPage({
 
   // Equipes e unidades alimentam os campos de escala que aparecem quando o
   // papel escolhido é colaborador.
-  const [perfisRes, equipesRes, unidadesRes, semAcessoRes] = await Promise.all([
+  const [perfisRes, equipesRes, unidadesRes] = await Promise.all([
     supabase.from('perfis').select('id, nome, email, papel, bloqueado, criado_em').order('nome'),
     supabase.from('equipes').select('id, nome, regime').order('nome'),
     supabase.from('unidades').select('id, nome').eq('ativa', true).order('ordem'),
-    // Quem já está na escala e ainda não tem login. É a lista que resolve o
-    // caso de quem cadastrou o colaborador primeiro: sem ela, dar acesso a
-    // essa pessoa exigia criar um segundo cadastro, que o banco recusa.
-    supabase
-      .from('colaboradores')
-      .select('id, nome, matricula')
-      .is('perfil_id', null)
-      .eq('status', 'ativo')
-      .order('nome'),
   ]);
 
   const usuarios = (perfisRes.data ?? []) as {
@@ -46,7 +38,6 @@ export default async function UsuariosPage({
   }[];
   const equipes = (equipesRes.data ?? []) as { id: number; nome: string; regime: string }[];
   const unidades = (unidadesRes.data ?? []) as { id: number; nome: string }[];
-  const semAcesso = (semAcessoRes.data ?? []) as { id: number; nome: string; matricula: string }[];
 
   return (
     <>
@@ -151,7 +142,7 @@ export default async function UsuariosPage({
         titulo="Adicionar pessoa"
         desc="Cria o login já dentro desta organização. A senha temporária é gerada automaticamente e mostrada uma única vez depois de salvar."
       >
-        <FormNovoUsuario papeis={PAPEIS} equipes={equipes} unidades={unidades} semAcesso={semAcesso} />
+        <FormNovoUsuario papeis={PAPEIS} equipes={equipes} unidades={unidades} />
 
         <ul className="px-4 pb-4 space-y-1.5">
           {PAPEIS.map(p => (
@@ -162,13 +153,24 @@ export default async function UsuariosPage({
         </ul>
       </Bloco>
 
-      <Bloco titulo="Quem já está na escala" desc="Para ligar um login a um cadastro que já existe.">
+      {/* A ficha da escala e a importação por planilha continuam existindo —
+          o que saiu foi a SEGUNDA porta de cadastro, não a tela. Sem este link
+          elas ficariam sem entrada nenhuma agora que o menu tem um item só. */}
+      <Bloco
+        titulo="Ficha da escala e importação"
+        desc="Cargo, equipe, unidade base, horários e elegibilidades de quem já existe — e a carga por planilha."
+        acoes={
+          <Link href="/colaboradores" className="esc-btn esc-btn-outline esc-btn-sm">
+            Abrir colaboradores
+          </Link>
+        }
+      >
         <p className="px-4 py-3 text-[12px] leading-relaxed" style={{ color: 'var(--muted)' }}>
-          Criar o acesso de um colaborador aqui já monta o cadastro dele na escala. O caminho por{' '}
-          <strong style={{ color: 'var(--text)' }}>Colaboradores</strong> continua existindo para o caso inverso — a
-          pessoa já estava na escala (veio de uma planilha importada, por exemplo) e só agora vai ganhar login: lá,
-          o campo <em>Usuário do sistema</em> liga os dois. É esse vínculo que faz &ldquo;Minha escala&rdquo; mostrar
-          os dias certos e que permite ao gestor ver a própria equipe.
+          Criar o acesso aqui já monta o cadastro na escala — é o caminho de toda pessoa nova. A tela de
+          colaboradores serve para o resto: <strong style={{ color: 'var(--text)' }}>editar a ficha</strong> de
+          quem já está cadastrado, <strong style={{ color: 'var(--text)' }}>importar por planilha</strong> e
+          ligar um login a alguém que entrou por ali — o campo <em>Usuário do sistema</em>. É esse vínculo que
+          faz &ldquo;Minha escala&rdquo; mostrar os dias certos e permite ao gestor ver a própria equipe.
         </p>
       </Bloco>
     </>

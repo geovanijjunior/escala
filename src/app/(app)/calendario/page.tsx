@@ -19,6 +19,7 @@ import { AlteracoesPendentes } from '@/components/AlteracoesPendentes';
 import { FiltrosAuto } from '@/components/FiltrosAuto';
 import { GradeDoMes } from '@/components/GradeDoMes';
 import { DetalheDoDia } from '@/components/DetalheDoDia';
+import { AjusteDoColaborador } from '@/components/AjusteDoColaborador';
 
 export default async function CalendarioPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
@@ -120,6 +121,11 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
   }
 
   const ocorrencias = await listarOcorrencias(competencia, iso(ano, mes, nDias));
+
+  // Quem foi clicado na grade. Sem pessoa, abre-se o dia inteiro — que é a
+  // outra pergunta legítima e continua a um clique do painel focado.
+  const colabId = Number(texto(busca, 'colab')) || null;
+  const emAjuste = colabId ? ctx.colaboradores.find(c => c.id === colabId) ?? null : null;
   const base = comFiltros(busca, {});
   const href = (m: Record<string, string | null>) => `/calendario${comFiltros(busca, m)}`;
 
@@ -270,6 +276,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
 
         {vista === 'grade' ? (
           <GradeDoMes
+            editavel={podeEditar}
             ano={ano}
             mes={mes}
             competencia={competencia}
@@ -359,7 +366,30 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
         )}
       </Bloco>
 
-      {dia && (
+      {/* Célula da grade clicada: o ajuste daquela pessoa naquele dia. A grade
+          do calendário edita igual à da revisão da escala — era a mesma
+          planilha, e só uma das duas respondia ao clique. */}
+      {dia && emAjuste && (
+        <AjusteDoColaborador
+          colaborador={emAjuste}
+          data={dia}
+          competencia={competencia}
+          alocacao={alocacoes.find(a => a.colaboradorId === emAjuste.id && a.data === dia) ?? null}
+          doDia={alocacoes.filter(a => a.data === dia)}
+          equipe={ctx.equipes.find(e => e.id === emAjuste.equipeId)}
+          unidades={ctx.unidades}
+          capacidades={ctx.capacidades}
+          conflitos={conflitos.filter(c => c.data === dia)}
+          alertas={alertas.filter(a => a.data === dia)}
+          feriado={ctx.feriados[dia]}
+          podeEditar={podeEditar}
+          fecharHref={href({ dia: null, colab: null })}
+          diaInteiroHref={href({ colab: null })}
+          volta="/calendario"
+        />
+      )}
+
+      {dia && !emAjuste && (
         <DetalheDoDia
           data={dia}
           competencia={competencia}

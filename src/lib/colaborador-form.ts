@@ -43,7 +43,8 @@ export interface RegistroColaborador {
   sexta_reduzida: boolean;
   status: string;
   motivo_status: string;
-  admissao: string;
+  /** Ausente quando não informada — o banco põe o `default` (hoje). */
+  admissao?: string;
   desligamento: string | null;
 }
 
@@ -103,10 +104,20 @@ export async function montarColaborador(
   // Saída igual à entrada seria turno de duração zero. Saída ANTES da entrada é
   // aceita de propósito: é o turno noturno, que entra num dia e sai no outro.
   if (saida === entrada) return { ok: false, erro: 'A saída não pode ser igual à entrada.' };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(admissao)) return { ok: false, erro: 'Informe a data de admissão.' };
+  // Admissão é opcional: quem cadastra às pressas raramente tem a data em mãos,
+  // e o motor não a usa para nada — ela é ficha, não regra de escala. Digitada
+  // errada só para "passar" seria pior do que ausente. Vazia, o banco assume
+  // hoje (o `default` da coluna), que é o que já acontecia quando ninguém
+  // reparava no campo.
+  if (admissao && !/^\d{4}-\d{2}-\d{2}$/.test(admissao)) {
+    return { ok: false, erro: 'Data de admissão inválida.' };
+  }
   if (!ativo && !regra) return { ok: false, erro: 'Informe o motivo da inativação.' };
   if (status === 'desligado' && !desligamento) return { ok: false, erro: 'Um colaborador desligado precisa da data de desligamento.' };
-  if (desligamento && desligamento < admissao) return { ok: false, erro: 'O desligamento não pode ser anterior à admissão.' };
+  // A comparação só faz sentido quando existem as duas pontas.
+  if (desligamento && admissao && desligamento < admissao) {
+    return { ok: false, erro: 'O desligamento não pode ser anterior à admissão.' };
+  }
 
   // Regime e turno vêm da equipe; o turno pode ser sobreposto caso a caso.
   const { data: equipe } = await supabase
@@ -143,7 +154,9 @@ export async function montarColaborador(
       sexta_reduzida: equipe.regime === '5x2' && marcado(formData, 'sextaReduzida'),
       status,
       motivo_status: motivoStatus,
-      admissao,
+      // Sem data, deixa o banco pôr o `default` em vez de gravar nulo numa
+      // coluna `not null`.
+      ...(admissao ? { admissao } : {}),
       desligamento: status === 'desligado' ? desligamento : null,
     },
   };

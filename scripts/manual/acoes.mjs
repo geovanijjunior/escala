@@ -146,12 +146,26 @@ await acao('salvarPlano', `/planos?${COMP}&colab=3`, async p => {
 }, "select percentual c from plano_distribuicao d join planos pl on pl.id = d.plano_id"
  + " where pl.colaborador_id = 3 and pl.competencia = '2026-11-01' and d.unidade_id = 1", 100);
 
-await acao('salvarAusencia (férias)', `/planos?${COMP}&colab=3`, async p => {
-  const f = p.locator('form:has(button:text("Lançar férias"))');
-  await f.locator('input[name="inicio"]').fill('2026-12-01');
-  await f.locator('input[name="fim"]').fill('2026-12-10');
-  await f.locator('button:text("Lançar férias")').click();
-}, "select count(*) c from ausencias where tipo='FERIAS'");
+// Férias saíram do plano do mês.
+//
+// Havia duas portas para criá-las — o formulário aqui e a solicitação aprovada
+// — e a daqui produzia férias sem nenhuma decisão por trás, apagáveis por um
+// botão que não desfazia a solicitação correspondente. Agora entram por um
+// caminho só, e o plano apenas mostra o que já foi decidido. A conferência é
+// negativa de propósito: o que precisa continuar valendo é a AUSÊNCIA do
+// formulário, e um roteiro que só testa o que existe nunca percebe uma porta
+// reaberta por engano.
+{
+  await p.goto(`${BASE}/planos?${COMP}&colab=3`, { waitUntil: 'networkidle' });
+  const formulario = await p.locator('form:has(button:text("Lançar férias"))').count();
+  const aponta = (await p.evaluate(() => document.body.innerText)).includes('Férias vêm de solicitação aprovada');
+  if (formulario > 0 || !aponta) {
+    falhas++;
+    console.log(`  FALHOU férias fora do plano do mês        ${formulario > 0
+      ? 'o formulário de lançar férias voltou'
+      : 'a tela não diz de onde as férias vêm'}`);
+  } else console.log('  ok     férias fora do plano do mês');
+}
 
 await acao('salvarAusencia (ausência)', `/planos?${COMP}&colab=5`, async p => {
   const f = p.locator('form:has(button:text("Adicionar ausência"))');
@@ -300,9 +314,15 @@ await acao('gestor manda para a fila', '/solicitacoes', async p => {
   await p.locator('button:text("Enviar para a lista de espera")').first().click();
 }, "select count(*) c from solicitacoes where status='FILA'", 2);
 
-await acao('gestor aprova', '/solicitacoes', async p => {
+// A aprovação do gestor não encerra mais um pedido que mexe na escala: manda
+// para `IMPLANTAR`, e quem lança os dias é o Planejamento. A troca do alvo desta
+// conferência — de APROVADA para IMPLANTAR — É o teste da regra: escrever em
+// `pins` e `ausencias` é privilégio do Planejamento na RLS, e a aprovação que ia
+// direto a APROVADA falhava calada ali, deixando o pedido marcado como aplicado
+// sobre uma escala intacta.
+await acao('gestor aprova → a implantar', '/solicitacoes', async p => {
   await p.locator('button:text("Aprovar")').first().click();
-}, "select count(*) c from solicitacoes where status='APROVADA'");
+}, "select count(*) c from solicitacoes where status='IMPLANTAR'");
 
 // ── Colaboradores ─────────────────────────────────────────────
 como(ANA);

@@ -5,13 +5,16 @@ import {
   listarSolicitacoes, listarUnidades, listarColaboradores, listarAusenciasSobrepostas,
 } from '@/lib/data/escalas';
 import { formatarData } from '@/lib/domain/escalas/datas';
-import { OPCOES_FERIAS, STATUS_ABERTOS, STATUS_SOLICITACAO, TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
+import {
+  OPCOES_FERIAS, STATUS_ABERTOS, STATUS_SOLICITACAO, TIPOS_COM_EFEITO_NA_ESCALA, TIPOS_SOLICITACAO,
+} from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import { Volta } from '@/components/Volta';
 import { valorVolta } from '@/lib/volta';
-import { decidirSolicitacao } from '@/app/actions-solicitacoes';
+import { abrirSolicitacao, decidirSolicitacao } from '@/app/actions-solicitacoes';
 import { Abas, Aviso, Badge, Bloco, Pill, Vazio } from '@/components/Ui';
 import { FormRecusa } from '@/components/FormRecusa';
+import { NovaSolicitacao } from '@/components/NovaSolicitacao';
 import type { AusenciaSobreposta, Solicitacao } from '@/lib/data/escalas';
 
 const ROTULO_ABA = { abertas: 'Abertas', fila: 'Lista de espera', historico: 'Histórico' };
@@ -33,6 +36,7 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
   const colabPorId = new Map(colaboradores.map(c => [c.id, c]));
 
   const aba = texto(busca, 'aba') || 'abertas';
+  const abrindo = sessao.papel === 'planejamento' && texto(busca, 'abrir') === '1';
   const abertas = todas.filter(s => STATUS_ABERTOS.includes(s.status) && s.status !== 'FILA');
   const fila = todas.filter(s => s.status === 'FILA').sort((a, b) => (a.posicaoFila ?? 99) - (b.posicaoFila ?? 99));
   const historico = todas.filter(s => s.status === 'APROVADA' || s.status === 'RECUSADA');
@@ -68,9 +72,57 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
         {sessao.papel === 'colaborador' && (
           <Link href="/minha-escala" className="esc-btn esc-btn-sm">Abrir nova solicitação</Link>
         )}
+        {/* O botão fica no cabeçalho, e não dentro de um bloco lá embaixo:
+            abrir um pedido em nome de alguém é a segunda coisa que se faz nesta
+            tela, depois de triar o que já chegou. */}
+        {sessao.papel === 'planejamento' && (
+          <Link
+            href={`/solicitacoes${comFiltros(busca, { abrir: abrindo ? null : '1' })}${abrindo ? '' : '#abrir'}`}
+            className={`esc-btn esc-btn-sm${abrindo ? ' esc-btn-ghost' : ''}`}
+          >
+            {abrindo ? 'Fechar' : 'Abrir solicitação para um colaborador'}
+          </Link>
+        )}
       </div>
 
       <Aviso erro={texto(busca, 'erro') || undefined} ok={texto(busca, 'ok') || undefined} />
+
+      {/* O Planejamento abre PELA pessoa.
+          Boa parte das férias e das ausências não nasce de um pedido: nasce de
+          uma combinação em reunião ou de um telefonema. Antes só havia dois
+          jeitos de registrar isso — pedir que a pessoa abrisse o pedido que já
+          estava combinado, ou lançar a ausência à mão no plano, sem decisão de
+          gestor por trás. O pedido aberto aqui pula a triagem (quem triaria é
+          quem abriu), vai direto ao gestor e volta para implantação. */}
+      {abrindo && (
+        <div id="abrir" className="scroll-mt-16">
+          <Bloco
+            titulo="Abrir solicitação para um colaborador"
+            desc="Vai direto ao gestor da equipe da pessoa. Aprovado, volta para você implantar na escala e confirmar."
+            acoes={
+              <Link href={`/solicitacoes${comFiltros(busca, { abrir: null })}`} className="esc-btn esc-btn-ghost esc-btn-sm">
+                Fechar
+              </Link>
+            }
+          >
+            <form action={abrirSolicitacao} className="px-4 py-4">
+              <input type="hidden" name="volta" value="/solicitacoes" />
+              <NovaSolicitacao
+                unidades={unidades.filter(u => u.ativa).map(u => ({ id: u.id, nome: u.nome }))}
+                tipos={Object.entries(TIPOS_SOLICITACAO).map(([k, v]) => ({ chave: k, label: v.label, sla: v.sla }))}
+                // Troca de plantão aberta daqui vai sem par nomeado: o par
+                // depende da equipe de quem foi escolhido acima, que só se sabe
+                // depois da escolha. Quem já combinou a troca dos dois lados
+                // abre pelo colaborador, que enxerga a própria equipe.
+                colegas={[]}
+                pessoas={colaboradores
+                  .filter(c => c.status === 'ativo')
+                  .map(c => ({ id: c.id, nome: c.nome }))}
+              />
+            </form>
+          </Bloco>
+        </div>
+      )}
 
       <Abas
         ativa={aba}
@@ -165,6 +217,7 @@ function Cartao({
   const cfg = STATUS_SOLICITACAO[s.status];
   const tipo = TIPOS_SOLICITACAO[s.tipo];
   const opcao = s.opcaoFerias ? OPCOES_FERIAS.find(o => o.chave === s.opcaoFerias) : null;
+  const mexeNaEscala = TIPOS_COM_EFEITO_NA_ESCALA.includes(s.tipo);
 
   return (
     <Bloco
@@ -316,7 +369,7 @@ function Cartao({
               <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_TRIAGEM" rotulo="Recusar na triagem" />
               <span className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
                 <strong style={{ color: 'var(--text)' }}>Aprovar direto</strong> encerra o pedido sem passar pelo gestor
-                {['TROCA_UNIDADE', 'TROCA_HORARIO', 'FOLGA', 'FERIAS'].includes(s.tipo)
+                {mexeNaEscala
                   ? ' e já altera a escala do dia, travando a alocação.'
                   : '. Este tipo não altera a escala — vale como registro formal.'}
               </span>
@@ -344,9 +397,9 @@ function Cartao({
               )}
               <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_GESTOR" rotulo="Recusar" />
               <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
-                {['TROCA_UNIDADE', 'TROCA_HORARIO', 'FOLGA', 'FERIAS'].includes(s.tipo)
-                  ? 'Aprovar já altera a escala do dia e trava a alocação.'
-                  : 'Este tipo não altera a escala — a aprovação vale como registro formal.'}
+                {mexeNaEscala
+                  ? 'Aprovar registra a sua decisão; a escala não muda neste momento. O pedido volta ao Planejamento, que lança os dias e confirma.'
+                  : 'Este tipo não altera a escala — a aprovação encerra o pedido como registro formal.'}
                 {tipo.fila && ' A lista de espera guarda o pedido na ordem de chegada, em vez de descartá-lo.'}
               </span>
             </>
@@ -354,8 +407,38 @@ function Cartao({
 
           {papel === 'planejamento' && s.status === 'GESTOR' && (
             <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
-              Encaminhada — a decisão agora é do gestor da equipe.
+              {s.abertaPeloPlanejamento
+                ? 'Aberta por você e enviada ao gestor da equipe. Aprovada, ela volta para cá com "A implantar".'
+                : 'Encaminhada — a decisão agora é do gestor da equipe.'}
             </span>
+          )}
+
+          {/* A volta do pedido que o Planejamento abriu.
+              O gestor já decidiu; o que falta é o trabalho de lançar na escala.
+              Confirmar é o que aplica o efeito — grava a ausência e trava os
+              dias —, e não a aprovação do gestor: aplicar antes faria o pedido
+              aparecer como "a implantar" com a implantação já feita. */}
+          {papel === 'planejamento' && s.status === 'IMPLANTAR' && (
+            <>
+              <form action={decidirSolicitacao}>
+                <Volta busca={busca} />
+                <input type="hidden" name="id" value={s.id} />
+                <input type="hidden" name="acao" value="CONFIRMAR_IMPLANTACAO" />
+                <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Confirmar implantação</button>
+              </form>
+              <Link
+                href={`/calendario?competencia=${s.data.slice(0, 8)}01&dia=${s.data}`}
+                className="esc-btn esc-btn-outline esc-btn-sm"
+              >
+                Ver o dia no calendário
+              </Link>
+              <span className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
+                Aprovada pelo gestor. Confirmar
+                {mexeNaEscala
+                  ? ' lança o período na escala e trava os dias, inclusive numa escala já publicada.'
+                  : ' encerra o pedido — este tipo não altera a escala.'}
+              </span>
+            </>
           )}
         </div>
       </div>

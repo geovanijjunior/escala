@@ -74,6 +74,12 @@ export interface Solicitacao {
   posicaoFila: number | null;
   motivoRecusa: string | null;
   aplicada: boolean;
+  /**
+   * O Planejamento abriu este pedido em nome da pessoa. Muda o caminho nos dois
+   * sentidos: pula a triagem na ida (quem triaria é quem abriu) e ganha a etapa
+   * de implantação na volta, depois de o gestor aprovar.
+   */
+  abertaPeloPlanejamento: boolean;
   criadoEm: string;
   eventos: { etapa: string; detalhe: string; porNome: string; em: string }[];
 }
@@ -424,6 +430,7 @@ export async function listarSolicitacoes(): Promise<Solicitacao[]> {
     unidade_desejada_id: number | null; status: StatusSolicitacao; posicao_fila: number | null;
     opcao_ferias: string | null; lancado_fiori: boolean | null; motivo: string | null;
     motivo_recusa: string | null; aplicada: boolean; criado_em: string;
+    aberta_pelo_planejamento: boolean | null;
     solicitacao_eventos: { etapa: string; detalhe: string; por_nome: string; em: string }[] | null;
   };
 
@@ -440,6 +447,9 @@ export async function listarSolicitacoes(): Promise<Solicitacao[]> {
     id: s.id,
     colaboradorId: s.colaborador_id,
     colaboradorNome: porId.get(s.colaborador_id)?.nome ?? '—',
+    // Pedido aberto pelo Planejamento volta a ele para implantar. `?? false`
+    // porque a coluna nasceu na 0027 e o acervo anterior chega sem ela.
+    abertaPeloPlanejamento: s.aberta_pelo_planejamento ?? false,
     equipeId: porId.get(s.colaborador_id)?.equipe_id ?? null,
     tipo: s.tipo,
     data: s.data,

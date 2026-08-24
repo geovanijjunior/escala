@@ -318,7 +318,7 @@ function Formulario({
 
         <label className="block">
           <span className="esc-rotulo">Admissão</span>
-          <input type="date" name="admissao" defaultValue={c?.admissao} required className="esc-input" />
+          <input type="date" name="admissao" defaultValue={c?.admissao} className="esc-input" />
         </label>
         <SituacaoColaborador
           statusInicial={c?.status ?? 'ativo'}

@@ -59,7 +59,15 @@ export async function salvarColaborador(formData: FormData) {
     `${registro.nome} · ${registro.matricula} · ${registro.status}${rotuloMotivo ? ` (${rotuloMotivo})` : ''}`,
   );
   revalidatePath('/', 'layout');
-  voltar(COLABS, formData);
+  // Fecha o formulário e diz o nome de quem foi salvo. Antes o editor
+  // continuava aberto com os mesmos campos preenchidos, e a única pista de que
+  // a gravação aconteceu era um "Alteração salva." genérico lá em cima — o que
+  // se lê como "o botão não fez nada" e convida a clicar de novo.
+  voltar(COLABS, formData, {
+    id: '',
+    novo: '',
+    ok: `${registro.nome} ${id ? 'atualizado' : 'cadastrado'} com sucesso.`,
+  });
 }
 
 /* ============================================================

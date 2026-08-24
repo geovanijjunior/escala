@@ -25,7 +25,21 @@ export default async function OcupacaoPage({ searchParams }: { searchParams: Pro
 
   const ctx = await carregarContextoMes(competencia, sessao.conta.id);
   const geracao = await getGeracaoAtual(competencia);
-  const alocacoes = geracao ? await listarAlocacoes(geracao.id) : [];
+  const todasAlocacoes = geracao ? await listarAlocacoes(geracao.id) : [];
+
+  // Filtro por equipe. O painel responde "quantas posições estão ocupadas", e
+  // quem coordena uma equipe precisa da mesma pergunta recortada: quantas
+  // POR EQUIPE. Sem isto era preciso exportar e contar fora.
+  //
+  // O recorte é aplicado às ALOCAÇÕES, não à capacidade: a unidade continua
+  // tendo os mesmos lugares, o que muda é quantos daquela equipe estão neles.
+  const equipeFiltro = Number(texto(busca, 'equipe')) || null;
+  const daEquipe = new Set(
+    ctx.colaboradores.filter(c => !equipeFiltro || c.equipeId === equipeFiltro).map(c => c.id),
+  );
+  const alocacoes = equipeFiltro
+    ? todasAlocacoes.filter(a => daEquipe.has(a.colaboradorId))
+    : todasAlocacoes;
 
   const { ano, mes } = ctx;
   const nDias = diasNoMes(ano, mes);
@@ -47,7 +61,7 @@ export default async function OcupacaoPage({ searchParams }: { searchParams: Pro
   if (!geracao) {
     return (
       <>
-        <Cabecalho competencia={competencia} parcial={parcial} />
+        <Cabecalho competencia={competencia} parcial={parcial} equipes={ctx.equipes} busca={busca} equipeFiltro={equipeFiltro} />
         <Bloco>
           <Vazio
             titulo={`Sem escala gerada em ${formatarCompetencia(competencia)}`}
@@ -81,7 +95,7 @@ export default async function OcupacaoPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <Cabecalho competencia={competencia} parcial={parcial} />
+      <Cabecalho competencia={competencia} parcial={parcial} equipes={ctx.equipes} busca={busca} equipeFiltro={equipeFiltro} />
       <Aviso erro={texto(busca, 'erro') || undefined} />
 
       <Bloco
@@ -194,7 +208,15 @@ export default async function OcupacaoPage({ searchParams }: { searchParams: Pro
  * 3/16" seria lido como sobra de lugar quando na verdade o prédio pode estar
  * cheio de gente de outras equipes.
  */
-function Cabecalho({ competencia, parcial }: { competencia: string; parcial: boolean }) {
+function Cabecalho({
+  competencia, parcial, equipes, busca, equipeFiltro,
+}: {
+  competencia: string;
+  parcial: boolean;
+  equipes: { id: number; nome: string }[];
+  busca: Busca;
+  equipeFiltro: number | null;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -207,7 +229,29 @@ function Cabecalho({ competencia, parcial }: { competencia: string; parcial: boo
             : `Quantas posições cada unidade tem ocupadas, dia a dia — ${formatarCompetencia(competencia)}`}
         </p>
       </div>
-      <SeletorMes competencia={competencia} />
+      <div className="flex flex-wrap items-end gap-2">
+        {/* O gestor já enxerga só a própria equipe pela RLS — oferecer o filtro
+            a ele seria um seletor de um item só. */}
+        {!parcial && equipes.length > 1 && (
+          <form method="get" className="flex items-end gap-2">
+            <input type="hidden" name="competencia" value={competencia} />
+            {texto(busca, 'dia') && <input type="hidden" name="dia" value={texto(busca, 'dia')} />}
+            <label className="block">
+              <span className="esc-rotulo">Equipe</span>
+              <select
+                name="equipe"
+                defaultValue={equipeFiltro ? String(equipeFiltro) : ''}
+                className="esc-input w-44"
+              >
+                <option value="">Todas as equipes</option>
+                {equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              </select>
+            </label>
+            <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Aplicar</button>
+          </form>
+        )}
+        <SeletorMes competencia={competencia} />
+      </div>
     </div>
   );
 }

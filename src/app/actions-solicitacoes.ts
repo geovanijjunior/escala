@@ -10,7 +10,7 @@ import { voltar, rotaComErro } from '@/lib/volta';
 import { getGeracaoAtual } from '@/lib/data/escalas';
 import { mensagemErroBanco } from '@/lib/erros-banco';
 import { addDias, diffDias, dowDeIso, fimDoTurno, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
-import { GRUPOS_AUSENCIA, GRUPO_DO_TIPO, OPCOES_FERIAS, TIPOS_COM_PERIODO, TIPOS_OCORRENCIA, TIPOS_SOLICITACAO, type TipoOcorrencia, type TipoSolicitacao } from '@/lib/domain/escalas/constantes';
+import { GRUPOS_AUSENCIA, GRUPO_DO_TIPO, OPCOES_FERIAS, TIPOS_COM_EFEITO_NA_ESCALA, TIPOS_COM_PERIODO, TIPOS_OCORRENCIA, TIPOS_SOLICITACAO, type TipoOcorrencia, type TipoSolicitacao } from '@/lib/domain/escalas/constantes';
 import type { Modalidade } from '@/lib/domain/escalas/tipos';
 
 const VOLTA = '/solicitacoes';
@@ -141,7 +141,39 @@ export async function abrirSolicitacao(formData: FormData) {
     }
   }
 
-  const status = parceiroId ? 'AGUARDA_PARCEIRO' : 'TRIAGEM';
+  // Quem abriu decide o caminho.
+  //
+  // Aberto pelo Planejamento EM NOME de alguém, o pedido pula a triagem: quem
+  // triaria é justamente quem abriu, e mandá-lo para a própria caixa seria
+  // pedir que ele aprovasse a própria decisão. Vai direto ao gestor, e volta
+  // depois para implantação — ver `decidirSolicitacao`.
+  //
+  // A troca com parceiro nomeado continua vindo antes de tudo: nada anda antes
+  // de o colega aceitar, independentemente de quem abriu.
+  const peloPlanejamento = sessao.papel === 'planejamento' && colaboradorId !== sessao.colaboradorId;
+
+  // Existe, é desta conta e tem gestor?
+  //
+  // A leitura é feita pelo client sob RLS, então ela É a validação da conta: um
+  // id de outra área não traz linha nenhuma. A equipe importa por outro motivo
+  // — a caixa do gestor é recortada pela equipe dele, e um pedido de alguém sem
+  // equipe mandado para `GESTOR` não apareceria para gestor nenhum. Nesse caso
+  // ele fica na triagem do próprio Planejamento, que pode aprovar direto.
+  let temGestor = false;
+  if (peloPlanejamento) {
+    const { data: alvo } = await supabase
+      .from('colaboradores')
+      .select('id, equipe_id, status')
+      .eq('id', colaboradorId)
+      .maybeSingle();
+    if (!alvo) erro(volta, 'Colaborador não encontrado nesta área.');
+    if (alvo.status !== 'ativo') erro(volta, 'Esse colaborador não está ativo.');
+    temGestor = alvo.equipe_id !== null;
+  }
+
+  const status = parceiroId
+    ? 'AGUARDA_PARCEIRO'
+    : peloPlanejamento && temGestor ? 'GESTOR' : 'TRIAGEM';
 
   const { data: nova, error } = await supabase
     .from('solicitacoes')
@@ -154,6 +186,7 @@ export async function abrirSolicitacao(formData: FormData) {
       detalhe,
       parceiro_id: parceiroId,
       aceite_parceiro: null,
+      aberta_pelo_planejamento: peloPlanejamento,
       unidade_desejada_id: unidadeDesejadaId,
       opcao_ferias: opcaoFerias,
       lancado_fiori: lancadoFiori,
@@ -173,7 +206,17 @@ export async function abrirSolicitacao(formData: FormData) {
   if (parceiroId) await avisarConviteDeTroca(sessao, { parceiroId, data });
 
   revalidatePath('/', 'layout');
-  voltar(volta, formData);
+  // Quem abre para si sabe o que pediu; quem abre por outro precisa saber para
+  // onde o pedido foi, porque o caminho não é o mesmo — e o cartão que ele vai
+  // procurar na lista está no nome de outra pessoa.
+  voltar(volta, formData, peloPlanejamento
+    ? {
+        abrir: '',
+        ok: temGestor
+          ? `Solicitação aberta e enviada ao gestor. Aprovada, ela volta para você implantar.`
+          : `Solicitação aberta. Esse colaborador não tem equipe, então o pedido ficou na sua triagem.`,
+      }
+    : {});
 }
 
 /* ============================================================
@@ -183,7 +226,8 @@ export async function abrirSolicitacao(formData: FormData) {
 type Acao =
   | 'ACEITAR_PARCEIRO' | 'RECUSAR_PARCEIRO'
   | 'ENCAMINHAR' | 'FILA' | 'PROMOVER' | 'RECUSAR_TRIAGEM' | 'APROVAR_TRIAGEM'
-  | 'APROVAR' | 'RECUSAR_GESTOR' | 'FILA_GESTOR';
+  | 'APROVAR' | 'RECUSAR_GESTOR' | 'FILA_GESTOR'
+  | 'CONFIRMAR_IMPLANTACAO';
 
 /** Transições permitidas: de onde parte, para onde vai e quem pode acionar. */
 const TRANSICOES: Record<Acao, { de: string[]; para: string; etapa: string; exigeMotivo: boolean }> = {
@@ -197,7 +241,14 @@ const TRANSICOES: Record<Acao, { de: string[]; para: string; etapa: string; exig
   // gestor pudesse fazê-lo, ele estaria decidindo antes de a triagem escolher
   // se o caso é dele — e o encaminhamento deixaria de significar alguma coisa.
   APROVAR_TRIAGEM: { de: ['TRIAGEM'], para: 'APROVADA', etapa: 'Aprovada na triagem', exigeMotivo: false },
+  // O destino desta aqui não é sempre `APROVADA` — ver `destino`, logo abaixo.
   APROVAR: { de: ['GESTOR'], para: 'APROVADA', etapa: 'Aprovada pelo gestor', exigeMotivo: false },
+  // A confirmação de que já está na escala. Nos pedidos que passam por
+  // `IMPLANTAR`, é o efeito colateral DESTA transição que aplica férias e
+  // travas — não o da aprovação do gestor.
+  CONFIRMAR_IMPLANTACAO: {
+    de: ['IMPLANTAR'], para: 'APROVADA', etapa: 'Implantada na escala', exigeMotivo: false,
+  },
   RECUSAR_GESTOR: { de: ['GESTOR'], para: 'RECUSADA', etapa: 'Recusada pelo gestor', exigeMotivo: true },
   // O gestor também enfileira. Antes a lista de espera era só da triagem, então
   // o gestor que recebia um pedido bom numa data cheia só tinha "recusar" — e
@@ -229,6 +280,28 @@ export async function decidirSolicitacao(formData: FormData) {
   }
   if (regra.exigeMotivo && motivo.length < 5) erro(volta, 'Uma recusa precisa de justificativa.');
 
+  // Quem decide nem sempre é quem pode executar.
+  //
+  // Aprovar férias, folga, licença ou troca significa gravar ausência e travar
+  // dias — e escrever em `ausencias` e `pins` é privilégio do Planejamento, na
+  // RLS. O gestor decide, mas o banco recusa a escrita dele.
+  //
+  // Enquanto a aprovação do gestor ia direto para `APROVADA`, esses dois
+  // inserts falhavam em silêncio: o pedido ficava marcado como "Aplicada na
+  // escala", o histórico dizia que os dias tinham sido travados, e nada disso
+  // tinha acontecido. A tela mentia — a pior forma de errar, porque ninguém vai
+  // conferir o que o sistema afirma ter feito.
+  //
+  // `IMPLANTAR` é a etapa que faltava. A decisão do gestor vale; o que ela não
+  // faz mais é fingir uma escrita que a RLS não permite. O pedido volta para o
+  // Planejamento, que lança e confirma. Os tipos sem efeito na escala —
+  // ajuste de ponto, banco de horas, atraso — a aprovação encerra na hora,
+  // porque ali não há nada para implantar.
+  const precisaImplantacao =
+    acao === 'APROVAR' && TIPOS_COM_EFEITO_NA_ESCALA.includes(s.tipo as TipoSolicitacao);
+  const destino = precisaImplantacao ? 'IMPLANTAR' : regra.para;
+  const etapa = precisaImplantacao ? 'Aprovada pelo gestor — a implantar' : regra.etapa;
+
   // Autorização por papel, refeita no servidor (a UI só esconde os botões).
   if (acao === 'ACEITAR_PARCEIRO' || acao === 'RECUSAR_PARCEIRO') {
     if (s.parceiro_id !== sessao.colaboradorId) erro(volta, 'Só o colega convidado pode responder a essa troca.');
@@ -251,12 +324,12 @@ export async function decidirSolicitacao(formData: FormData) {
     }
   }
 
-  const patch: Record<string, unknown> = { status: regra.para };
+  const patch: Record<string, unknown> = { status: destino };
   if (acao === 'ACEITAR_PARCEIRO') patch.aceite_parceiro = 'ACEITO';
   if (acao === 'RECUSAR_PARCEIRO') patch.aceite_parceiro = 'RECUSADO';
   if (regra.exigeMotivo) patch.motivo_recusa = motivo;
 
-  if (regra.para === 'FILA') {
+  if (destino === 'FILA') {
     const { data: fila } = await supabase
       .from('solicitacoes')
       .select('posicao_fila')
@@ -265,10 +338,14 @@ export async function decidirSolicitacao(formData: FormData) {
       .limit(1);
     patch.posicao_fila = (fila?.[0]?.posicao_fila ?? 0) + 1;
   }
-  if (acao === 'PROMOVER' || regra.para === 'RECUSADA' || regra.para === 'APROVADA') patch.posicao_fila = null;
+  if (acao === 'PROMOVER' || destino === 'RECUSADA' || destino === 'APROVADA') patch.posicao_fila = null;
 
+  // O efeito na escala acontece quando o pedido CHEGA a aprovado — não quando
+  // alguém aprova. É a mesma distinção de sempre, agora com consequência: a
+  // aprovação do gestor que passa por IMPLANTAR não mexe em nada, e quem mexe é
+  // a confirmação do Planejamento, que é quem a RLS deixa escrever.
   let resumoEfeito = '';
-  if (acao === 'APROVAR' || acao === 'APROVAR_TRIAGEM') {
+  if (destino === 'APROVADA') {
     resumoEfeito = await aplicarNaEscala(sessao, s, volta);
     patch.aplicada = resumoEfeito !== '';
   }
@@ -276,10 +353,10 @@ export async function decidirSolicitacao(formData: FormData) {
   const { error } = await supabase.from('solicitacoes').update(patch).eq('id', id);
   if (error) erro(volta, 'Não foi possível registrar a decisão.');
 
-  await registrarEvento(sessao, id, regra.etapa, motivo || resumoEfeito);
+  await registrarEvento(sessao, id, etapa, motivo || resumoEfeito);
 
   // Ao sair da fila, renumera quem ficou pra trás — senão a lista fica com buracos.
-  if (acao === 'PROMOVER' || (s.status === 'FILA' && regra.para === 'RECUSADA')) {
+  if (acao === 'PROMOVER' || (s.status === 'FILA' && destino === 'RECUSADA')) {
     const { data: restantes } = await supabase
       .from('solicitacoes')
       .select('id')
@@ -291,7 +368,7 @@ export async function decidirSolicitacao(formData: FormData) {
     }
   }
 
-  await registrarLog(sessao, `Solicitação ${regra.etapa.toLowerCase()}`, `#${id} · ${resumoEfeito || motivo}`);
+  await registrarLog(sessao, `Solicitação ${etapa.toLowerCase()}`, `#${id} · ${resumoEfeito || motivo}`);
   revalidatePath('/', 'layout');
   voltar(volta, formData);
 }

@@ -64,8 +64,8 @@ Um perfil tem exatamente um papel, e ele é a única dimensão de permissão:
 |---|---|---|
 | **Administrador Geral** | As áreas, quem tem login em cada uma, e nada mais de dentro delas | Cadastrar áreas, nomear e bloquear o Administrador de cada uma, desativar e reativar uma área, ler as contagens de cada área (pessoas, usuários, mês publicado) e a lista de usuários dela |
 | **Administrador da Área** | Toda a área | Cadastrar o Planejamento e os demais usuários, manter colaboradores, equipes, unidades, postos, feriados e parâmetros, acompanhar os indicadores |
-| **Planejamento** | Toda a área | Tudo do Administrador da Área, mais: editar planos, gerar/publicar/encerrar a escala, fazer a triagem das solicitações, travar alocações, publicar comunicados para qualquer público |
-| **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, decidir sozinho o que a triagem encaminhou (aprovar, enfileirar ou recusar), lançar ocorrências, ajustar a escala já publicada, publicar comunicados para a equipe |
+| **Planejamento** | Toda a área | Tudo do Administrador da Área, mais: editar planos, gerar/publicar/encerrar a escala, fazer a triagem das solicitações, abrir solicitação em nome de um colaborador, implantar na escala o que o gestor aprovou, travar alocações, publicar comunicados para qualquer público |
+| **Gestor** | Só as equipes que gerencia | Acompanhar escala e indicadores da equipe, decidir sozinho o que a triagem encaminhou (aprovar, enfileirar ou recusar), lançar ocorrências, ajustar a escala já publicada, publicar comunicados para a equipe. Decide, mas não lança: o que mexe na escala volta ao Planejamento para ser implantado |
 | **Colaborador** | Só a si mesmo | Consultar a própria escala publicada, abrir solicitações, aceitar/recusar convites de troca, ler o mural |
 
 O cadastro é uma corrente, e cada elo só cria o próximo: Administrador Geral →
@@ -378,8 +378,24 @@ dos dois enxerga o que não lhe cabe.
 - **Geração determinística**: os critérios de desempate terminam no id, com teste
   garantindo que a mesma entrada produz a mesma escala.
 - **Aprovar uma solicitação altera a escala**: troca de unidade, troca de
-  plantão, folga e férias gravam a trava e ajustam a alocação do dia — e a trava
-  sobrevive à próxima regeração.
+  plantão, folga, licença e férias gravam a trava e ajustam a alocação do dia —
+  e a trava sobrevive à próxima regeração.
+- **Quem decide não é quem executa, e o fluxo respeita isso.** Escrever em
+  `pins` e `ausencias` é privilégio do Planejamento na RLS. Enquanto a aprovação
+  do gestor ia direto para `APROVADA`, esses dois inserts falhavam calados: o
+  pedido ficava marcado como *Aplicada na escala*, o histórico dizia que os dias
+  tinham sido travados, e nada disso havia acontecido — a tela mentia. Agora a
+  aprovação de um pedido que mexe na escala leva ao estado **`IMPLANTAR`**
+  (*A implantar*): a decisão do gestor vale, e o Planejamento lança os dias e
+  confirma. É a confirmação que aplica o efeito. Os tipos sem efeito na escala
+  — ajuste de ponto, banco de horas, atraso — a aprovação encerra na hora,
+  porque ali não há nada para implantar.
+- **O Planejamento abre solicitação em nome da pessoa.** Boa parte das férias e
+  das ausências não nasce de um pedido: nasce de uma reunião ou de um telefonema.
+  O pedido aberto assim pula a triagem — quem triaria é quem abriu —, vai direto
+  ao gestor e volta para implantação. `solicitacoes.aberta_pelo_planejamento`
+  registra a origem, porque sem ela não há como saber qual dos dois caminhos
+  aplicar na ida.
 - **O sino mostra só o não lido, e a leitura é por item.** `notificacoes_lidas`
   guarda a chave de cada item aberto; `perfis.notificacoes_vistas_em` continua
   existindo para o "marcar todas", que é um corte em massa e não merece N
@@ -480,6 +496,8 @@ português abre sem embaralhar acento).
    | 23º | `0023_semeadura_de_feriados_fechada.sql` | a semeadura deixa de aceitar a área por parâmetro; feriados coincidentes viram uma linha |
    | 24º | `0024_horario_valido.sql` | entrada e saída precisam ser horários que existem no relógio |
    | 25º | `0025_plantao_de_doze_horas.sql` | tira do 12x36 a hora de intervalo que a fórmula antiga somava — o plantão volta a medir doze horas |
+   | 26º | `0026_colaborador_ve_a_equipe.sql` | o colaborador enxerga a escala da própria equipe, e por isso pode nomear o colega da troca |
+   | 27º | `0027_implantacao_pelo_planejamento.sql` | estado `A implantar`: o gestor decide, o Planejamento lança na escala e confirma |
 
    A ordem importa: cada um depende dos anteriores. Se rodar fora de ordem, o
    erro será `relation "perfis" does not exist` ou `function conta_id() does not

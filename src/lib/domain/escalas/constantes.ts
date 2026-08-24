@@ -61,13 +61,16 @@ export const TIPOS_SOLICITACAO: Record<TipoSolicitacao, { label: string; fila: b
 };
 
 export type StatusSolicitacao =
-  | 'AGUARDA_PARCEIRO' | 'TRIAGEM' | 'GESTOR' | 'FILA' | 'APROVADA' | 'RECUSADA';
+  | 'AGUARDA_PARCEIRO' | 'TRIAGEM' | 'GESTOR' | 'FILA' | 'IMPLANTAR' | 'APROVADA' | 'RECUSADA';
 
 export const STATUS_SOLICITACAO: Record<StatusSolicitacao, { label: string; cor: string; bg: string }> = {
   AGUARDA_PARCEIRO: { label: 'Aguarda parceiro', cor: '#6D28D9', bg: '#EDE9FE' },
   TRIAGEM: { label: 'Em triagem', cor: '#1A4E93', bg: '#DCEAF8' },
   GESTOR: { label: 'Com o gestor', cor: '#B45309', bg: '#FEF3C7' },
   FILA: { label: 'Lista de espera', cor: '#0A6169', bg: '#D7F0F1' },
+  // Aprovada pelo gestor e esperando entrar na escala. É execução, não decisão
+  // — por isso a cor não é a de "pendente de alguém decidir".
+  IMPLANTAR: { label: 'A implantar', cor: '#7C3AED', bg: '#EDE9FE' },
   APROVADA: { label: 'Aprovada', cor: '#15803D', bg: '#DCFCE7' },
   RECUSADA: { label: 'Recusada', cor: '#BE123C', bg: '#FFE4E9' },
 };
@@ -75,13 +78,30 @@ export const STATUS_SOLICITACAO: Record<StatusSolicitacao, { label: string; cor:
 /** Tipos que cobrem um intervalo de datas, não um dia só. */
 export const TIPOS_COM_PERIODO: TipoSolicitacao[] = ['FERIAS', 'FOLGA', 'LICENCA'];
 
+/**
+ * Tipos cuja aprovação mexe na escala: trava dias, move alocação, grava
+ * ausência. Os demais valem como registro formal e não tocam em alocação
+ * nenhuma — a aprovação já os encerra.
+ *
+ * A lista estava escrita à mão em três lugares da tela de solicitações, e as
+ * três cópias já discordavam entre si: uma esquecia LICENCA, e o gestor lia
+ * "não altera a escala" num pedido de licença de duas semanas que altera.
+ */
+export const TIPOS_COM_EFEITO_NA_ESCALA: TipoSolicitacao[] = [
+  'FERIAS', 'FOLGA', 'LICENCA', 'TROCA_HORARIO', 'TROCA_UNIDADE',
+];
+
 /** Tipos cujo motivo sai da lista de ausências, e de qual grupo dela. */
 export const GRUPO_DO_TIPO: Partial<Record<TipoSolicitacao, string>> = {
   FOLGA: 'Folga',
   LICENCA: 'Licença',
 };
 
-export const STATUS_ABERTOS: StatusSolicitacao[] = ['AGUARDA_PARCEIRO', 'TRIAGEM', 'GESTOR', 'FILA'];
+// `IMPLANTAR` conta como aberto. O pedido já foi decidido, mas ainda falta
+// alguém mexer na escala — e trabalho que falta precisa de onde aparecer. Fora
+// desta lista ele sairia das Abertas e cairia no Histórico junto do que já está
+// resolvido, que é onde ninguém procura pelo que ainda tem de ser feito.
+export const STATUS_ABERTOS: StatusSolicitacao[] = ['AGUARDA_PARCEIRO', 'TRIAGEM', 'GESTOR', 'FILA', 'IMPLANTAR'];
 
 export type TipoOcorrencia =
   | 'ATRASO' | 'FALTA_J' | 'FALTA_I' | 'SAIDA_ANTEC'

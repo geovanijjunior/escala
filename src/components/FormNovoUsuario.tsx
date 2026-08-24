@@ -30,20 +30,13 @@ export interface OpcaoUnidade { id: number; nome: string }
  * antes de deixar gerar a escala.
  */
 export function FormNovoUsuario({
-  papeis, equipes, unidades, semAcesso,
+  papeis, equipes, unidades,
 }: {
   papeis: { valor: PapelEscalas; label: string }[];
   equipes: OpcaoEquipe[];
   unidades: OpcaoUnidade[];
-  /** Quem já está na escala e ainda não tem login — os candidatos a vínculo. */
-  semAcesso: { id: number; nome: string; matricula: string }[];
 }) {
   const [papel, setPapel] = useState<PapelEscalas>('colaborador');
-  // Duas origens possíveis para o cadastro na escala: criar agora, ou apontar
-  // para quem já está lá. Sem a segunda, quem cadastrou o colaborador primeiro
-  // não conseguia dar acesso a ele de jeito nenhum — criar o login tentava
-  // inserir um segundo cadastro, e o banco recusava por matrícula repetida.
-  const [vincular, setVincular] = useState(false);
   const [equipeId, setEquipeId] = useState<string>(equipes[0] ? String(equipes[0].id) : '');
 
   const ehColaborador = papel === 'colaborador';
@@ -86,48 +79,7 @@ export function FormNovoUsuario({
             ou já estar cadastrado — nesse caso, é só apontar qual.
           </p>
 
-          {semAcesso.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {[
-                { v: false, rotulo: 'Cadastrar agora' },
-                { v: true, rotulo: `Já está cadastrado (${semAcesso.length} sem acesso)` },
-              ].map(o => (
-                <label
-                  key={String(o.v)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md border cursor-pointer text-[12px]"
-                  style={{
-                    borderColor: vincular === o.v ? 'var(--accent)' : 'var(--line-2)',
-                    background: vincular === o.v ? 'var(--brand-50)' : undefined,
-                    fontWeight: vincular === o.v ? 600 : 400,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="origemColaborador"
-                    value={o.v ? 'existente' : 'novo'}
-                    checked={vincular === o.v}
-                    onChange={() => setVincular(o.v)}
-                  />
-                  {o.rotulo}
-                </label>
-              ))}
-            </div>
-          )}
-
-          {vincular ? (
-            <label className="block">
-              <span className="esc-rotulo">Qual colaborador</span>
-              <select name="colaboradorExistente" defaultValue="" required className="esc-input w-full sm:w-96">
-                <option value="" disabled>Escolha quem já está na escala</option>
-                {semAcesso.map(c => (
-                  <option key={c.id} value={c.id}>{c.nome} — matrícula {c.matricula}</option>
-                ))}
-              </select>
-              <span className="esc-ajuda mt-1 block">
-                O acesso é criado e ligado a este cadastro. Nada da ficha dele muda.
-              </span>
-            </label>
-          ) : faltaBase ? (
+          {faltaBase ? (
             <p className="text-[12px] font-medium" style={{ color: 'var(--rose)' }}>
               {equipes.length === 0 ? 'Nenhuma equipe cadastrada. ' : ''}
               {unidades.length === 0 ? 'Nenhuma unidade ativa. ' : ''}
@@ -188,7 +140,7 @@ export function FormNovoUsuario({
 
               <label className="block">
                 <span className="esc-rotulo">Admissão</span>
-                <input type="date" name="admissao" required className="esc-input" />
+                <input type="date" name="admissao" className="esc-input" />
               </label>
 
               <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap gap-x-5 gap-y-1.5 text-[12.5px]">

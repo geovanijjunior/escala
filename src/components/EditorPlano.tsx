@@ -131,37 +131,30 @@ export function EditorPlano({
       </form>
 
       <div className="border-t px-4 py-4 space-y-4" style={{ borderColor: 'var(--line)' }}>
+        {/* Férias, só como informação.
+            Elas deixaram de ser lançadas aqui: agora entram por solicitação
+            aprovada, e a aprovação já grava a ausência e trava os dias na
+            escala. Ter um segundo lugar para criá-las produzia férias que
+            existiam no plano sem nenhuma decisão por trás — e apagáveis por um
+            botão que não desfazia a solicitação correspondente.
+
+            Mostrar continua valendo: quem monta o mês precisa ver quem está
+            fora, e era essa a parte útil deste bloco. */}
         <div id="ausencias" className="scroll-mt-24">
           <span className="esc-rotulo">Férias</span>
           {ferias ? (
-            <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
-              <span>
-                {formatarData(ferias.inicio)} a {formatarData(addDias(ferias.inicio, ferias.dias - 1))}{' '}
-                <span style={{ color: 'var(--muted)' }}>({ferias.dias} dias corridos)</span>
-              </span>
-              <form action={removerAusencia}>
-                <input type="hidden" name="competencia" value={competencia} />
-                <input type="hidden" name="colaboradorId" value={c.id} />
-                <input type="hidden" name="id" value={ferias.id} />
-                <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
-              </form>
-            </div>
+            <p className="text-[12.5px]">
+              {formatarData(ferias.inicio)} a {formatarData(addDias(ferias.inicio, ferias.dias - 1))}{' '}
+              <span style={{ color: 'var(--muted)' }}>({ferias.dias} dias corridos)</span>
+            </p>
           ) : (
-            <form action={salvarAusencia} className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="competencia" value={competencia} />
-              <input type="hidden" name="colaboradorId" value={c.id} />
-              <input type="hidden" name="tipo" value="FERIAS" />
-              <label className="block">
-                <span className="esc-rotulo">Início</span>
-                <input type="date" name="inicio" required className="esc-input w-40" />
-              </label>
-              <label className="block">
-                <span className="esc-rotulo">Fim</span>
-                <input type="date" name="fim" required className="esc-input w-40" />
-              </label>
-              <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Lançar férias</button>
-            </form>
+            <p className="text-[12.5px]" style={{ color: 'var(--muted)' }}>
+              Sem férias neste período.
+            </p>
           )}
+          <p className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>
+            Férias vêm de solicitação aprovada — em Solicitações. A aprovação já marca os dias na escala.
+          </p>
         </div>
 
         <div>

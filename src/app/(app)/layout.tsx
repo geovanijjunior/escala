@@ -17,10 +17,14 @@ async function contarPendencias(papel: string, usuarioId: string): Promise<numbe
 
   const supabase = await createClient();
   if (papel === 'planejamento') {
+    // Triagem é o que espera decisão; IMPLANTAR é o que espera trabalho — o
+    // pedido que ele mesmo abriu, o gestor aprovou, e agora precisa entrar na
+    // escala. Os dois param nele, então os dois contam: fora do contador, o que
+    // volta do gestor não avisa ninguém de que voltou.
     const { count } = await supabase
       .from('solicitacoes')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'TRIAGEM');
+      .in('status', ['TRIAGEM', 'IMPLANTAR']);
     return count ?? 0;
   }
   if (papel === 'gestor') {
@@ -89,7 +93,6 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
             secao: 'Cadastros',
             itens: [
               { href: '/usuarios', label: 'Usuários' },
-              { href: '/colaboradores', label: 'Colaboradores' },
               { href: '/parametros', label: 'Parâmetros' },
             ],
           },
@@ -125,7 +128,13 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
           {
             secao: 'Cadastros',
             itens: [
-              { href: '/colaboradores', label: 'Colaboradores' },
+              // Colaboradores saiu do menu: eram duas portas para cadastrar a
+              // mesma pessoa, e quem entrava pela errada esbarrava no cadastro
+              // feito pela outra. Agora o caminho é um só — Usuários cria o
+              // acesso e a ficha da escala juntos. A tela de Colaboradores
+              // continua existindo, alcançável a partir de Usuários, porque é
+              // onde se edita a ficha de quem já existe e onde vive a
+              // importação por planilha.
               { href: '/usuarios', label: 'Usuários' },
               { href: '/parametros', label: 'Parâmetros' },
             ],

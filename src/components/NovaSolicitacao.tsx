@@ -22,12 +22,23 @@ const formatar = (iso: string) => iso.split('-').reverse().join('/');
  * exige — campo irrelevante visível e vazio é convite a preencher errado.
  */
 export function NovaSolicitacao({
-  unidades, tipos, colegas,
+  unidades, tipos, colegas, pessoas,
 }: {
   unidades: { id: number; nome: string }[];
   tipos: { chave: string; label: string; sla: number }[];
   /** Colegas ativos da própria equipe, para a troca de plantão ter com quem. */
   colegas: { id: number; nome: string }[];
+  /**
+   * Em nome de quem o pedido pode ser aberto. Só o Planejamento recebe esta
+   * lista; para todo mundo mais o formulário abre para si e o campo nem existe.
+   *
+   * O caminho existe porque a maior parte das férias e das ausências não é
+   * pedida por quem vai se ausentar: é combinada numa reunião, comunicada por
+   * telefone, decidida no corredor. Sem este campo, o Planejamento tinha de
+   * pedir à pessoa que abrisse o pedido que ele já sabia que ia abrir — ou
+   * lançar a ausência à mão, sem decisão de gestor por trás.
+   */
+  pessoas?: { id: number; nome: string }[];
 }) {
   const [tipo, setTipo] = useState(tipos[0]?.chave ?? '');
   const [opcao, setOpcao] = useState(OPCOES_FERIAS[0].chave);
@@ -48,6 +59,16 @@ export function NovaSolicitacao({
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {pessoas && (
+          <label className="block">
+            <span className="esc-rotulo">Para quem</span>
+            <select name="colaboradorId" required defaultValue="" className="esc-input">
+              <option value="" disabled>Selecione o colaborador</option>
+              {pessoas.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+          </label>
+        )}
+
         <label className="block">
           <span className="esc-rotulo">Tipo</span>
           <select name="tipo" value={tipo} onChange={e => setTipo(e.target.value)} required className="esc-input">
@@ -186,12 +207,16 @@ export function NovaSolicitacao({
           minLength={5}
           rows={3}
           className="esc-input"
-          placeholder="Explique o motivo do pedido — é o que o gestor lê para decidir."
+          placeholder={pessoas
+            ? 'Registre o que foi combinado — é o que o gestor lê para decidir.'
+            : 'Explique o motivo do pedido — é o que o gestor lê para decidir.'}
         />
       </label>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" className="esc-btn">Enviar solicitação</button>
+        <button type="submit" className="esc-btn">
+          {pessoas ? 'Enviar ao gestor' : 'Enviar solicitação'}
+        </button>
         {escolhido && (
           <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>
             Prazo de resposta previsto: {escolhido.sla}h.
