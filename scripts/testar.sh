@@ -77,6 +77,7 @@ if [ "$alvo" = navegador ]; then
     executa 'Implantação'      node scripts/manual/implantacao.mjs
     executa 'Pedido do colab.'  node scripts/manual/solicitar.mjs
     executa 'Triagem'           node scripts/manual/triagem.mjs
+    executa 'Ausências do mês'  node scripts/manual/ausencias.mjs
     executa 'Ações de escrita' node scripts/manual/acoes.mjs
   else
     printf '\n\033[31m── Navegador: sem dev server em %s. Suba-o contra o shim antes.\033[0m\n' "$base"

@@ -644,6 +644,12 @@ export async function listarNotificacoes(
 export interface AusenciaSobreposta {
   colaboradorId: number;
   nome: string;
+  /**
+   * De qual equipe. O gestor não precisa — tudo o que ele vê é da equipe dele —
+   * mas o Planejamento enxerga a área inteira, e "três pessoas fora" quer dizer
+   * coisas muito diferentes conforme sejam três equipes ou uma só.
+   */
+  equipeNome: string;
   tipo: 'FERIAS' | 'AUSENCIA';
   motivo: string;
   inicio: string;
@@ -672,18 +678,20 @@ export async function listarAusenciasSobrepostas(
   // filtrar o fim no banco: busca uma janela generosa para trás e recorta aqui.
   const linhas = conferir('listarAusenciasSobrepostas', await supabase
     .from('ausencias')
-    .select('colaborador_id, tipo, motivo, inicio, dias, colaboradores(nome)')
+    .select('colaborador_id, tipo, motivo, inicio, dias, colaboradores(nome, equipes(nome))')
     .lte('inicio', fim)
     .gte('inicio', addDias(inicio, -365))) ?? [];
 
   return (linhas as unknown as {
     colaborador_id: number; tipo: 'FERIAS' | 'AUSENCIA'; motivo: string | null;
-    inicio: string; dias: number; colaboradores: { nome: string } | null;
+    inicio: string; dias: number;
+    colaboradores: { nome: string; equipes: { nome: string } | null } | null;
   }[])
     .filter(a => a.colaborador_id !== exceto)
     .map(a => ({
       colaboradorId: a.colaborador_id,
       nome: a.colaboradores?.nome ?? `Colaborador ${a.colaborador_id}`,
+      equipeNome: a.colaboradores?.equipes?.nome ?? '',
       tipo: a.tipo,
       motivo: a.motivo ?? '',
       inicio: a.inicio,

@@ -214,6 +214,40 @@ console.log('\n5. A ordem da fila sobrevive à saída pelo meio');
   );
 }
 
+/* ── 6. Quem mais está fora, para quem decide férias ───────────────────── */
+//
+// O contexto nasceu só para o GESTOR, e só depois do encaminhamento — como se
+// decidir férias fosse assunto de uma pessoa num momento. Não é: o Planejamento
+// tria esses pedidos e pode aprovar direto, o que faz dele quem mais precisa da
+// informação e quem menos a tinha.
+console.log('\n6. Contexto de férias na triagem do Planejamento');
+{
+  const marca = 'Férias — contexto na triagem';
+  const [{ conta_id: conta }] = await sql('select conta_id from perfis where id = $1', [ANA]);
+
+  // Alguém JÁ de férias dentro da janela pedida — é o que precisa aparecer.
+  await sql("delete from ausencias where inicio = '2026-12-05'");
+  await sql(`insert into ausencias (conta_id, colaborador_id, tipo, inicio, dias, grupo, motivo, criado_por)
+             values ($1, 5, 'FERIAS', '2026-12-05', 20, '', '', $2)`, [conta, ANA]);
+
+  await sql(`delete from solicitacao_eventos where solicitacao_id in
+               (select id from solicitacoes where detalhe = $1)`, [marca]);
+  await sql('delete from solicitacoes where detalhe = $1', [marca]);
+  await sql(`insert into solicitacoes
+      (conta_id, colaborador_id, tipo, data, data_fim, detalhe, status, opcao_ferias)
+    values ($1, 3, 'FERIAS', '2026-12-07', '2026-12-21', $2, 'TRIAGEM', '30')`, [conta, marca]);
+
+  await p.goto(`${BASE}/solicitacoes`, { waitUntil: 'networkidle' });
+  const c = cartao(marca);
+  await c.first().waitFor({ timeout: 10000 });
+  const t = await c.innerText();
+  const [outro] = await sql('select nome from colaboradores where id = 5');
+  conferir(/pessoa\(s\) j[áa] est/i.test(t), 'a triagem avisa que há gente fora no período');
+  conferir(t.includes(outro.nome), `nomeia quem está fora (${outro.nome})`);
+  conferir(/f[ée]rias/i.test(t), 'diz que é férias');
+  await p.screenshot({ path: '/tmp/triagem-ferias.png', fullPage: true });
+}
+
 conferir(erros.length === 0, `nenhum erro de JS (${erros.join('; ') || 'limpo'})`);
 
 await b.close();

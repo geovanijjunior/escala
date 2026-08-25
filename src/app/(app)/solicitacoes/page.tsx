@@ -69,12 +69,21 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
     : aba === 'historico' ? historico
     : abertas;
 
-  // Férias esperando o gestor: quem mais da equipe já está fora naquelas
-  // semanas. Só para os cartões que ele pode decidir agora — carregar para o
-  // histórico inteiro seria uma consulta por cartão sem ninguém para usar.
-  const paraDecidir = sessao.papel === 'gestor'
-    ? lista.filter(s => s.tipo === 'FERIAS' && s.status === 'GESTOR')
-    : [];
+  // Quem mais está fora naquelas semanas.
+  //
+  // Nasceu só para o gestor, e só depois do encaminhamento — como se decidir
+  // férias fosse assunto de uma pessoa num momento. Não é: o Planejamento tria
+  // esses pedidos e pode APROVAR direto, o que faz dele quem mais precisa do
+  // contexto e quem menos o tinha. Um pedido de férias sem saber quem mais está
+  // fora é meia informação, e a outra metade estava a três telas de distância.
+  //
+  // Vale em todo estado em que ainda cabe decisão — triagem, gestor, fila,
+  // tratativa —, e não no histórico: ali a decisão já foi tomada, e seria uma
+  // consulta por cartão sem ninguém para usar.
+  const DECIDIVEIS: StatusSolicitacao[] = ['TRIAGEM', 'GESTOR', 'FILA', 'TRATATIVA'];
+  const paraDecidir = sessao.papel === 'colaborador'
+    ? []
+    : lista.filter(s => s.tipo === 'FERIAS' && DECIDIVEIS.includes(s.status));
   const sobreposicoes = new Map(await Promise.all(paraDecidir.map(async s =>
     [s.id, await listarAusenciasSobrepostas(s.data, s.dataFim || s.data, s.colaboradorId)] as const,
   )));
@@ -253,6 +262,11 @@ function Cartao({
   const tipo = TIPOS_SOLICITACAO[s.tipo];
   const opcao = s.opcaoFerias ? OPCOES_FERIAS.find(o => o.chave === s.opcaoFerias) : null;
   const mexeNaEscala = TIPOS_COM_EFEITO_NA_ESCALA.includes(s.tipo);
+  // O contexto de férias acompanha a decisão: some no histórico, onde ela já
+  // foi tomada, e aparece em qualquer estado que ainda a espere.
+  const podeDecidir =
+    (papel === 'planejamento' && ['TRIAGEM', 'FILA', 'TRATATIVA'].includes(s.status))
+    || (papel === 'gestor' && s.status === 'GESTOR');
 
   return (
     <Bloco
@@ -309,10 +323,8 @@ function Cartao({
           </div>
         )}
 
-        {/* Só aparece quando há decisão a tomar. Um pedido de férias sem saber
-            quem mais está fora naquelas semanas é meia informação, e a outra
-            metade estava a três telas de distância. */}
-        {papel === 'gestor' && s.status === 'GESTOR' && s.tipo === 'FERIAS' && (
+        {/* Só aparece quando há decisão a tomar. */}
+        {papel !== 'colaborador' && s.tipo === 'FERIAS' && podeDecidir && (
           <div
             className="rounded-md px-3 py-2.5 text-[12px]"
             style={{
@@ -322,12 +334,15 @@ function Cartao({
           >
             {sobrepostas.length === 0 ? (
               <>
-                <strong className="font-semibold">Ninguém mais da equipe está fora</strong> nesse período.
+                <strong className="font-semibold">
+                  {papel === 'gestor' ? 'Ninguém mais da equipe está fora' : 'Mais ninguém está fora'}
+                </strong>{' '}
+                nesse período.
               </>
             ) : (
               <>
                 <strong className="font-semibold">
-                  {sobrepostas.length} pessoa(s) da equipe já estão fora nesse período:
+                  {sobrepostas.length} pessoa(s) já {sobrepostas.length === 1 ? 'está' : 'estão'} fora nesse período:
                 </strong>
                 <ul className="mt-1.5 space-y-1">
                   {sobrepostas.map(a => (
@@ -335,6 +350,9 @@ function Cartao({
                       <span className="font-medium">{a.nome}</span>
                       <span className="esc-num">{formatarData(a.inicio)} a {formatarData(a.fim)}</span>
                       <span>{a.tipo === 'FERIAS' ? 'férias' : 'ausência'}{a.motivo ? ` · ${a.motivo}` : ''}</span>
+                      {a.equipeNome && (
+                        <span style={{ opacity: 0.75 }}>· {a.equipeNome}</span>
+                      )}
                     </li>
                   ))}
                 </ul>

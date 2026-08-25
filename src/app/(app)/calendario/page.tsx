@@ -7,7 +7,7 @@ import {
 } from '@/lib/data/escalas';
 import { conferirAlocacoes } from '@/lib/domain/escalas/conferencia';
 import {
-  DIAS_ABREV, addDias, diaSemana, diasNoMes, formatarCompetencia, iso,
+  DIAS_ABREV, addDias, diaSemana, diasNoMes, formatarCompetencia, formatarData, iso,
 } from '@/lib/domain/escalas/datas';
 import type { Alocacao, Modalidade } from '@/lib/domain/escalas/tipos';
 import { MODALIDADES, STATUS_GERACAO } from '@/lib/domain/escalas/constantes';
@@ -65,6 +65,29 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
         postoId: null,
       })),
   );
+
+  /**
+   * As mesmas ausências, com o que elas SÃO.
+   *
+   * `Alocacao` só sabe dizer FERIAS ou FOLGA, e a segunda engloba folga,
+   * licença e atestado — três coisas que se decidem de formas diferentes e que
+   * a tela mostrava com a mesma cor e o mesmo nada escrito. Quem olhava o mês
+   * via "Eduardo" num dia e não sabia se ele estava de férias, de licença
+   * paternidade ou com atestado; para descobrir, ia a Planos, uma pessoa por
+   * vez — que é exatamente o caminho que este bloco existe para poupar.
+   */
+  const periodosFora = ctx.ausencias
+    .filter(a => addDias(a.inicio, a.dias - 1) >= competencia && a.inicio <= iso(ano, mes, nDias))
+    .map(a => ({
+      id: a.id,
+      colaboradorId: a.colaboradorId,
+      tipo: a.tipo,
+      grupo: a.grupo,
+      motivo: a.motivo,
+      inicio: a.inicio,
+      fim: addDias(a.inicio, a.dias - 1),
+      dias: a.dias,
+    }));
 
   const alocacoes = geracao ? await listarAlocacoes(geracao.id) : ausenciasComoAlocacoes;
   const vista = texto(busca, 'vista') || 'mes';
@@ -149,17 +172,53 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
           />
         </Bloco>
 
-        {ausenciasComoAlocacoes.length > 0 && (
+        {periodosFora.length > 0 && (
           <Bloco
             titulo="Férias e ausências já aprovadas"
             desc="Valem independentemente da escala e a geração vai respeitá-las."
           >
+            {/* Os mesmos filtros do calendário gerado, e pelos mesmos nomes de
+                parâmetro: quem filtrou por equipe num mês e passa para outro
+                sem escala não deve ver o filtro se perder no caminho. */}
+            <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--line)' }}>
+              <form className="flex flex-wrap items-end gap-3" method="get">
+                <FiltrosAuto />
+                <input type="hidden" name="competencia" value={competencia} />
+                <label className="block">
+                  <span className="esc-rotulo">Colaborador</span>
+                  <input
+                    name="q"
+                    list="lista-fora"
+                    defaultValue={texto(busca, 'q')}
+                    placeholder="Todos — digite para filtrar"
+                    autoComplete="off"
+                    className="esc-input w-56"
+                  />
+                  <datalist id="lista-fora">
+                    {ctx.colaboradores
+                      .filter(c => periodosFora.some(f => f.colaboradorId === c.id))
+                      .map(c => <option key={c.id} value={c.nome} />)}
+                  </datalist>
+                </label>
+                <label className="block">
+                  <span className="esc-rotulo">Equipe</span>
+                  <select name="equipe" defaultValue={texto(busca, 'equipe')} className="esc-input w-44">
+                    <option value="">Todas</option>
+                    {ctx.equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                  </select>
+                </label>
+                <noscript>
+                  <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Aplicar</button>
+                </noscript>
+              </form>
+            </div>
             <AusenciasDoMes
               ano={ano}
               mes={mes}
               nDias={nDias}
-              alocacoes={ausenciasComoAlocacoes}
+              periodos={periodosFora.filter(f => idsVisiveis.has(f.colaboradorId))}
               colaboradores={ctx.colaboradores}
+              equipes={ctx.equipes}
               feriados={ctx.feriados}
             />
           </Bloco>
@@ -427,67 +486,162 @@ export default async function CalendarioPage({ searchParams }: { searchParams: P
  * Não reaproveita a vista de mês porque aqui não há alocação para contar por
  * unidade — o que interessa é o nome de quem está fora, e são poucos por dia.
  */
+/**
+ * Cor e nome curto de cada natureza de ausência.
+ *
+ * Férias, folga, licença e atestado dividiam duas cores e nenhum rótulo. São
+ * quatro decisões diferentes — uma se programa com meses, outra chega por
+ * telefone na véspera — e quem monta o mês precisa distingui-las de relance,
+ * que é a única coisa que um calendário faz bem.
+ */
+const NATUREZA: Record<string, { curto: string; cor: string; bg: string }> = {
+  Férias:   { curto: 'FÉRIAS',  cor: '#B45309', bg: '#FEF3C7' },
+  Folga:    { curto: 'FOLGA',   cor: '#0A6169', bg: '#D7F0F1' },
+  Licença:  { curto: 'LICENÇA', cor: '#6D28D9', bg: '#EDE9FE' },
+  Atestado: { curto: 'ATESTADO', cor: '#BE123C', bg: '#FFE4E9' },
+  Outros:   { curto: 'OUTROS',  cor: '#526176', bg: '#F1F5F9' },
+};
+
+interface PeriodoFora {
+  id: number;
+  colaboradorId: number;
+  tipo: 'FERIAS' | 'AUSENCIA';
+  grupo: string;
+  motivo: string;
+  inicio: string;
+  fim: string;
+  dias: number;
+}
+
+/** Férias são o próprio grupo; as demais trazem o grupo da lista de ausências. */
+const naturezaDe = (f: PeriodoFora) =>
+  NATUREZA[f.tipo === 'FERIAS' ? 'Férias' : (f.grupo || 'Outros')] ?? NATUREZA.Outros;
+
 function AusenciasDoMes({
-  ano, mes, nDias, alocacoes, colaboradores, feriados,
+  ano, mes, nDias, periodos, colaboradores, equipes, feriados,
 }: {
   ano: number; mes: number; nDias: number;
-  alocacoes: Alocacao[];
-  colaboradores: { id: number; nome: string }[];
+  periodos: PeriodoFora[];
+  colaboradores: { id: number; nome: string; equipeId: number }[];
+  equipes: { id: number; nome: string }[];
   feriados: Record<string, string>;
 }) {
-  const nomePorId = new Map(colaboradores.map(c => [c.id, c.nome]));
-  const porDia = new Map<string, Alocacao[]>();
-  for (const a of alocacoes) porDia.set(a.data, [...(porDia.get(a.data) ?? []), a]);
+  const porId = new Map(colaboradores.map(c => [c.id, c]));
+  const equipePorId = new Map(equipes.map(e => [e.id, e.nome]));
+
+  // Um período vira N dias no calendário, mas continua sendo UM período na
+  // lista de baixo — é lá que cabe o motivo por extenso.
+  const porDia = new Map<string, PeriodoFora[]>();
+  for (const f of periodos) {
+    for (let i = 0; i < f.dias; i++) {
+      const d = addDias(f.inicio, i);
+      if (d < iso(ano, mes, 1) || d > iso(ano, mes, nDias)) continue;
+      porDia.set(d, [...(porDia.get(d) ?? []), f]);
+    }
+  }
+
+  const detalhe = (f: PeriodoFora) => {
+    const quem = porId.get(f.colaboradorId)?.nome ?? '—';
+    const que = f.tipo === 'FERIAS' ? 'Férias' : [f.grupo, f.motivo].filter(Boolean).join(' — ');
+    return `${quem} · ${que} · ${formatarData(f.inicio)} a ${formatarData(f.fim)} (${f.dias} dia(s))`;
+  };
+
+  if (periodos.length === 0) {
+    return (
+      <div className="px-4 py-6 text-[12.5px] text-center" style={{ color: 'var(--muted)' }}>
+        Ninguém fora neste mês com os filtros escolhidos.
+      </div>
+    );
+  }
 
   return (
-    <div className="p-3 sm:p-4">
-      <div className="grid grid-cols-7 gap-1.5 mb-1.5">
-        {DIAS_ABREV.map(d => (
-          <div key={d} className="text-[10px] font-semibold uppercase tracking-wider text-center py-1" style={{ color: 'var(--faint)' }}>
-            {d}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {Array.from({ length: diaSemana(ano, mes, 1) }, (_, i) => <div key={`v${i}`} />)}
-        {Array.from({ length: nDias }, (_, i) => {
-          const d = i + 1;
-          const data = iso(ano, mes, d);
-          const fora = porDia.get(data) ?? [];
-          const fimDeSemana = [0, 6].includes(diaSemana(ano, mes, d));
-          return (
-            <div
-              key={data}
-              className="rounded-lg border p-1.5 min-h-[76px] flex flex-col gap-1"
-              style={{
-                background: fimDeSemana || feriados[data] ? 'var(--bg)' : 'var(--surface)',
-                borderColor: 'var(--line)',
-              }}
-            >
-              <span className="text-[12px] font-semibold esc-num">{d}</span>
-              <div className="space-y-0.5 mt-auto">
-                {fora.slice(0, 3).map(a => {
-                  const cfg = MODALIDADES[a.modalidade === 'FERIAS' ? 'FERIAS' : 'FOLGA'];
-                  return (
-                    <div
-                      key={a.colaboradorId}
-                      className="text-[9.5px] font-semibold rounded px-1 py-px truncate"
-                      style={{ background: cfg.bg, color: cfg.cor }}
-                      title={`${nomePorId.get(a.colaboradorId) ?? ''} — ${cfg.label}`}
-                    >
-                      {nomePorId.get(a.colaboradorId)?.split(' ')[0] ?? '—'}
-                    </div>
-                  );
-                })}
-                {fora.length > 3 && (
-                  <div className="text-[9.5px]" style={{ color: 'var(--muted)' }}>+{fora.length - 3}</div>
-                )}
-              </div>
+    <>
+      <div className="p-3 sm:p-4">
+        <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+          {DIAS_ABREV.map(d => (
+            <div key={d} className="text-[10px] font-semibold uppercase tracking-wider text-center py-1" style={{ color: 'var(--faint)' }}>
+              {d}
             </div>
-          );
-        })}
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1.5">
+          {Array.from({ length: diaSemana(ano, mes, 1) }, (_, i) => <div key={`v${i}`} />)}
+          {Array.from({ length: nDias }, (_, i) => {
+            const d = i + 1;
+            const data = iso(ano, mes, d);
+            const fora = porDia.get(data) ?? [];
+            const fimDeSemana = [0, 6].includes(diaSemana(ano, mes, d));
+            return (
+              <div
+                key={data}
+                className="rounded-lg border p-1.5 min-h-[76px] flex flex-col gap-1"
+                style={{
+                  background: fimDeSemana || feriados[data] ? 'var(--bg)' : 'var(--surface)',
+                  borderColor: 'var(--line)',
+                }}
+              >
+                <span className="text-[12px] font-semibold esc-num">{d}</span>
+                <div className="space-y-0.5 mt-auto">
+                  {fora.slice(0, 3).map(f => {
+                    const n = naturezaDe(f);
+                    return (
+                      <div
+                        key={f.id}
+                        className="text-[9.5px] font-semibold rounded px-1 py-px flex items-baseline gap-1"
+                        style={{ background: n.bg, color: n.cor }}
+                        title={detalhe(f)}
+                      >
+                        <span className="truncate">{porId.get(f.colaboradorId)?.nome.split(' ')[0] ?? '—'}</span>
+                        {/* A natureza vem junto do nome, e não só no `title`:
+                            dica de mouse não existe no celular, e é lá que boa
+                            parte desta tela é consultada. */}
+                        <span className="ml-auto shrink-0 opacity-75 text-[8.5px]">{n.curto}</span>
+                      </div>
+                    );
+                  })}
+                  {fora.length > 3 && (
+                    <div className="text-[9.5px]" style={{ color: 'var(--muted)' }}>+{fora.length - 3}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* O calendário mostra a forma do mês; a lista mostra o que cada ausência
+          é. Uma pastilha de nove pixels não comporta "Licença — Paternidade",
+          e era essa a informação que faltava para decidir qualquer coisa. */}
+      <div className="border-t px-4 py-3" style={{ borderColor: 'var(--line)' }}>
+        <span className="esc-rotulo">{periodos.length} período(s) no mês</span>
+        <ul className="mt-1.5 divide-y" style={{ borderColor: 'var(--line)' }}>
+          {[...periodos].sort((x, y) => x.inicio.localeCompare(y.inicio)).map(f => {
+            const n = naturezaDe(f);
+            const c = porId.get(f.colaboradorId);
+            return (
+              <li key={f.id} className="py-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12.5px]">
+                <span
+                  className="text-[9.5px] font-semibold rounded px-1.5 py-px shrink-0"
+                  style={{ background: n.bg, color: n.cor }}
+                >
+                  {n.curto}
+                </span>
+                <span className="font-medium">{c?.nome ?? '—'}</span>
+                <span style={{ color: 'var(--muted)' }}>
+                  {equipePorId.get(c?.equipeId ?? -1) ?? 'sem equipe'}
+                </span>
+                {f.tipo !== 'FERIAS' && f.motivo && (
+                  <span style={{ color: 'var(--muted)' }}>· {f.motivo}</span>
+                )}
+                <span className="ml-auto esc-num" style={{ color: 'var(--muted)' }}>
+                  {formatarData(f.inicio)} a {formatarData(f.fim)} · {f.dias} dia(s)
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </>
   );
 }
 
