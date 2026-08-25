@@ -1,11 +1,23 @@
-import { DIAS_ABREV, diaSemana, diasNoMes, iso } from '@/lib/domain/escalas/datas';
+import { DIAS_ABREV, addDias, diaSemana, diasNoMes, formatarData, iso } from '@/lib/domain/escalas/datas';
 import { GRUPOS_AUSENCIA, MODALIDADES } from '@/lib/domain/escalas/constantes';
 import { reposicionarAlocacao } from '@/app/actions-geracao';
-import { salvarAusencia } from '@/app/actions-planos';
+import { salvarAusencia, removerAusencia } from '@/app/actions-planos';
 import { Bloco } from './Ui';
 import { LancarAusencia } from './LancarAusencia';
 import { EscolherPessoa } from './EscolherPessoa';
-import type { Colaborador, Unidade } from '@/lib/domain/escalas/tipos';
+import type { Ausencia, Colaborador, Unidade } from '@/lib/domain/escalas/tipos';
+
+/**
+ * Uma ausência com a origem à mostra.
+ *
+ * Não há coluna que diga isso, e não precisa haver: a ausência nascida de um
+ * pedido é a que tem um pedido APROVADO cobrindo a mesma pessoa no mesmo dia de
+ * início — que é como `aplicarNaEscala` a cria. A anotação é feita na página,
+ * onde as duas listas já estão carregadas.
+ */
+export interface AusenciaAjustavel extends Ausencia {
+  deSolicitacao: boolean;
+}
 
 interface Props {
   competencia: string;
@@ -13,6 +25,8 @@ interface Props {
   mes: number;
   colaboradores: Colaborador[];
   unidades: Unidade[];
+  /** As ausências que tocam este mês, para o quarto formulário poder desfazer. */
+  ausencias: AusenciaAjustavel[];
   volta: string;
 }
 
@@ -37,13 +51,24 @@ interface Props {
  * um intervalo, não um dia.
  */
 export function AjustesManuais({
-  competencia, ano, mes, colaboradores, unidades, volta,
+  competencia, ano, mes, colaboradores, unidades, ausencias, volta,
 }: Props) {
   const nDias = diasNoMes(ano, mes);
   const pessoas = [...colaboradores].sort((a, b) => a.nome.localeCompare(b.nome));
   const ativas = unidades.filter(u => u.ativa);
   const primeiroDia = iso(ano, mes, 1);
   const ultimoDia = iso(ano, mes, nDias);
+  const nomePorId = new Map(colaboradores.map(c => [c.id, c.nome]));
+
+  // O que toca este mês, com a origem à mostra. `criadoPorSolicitacao` não
+  // existe como coluna: o que distingue as duas origens é haver um pedido
+  // aprovado cobrindo o mesmo período da mesma pessoa — que é a definição, e
+  // não um palpite sobre ela.
+  const doMes = ausencias
+    .map(a => ({ a, fim: addDias(a.inicio, a.dias - 1) }))
+    .filter(x => x.fim >= primeiroDia && x.a.inicio <= ultimoDia)
+    .map(x => ({ ...x, deSolicitacao: x.a.deSolicitacao }))
+    .sort((x, y) => x.a.inicio.localeCompare(y.a.inicio));
 
   // `id` continua no parâmetro para não mexer em quem chama, mas o campo agora
   // é o `EscolherPessoa`: com duzentos nomes, rolar a lista era o passo mais
@@ -148,6 +173,58 @@ export function AjustesManuais({
           <LancarAusencia grupos={GRUPOS_AUSENCIA} primeiroDia={primeiroDia} ultimoDia={ultimoDia} />
           <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm w-full">Lançar</button>
         </form>
+
+        {/* ── E desfazer o que foi lançado aqui ── */}
+        {/* Criar sem poder desfazer é meio caminho. O botão de remover morava no
+            plano do mês e saiu de lá com razão: ele apagava também as ausências
+            nascidas de solicitação aprovada, sem desfazer a solicitação — um
+            "remover" que deixava o pedido dizendo APROVADA sobre uma ausência
+            que não existia mais.
+
+            Aqui ele volta com o alcance certo. A lista mostra de onde cada
+            período veio, e o que tem pedido por trás não traz botão: para
+            desfazer aquilo, desfaz-se a decisão, em Solicitações. */}
+        <div className="px-4 py-4 space-y-3">
+          <div>
+            <h3 className="text-[13px] font-semibold">Desfazer um lançamento</h3>
+            <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--muted)' }}>
+              Só o que foi lançado à mão. O que veio de solicitação aprovada se desfaz em Solicitações.
+            </p>
+          </div>
+          {doMes.length === 0 ? (
+            <p className="text-[12px]" style={{ color: 'var(--muted)' }}>
+              Nenhuma férias ou ausência tocando este mês.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {doMes.map(x => (
+                <li key={x.a.id} className="flex flex-wrap items-center gap-2 text-[12px]">
+                  <span className="flex-1 min-w-[160px]">
+                    <strong className="font-semibold">{nomePorId.get(x.a.colaboradorId) ?? '—'}</strong>{' '}
+                    <span style={{ color: 'var(--muted)' }}>
+                      {x.a.tipo === 'FERIAS' ? 'Férias' : [x.a.grupo, x.a.motivo].filter(Boolean).join(' — ')}
+                      {' · '}{formatarData(x.a.inicio)} a {formatarData(x.fim)}
+                    </span>
+                  </span>
+                  {x.deSolicitacao ? (
+                    <span className="text-[11px] shrink-0" style={{ color: 'var(--faint)' }}>
+                      veio de solicitação
+                    </span>
+                  ) : (
+                    <form action={removerAusencia} className="shrink-0">
+                      <input type="hidden" name="competencia" value={competencia} />
+                      <input type="hidden" name="colaboradorId" value={x.a.colaboradorId} />
+                      <input type="hidden" name="id" value={x.a.id} />
+                      <input type="hidden" name="volta" value={volta} />
+                      <input type="hidden" name="etapa" value="revisar" />
+                      <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </Bloco>
   );

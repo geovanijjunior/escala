@@ -1,10 +1,9 @@
 import Link from 'next/link';
 import { addDias, diffDias, formatarCompetencia, formatarData } from '@/lib/domain/escalas/datas';
-import { DEGRAUS_PCT, GRUPOS_AUSENCIA } from '@/lib/domain/escalas/constantes';
-import { salvarPlano, salvarAusencia, removerAusencia } from '@/app/actions-planos';
+import { DEGRAUS_PCT } from '@/lib/domain/escalas/constantes';
+import { salvarPlano } from '@/app/actions-planos';
 import { Bloco } from './Ui';
 import { DistribuicaoEPostos } from './DistribuicaoEPostos';
-import { MotivoDependente } from './MotivoDependente';
 import { UnidadesFixasEHomeOffice } from './UnidadesFixasEHomeOffice';
 import type { Ausencia, Ciclo, Colaborador, PlanoMensal, Posto, Unidade } from '@/lib/domain/escalas/tipos';
 
@@ -166,46 +165,37 @@ export function EditorPlano({
           </p>
         </div>
 
+        {/* Ausências, só como informação — pelo mesmo motivo das férias.
+            O plano era a segunda porta para criá-las, e produzia ausência sem
+            nenhuma decisão por trás: ninguém pediu, ninguém aprovou, e o
+            histórico do pedido — que é o que responde "quem autorizou isso?" —
+            não existia. Agora todas entram por solicitação, inclusive o
+            atestado, que ganhou tipo próprio.
+
+            Mostrar continua valendo: quem monta o mês precisa ver quem está
+            fora, e era essa a parte útil deste bloco. */}
         <div className="pt-1 border-t" style={{ borderColor: 'var(--line)' }}>
-          <span className="esc-rotulo">Ausências (folga, licença, atestado) — outro assunto</span>
-          {outras.length > 0 && (
-            <ul className="mb-2 space-y-1">
+          <span className="esc-rotulo">Ausências (folga, licença, atestado)</span>
+          {outras.length > 0 ? (
+            <ul className="space-y-1">
               {outras.map(a => (
-                <li key={a.id} className="flex flex-wrap items-center gap-2 text-[12.5px]">
-                  <span>
-                    <strong className="font-semibold">{a.grupo}</strong> — {a.motivo} ·{' '}
-                    {formatarData(a.inicio)} a {formatarData(addDias(a.inicio, a.dias - 1))}
-                    <span style={{ color: 'var(--muted)' }}> ({a.dias} dia(s))</span>
-                  </span>
-                  <form action={removerAusencia}>
-                    <input type="hidden" name="competencia" value={competencia} />
-                    <input type="hidden" name="colaboradorId" value={c.id} />
-                    <input type="hidden" name="id" value={a.id} />
-                    <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
-                  </form>
+                <li key={a.id} className="text-[12.5px]">
+                  <strong className="font-semibold">{a.grupo}</strong>
+                  {a.motivo && ` — ${a.motivo}`} ·{' '}
+                  {formatarData(a.inicio)} a {formatarData(addDias(a.inicio, a.dias - 1))}
+                  <span style={{ color: 'var(--muted)' }}> ({a.dias} dia(s))</span>
                 </li>
               ))}
             </ul>
+          ) : (
+            <p className="text-[12.5px]" style={{ color: 'var(--muted)' }}>
+              Sem ausências neste período.
+            </p>
           )}
-          <form action={salvarAusencia} className="flex flex-wrap items-end gap-2">
-            <input type="hidden" name="competencia" value={competencia} />
-            <input type="hidden" name="colaboradorId" value={c.id} />
-            <input type="hidden" name="tipo" value="AUSENCIA" />
-            <label className="block">
-              <span className="esc-rotulo">Início</span>
-              <input type="date" name="inicio" required className="esc-input w-40" />
-            </label>
-            <label className="block">
-              <span className="esc-rotulo">Fim</span>
-              <input type="date" name="fim" className="esc-input w-40" />
-              <span className="esc-ajuda mt-1 block">Vazio = só o dia de início.</span>
-            </label>
-            <MotivoDependente grupos={GRUPOS_AUSENCIA} />
-            <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Adicionar ausência</button>
-          </form>
-          <p className="text-[11px] mt-1.5" style={{ color: 'var(--muted)' }}>
-            A ausência fica ligada à pessoa, não ao mês: um período que começa em um mês e termina no seguinte
-            bloqueia os dois. Períodos sobrepostos são recusados na gravação.
+          <p className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>
+            <strong className="font-semibold">Não se lança ausência aqui.</strong>{' '}
+            Folga, licença e atestado vêm da solicitação aprovada, em Solicitações, e a aprovação já marca
+            os dias na escala.
           </p>
         </div>
       </div>

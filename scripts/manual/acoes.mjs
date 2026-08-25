@@ -232,18 +232,55 @@ await acao('salvarPlano', `/planos?${COMP}&colab=3`, async p => {
   } else console.log('  ok     férias fora do plano do mês');
 }
 
-await acao('salvarAusencia (ausência)', `/planos?${COMP}&colab=5`, async p => {
-  const f = p.locator('form:has(button:text("Adicionar ausência"))');
+// O plano do mês virou leitura para ausência também.
+//
+// Era a segunda porta para criá-las, e produzia ausência sem nenhuma decisão
+// por trás: ninguém pediu, ninguém aprovou, e o histórico do pedido — que é o
+// que responde "quem autorizou isso?" — não existia. A conferência é negativa
+// pelo mesmo motivo da de férias: o que precisa continuar valendo é a AUSÊNCIA
+// do formulário.
+{
+  await p.goto(`${BASE}/planos?${COMP}&colab=5`, { waitUntil: 'networkidle' });
+  const formulario = await p.locator('button:text("Adicionar ausência")').count();
+  const aponta = /n[ãa]o se lan[çc]a aus[êe]ncia aqui/i.test(await p.evaluate(() => document.body.innerText));
+  if (formulario > 0 || !aponta) {
+    falhas++;
+    console.log(`  FALHOU ausência fora do plano do mês      ${formulario > 0
+      ? 'o formulário de adicionar ausência voltou'
+      : 'a tela não diz de onde as ausências vêm'}`);
+  } else console.log('  ok     ausência fora do plano do mês');
+}
+
+// Lançar e desfazer, no painel de ajustes manuais — que é onde essas duas
+// operações passaram a viver, juntas. Criar sem poder desfazer é meio caminho:
+// quem erra a data precisa de um caminho de volta, e ele não pode ser o mesmo
+// botão que apagava também as ausências nascidas de solicitação.
+await acao('salvarAusencia no painel de ajustes', `/gerar?${COMP}&etapa=revisar`, async p => {
+  const f = p.locator('form:has(button:text-is("Lançar"))');
+  await f.locator('input[list]').first().fill(
+    await p.evaluate(() => {
+      const l = document.querySelector('form input[list]');
+      return document.getElementById(l.getAttribute('list')).options[0].value;
+    }),
+  );
   await f.locator('input[name="inicio"]').fill('2026-11-24');
-  await f.locator('button:text("Adicionar ausência")').click();
+  await f.locator('button:text-is("Lançar")').click();
 }, "select count(*) c from ausencias where tipo='AUSENCIA'");
 
-// E desfazer. A ausência lançada à mão é a única que o plano ainda cria, então
-// é a única que ele ainda pode apagar — e apagar é o caminho de quem digitou a
-// data errada. Sem cobertura, um botão que some ou que erra a linha passa.
-await acao('removerAusencia', `/planos?${COMP}&colab=5#ausencias`, async p => {
-  const f = p.locator('form:has(button:text("Remover"))').first();
-  await f.locator('button:text("Remover")').click();
+await acao('removerAusencia no painel de ajustes', `/gerar?${COMP}&etapa=revisar`, async p => {
+  // Só o que foi lançado à mão traz botão; o que veio de solicitação aprovada
+  // mostra "veio de solicitação" e nenhum caminho de remoção.
+  //
+  // `text-is`, e não `text`: o painel tem "Remover do dia", que é outra ação —
+  // tira a pessoa da escala daquele dia em vez de apagar a ausência — e
+  // correspondência por substring pegava ele primeiro.
+  //
+  // E a linha sai pela DATA, não por `.first()`. A lista mistura férias e
+  // ausências ordenadas por início, e a primeira com botão era uma FÉRIAS da
+  // massa: o clique removia certo, a contagem de `tipo='AUSENCIA'` não mexia, e
+  // a suíte acusava "banco não mudou" sobre uma tela que tinha funcionado.
+  await p.locator('li', { hasText: '24/11/2026' })
+    .locator('button:text-is("Remover")').first().click();
 }, "select count(*) c from ausencias where tipo='AUSENCIA'", MENOS);
 
 // Fixar neste mês as regras herdadas do anterior.

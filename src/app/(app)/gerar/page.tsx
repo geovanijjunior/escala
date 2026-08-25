@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getSessao, podeEditarEscala } from '@/lib/sessao';
 import {
   carregarContextoMes, colaboradoresDaEscala, getGeracaoAtual, listarAlocacoes,
-  listarAlteracoesPendentes, listarOcorrencias, pendenciasDoMes,
+  listarAlteracoesPendentes, listarOcorrencias, listarSolicitacoes, pendenciasDoMes,
 } from '@/lib/data/escalas';
 import { conferirAlocacoes } from '@/lib/domain/escalas/conferencia';
 import { diaSemana, diasNoMes, formatarCompetencia, iso, partesIso } from '@/lib/domain/escalas/datas';
@@ -52,6 +52,23 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
   const pendencias = pendenciasDoMes(ctx);
 
   const ativos = colaboradoresDaEscala(ctx).filter(c => c.status === 'ativo');
+
+  // De onde veio cada ausência.
+  //
+  // Não há coluna que diga isso, e não precisa haver: a ausência nascida de um
+  // pedido é a que tem uma solicitação APROVADA da mesma pessoa começando no
+  // mesmo dia — que é exatamente como `aplicarNaEscala` a cria. A distinção
+  // importa porque só a lançada à mão pode ser removida à mão: apagar a outra
+  // deixaria o pedido dizendo APROVADA sobre uma ausência que não existe mais.
+  const aprovadas = new Set(
+    (await listarSolicitacoes())
+      .filter(s => s.status === 'APROVADA')
+      .map(s => `${s.colaboradorId}|${s.data}`),
+  );
+  const ausenciasAnotadas = ctx.ausencias.map(x => ({
+    ...x,
+    deSolicitacao: aprovadas.has(`${x.colaboradorId}|${x.inicio}`),
+  }));
   const [ano, mes] = partesIso(competencia);
   const nDias = diasNoMes(ano, mes);
 
@@ -128,6 +145,22 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
     [...diagnostico.conflitos, ...diagnostico.alertas]
       .map(a => a.colaboradorId)
       .filter((id): id is number => typeof id === 'number'),
+  );
+
+  // Quantas posições operacionais cada unidade tem em cada dia. Sai daqui, e
+  // não de dentro da grade, porque agora DUAS etapas desenham a mesma grade —
+  // a de gerar, só para ver, e a de revisar, para mexer.
+  const capacidadePorDia = Object.fromEntries(
+    Array.from({ length: nDias }, (_, i) => {
+      const data = iso(ano, mes, i + 1);
+      const dow = diaSemana(ano, mes, i + 1);
+      return [data, Object.fromEntries(ctx.unidades.filter(u => u.ativa).map(u => {
+        const esp = ctx.capacidades.find(c => c.unidadeId === u.id && c.data === data);
+        const sem = ctx.capacidades.find(c => c.unidadeId === u.id && !c.data && c.dow === dow);
+        const cfg = esp ?? sem ?? { total: u.capacidadeTotal, reservadas: u.capacidadeReservadas };
+        return [u.id, Math.max(0, cfg.total - cfg.reservadas)];
+      }))];
+    })
   );
 
   const naGrade = ativos.filter(c => {
@@ -282,6 +315,40 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
             )}
           </Bloco>
 
+          {/* O que acabou de sair do motor, à vista.
+              Esta etapa mostrava três números e o botão de regerar: depois de
+              clicar, a única forma de saber o que tinha sido gerado era avançar
+              para a etapa seguinte. Trocar de tela para ver o resultado da ação
+              que você acabou de tomar é o tipo de passo que faz alguém regerar
+              duas vezes por engano.
+
+              A grade aqui é SÓ LEITURA. Alterar continua sendo assunto da etapa
+              "Revisar e ajustar", onde estão os filtros, o painel do dia e a
+              conferência de conflitos que dá sentido a cada mudança. */}
+          {geracao && naGrade.length > 0 && (
+            <Bloco
+              titulo={`Versão ${geracao.versao}, como o motor a montou`}
+              desc="Uma olhada no que foi gerado. Para mexer em alguém, siga para Revisar e ajustar."
+              acoes={
+                <Link href={href('revisar')} className="esc-btn esc-btn-sm">Revisar e ajustar</Link>
+              }
+            >
+              <GradeDoMes
+                editavel={false}
+                ano={ano}
+                mes={mes}
+                competencia={competencia}
+                colaboradores={naGrade}
+                equipes={ctx.equipes}
+                unidades={ctx.unidades}
+                alocacoes={alocacoes}
+                feriados={ctx.feriados}
+                capacidadeDia={capacidadePorDia}
+                baseHref={`/gerar${comFiltros(busca, { etapa: 'revisar', dia: null, colab: null })}`}
+              />
+            </Bloco>
+          )}
+
           <Bloco
             titulo="Precedência aplicada pelo motor"
             desc="As regras rodam nesta ordem. As rígidas nunca são violadas; as flexíveis são otimizadas dentro do que sobra."
@@ -396,6 +463,7 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
               mes={mes}
               colaboradores={ativos}
               unidades={ctx.unidades}
+              ausencias={ausenciasAnotadas}
               volta="/gerar"
             />
           )}
@@ -502,18 +570,7 @@ export default async function GerarPage({ searchParams }: { searchParams: Promis
               unidades={ctx.unidades}
               alocacoes={alocacoes}
               feriados={ctx.feriados}
-              capacidadeDia={Object.fromEntries(
-                Array.from({ length: nDias }, (_, i) => {
-                  const data = iso(ano, mes, i + 1);
-                  const dow = diaSemana(ano, mes, i + 1);
-                  return [data, Object.fromEntries(ctx.unidades.filter(u => u.ativa).map(u => {
-                    const esp = ctx.capacidades.find(c => c.unidadeId === u.id && c.data === data);
-                    const sem = ctx.capacidades.find(c => c.unidadeId === u.id && !c.data && c.dow === dow);
-                    const cfg = esp ?? sem ?? { total: u.capacidadeTotal, reservadas: u.capacidadeReservadas };
-                    return [u.id, Math.max(0, cfg.total - cfg.reservadas)];
-                  }))];
-                })
-              )}
+              capacidadeDia={capacidadePorDia}
               baseHref={`/gerar${comFiltros(busca, { etapa: 'revisar', dia: null, colab: null })}`}
             />
           </Bloco>
