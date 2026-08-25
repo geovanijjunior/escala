@@ -370,11 +370,11 @@ await acao('decidir: encaminhar', '/solicitacoes', async p => {
 }, "select count(*) c from solicitacoes where status='GESTOR'", 2);
 
 await acao('decidir: enviar para a fila', '/solicitacoes', async p => {
-  await p.locator('button:text("Enviar para a lista de espera")').first().click();
+  await p.locator('button:text-is("Lista de espera")').first().click();
 }, "select count(*) c from solicitacoes where status='FILA'");
 
 await acao('decidir: recusar', '/solicitacoes', async p => {
-  await p.locator('button:text("Recusar na triagem")').first().click();
+  await p.locator('button:text-is("Recusar")').first().click();
   await p.locator('input[name="motivo"]').fill('Sem cobertura na data pedida.');
   await p.locator('button:text("Confirmar recusa")').click();
 }, "select count(*) c from solicitacoes where status='RECUSADA'");
@@ -385,7 +385,7 @@ await acao('decidir: recusar', '/solicitacoes', async p => {
 // nunca tinha sido exercitada — a suíte enfileirava e parava ali. Vale o pedido
 // que o passo da fila acabou de colocar lá.
 await acao('decidir: promover da fila', '/solicitacoes?aba=fila', async p => {
-  await p.locator('button:text("Promover")').first().click();
+  await p.locator('button:text("Promover ao gestor")').first().click();
 }, "select count(*) c from solicitacoes where status='FILA'", MENOS);
 
 // Aprovar direto, sem passar pelo gestor.
@@ -400,15 +400,18 @@ await db.query(`insert into solicitacoes (conta_id, colaborador_id, tipo, data, 
   from perfis p where p.id = $1`, [ANA]);
 
 await acao('decidir: aprovar direto na triagem', '/solicitacoes', async p => {
-  await p.locator('button:text("Aprovar direto")').first().click();
+  await p.locator('button:text-is("Aprovar")').first().click();
 }, "select count(*) c from pins where colaborador_id = 3 and data = '2026-11-21'", 1);
 
 // Depois de encaminhada, o Planejamento perde o botão: a decisão é do gestor.
 {
   await p.goto(`${BASE}/solicitacoes`, { waitUntil: 'networkidle' });
-  const texto = await p.evaluate(() => document.body.innerText);
-  const temBotao = await p.locator('button:text-is("Aprovar")').count();
-  const explica = /a decisão agora é do gestor/i.test(texto);
+  // Só o cartão que ESTÁ com o gestor: contar os botões da página inteira
+  // passou a somar os "Aprovar" legítimos dos cartões em triagem, e a acusar
+  // uma regra que continuava valendo.
+  const comOGestor = p.locator('section.esc-card').filter({ hasText: 'Com o gestor' });
+  const temBotao = await comOGestor.getByRole('button', { name: /^Aprovar$/ }).count();
+  const explica = /a decisão agora é do gestor/i.test(await comOGestor.first().innerText());
   if (temBotao > 0 || !explica) {
     falhas++;
     console.log(`  FALHOU planejamento não decide depois     botões=${temBotao} explicação=${explica}`);
@@ -438,7 +441,7 @@ como(RICARDO);
 // Número cravado num contador que outros passos mexem é armadilha para o
 // próximo que acrescentar um caso no meio.
 await acao('gestor manda para a fila', '/solicitacoes', async p => {
-  await p.locator('button:text("Enviar para a lista de espera")').first().click();
+  await p.locator('button:text-is("Lista de espera")').first().click();
 }, "select count(*) c from solicitacoes where status='FILA'", MAIS);
 
 // A aprovação do gestor não encerra mais um pedido que mexe na escala: manda

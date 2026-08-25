@@ -242,7 +242,9 @@ export async function abrirSolicitacao(formData: FormData) {
 
 type Acao =
   | 'ACEITAR_PARCEIRO' | 'RECUSAR_PARCEIRO'
-  | 'ENCAMINHAR' | 'FILA' | 'PROMOVER' | 'RECUSAR_TRIAGEM' | 'APROVAR_TRIAGEM'
+  | 'ENCAMINHAR' | 'FILA' | 'TRATATIVA' | 'PROMOVER' | 'RECUSAR_TRIAGEM' | 'APROVAR_TRIAGEM'
+  | 'APROVAR_FILA' | 'RECUSAR_FILA'
+  | 'APROVAR_TRATATIVA' | 'RECUSAR_TRATATIVA'
   | 'APROVAR' | 'RECUSAR_GESTOR' | 'FILA_GESTOR'
   | 'CONFIRMAR_IMPLANTACAO';
 
@@ -252,7 +254,31 @@ const TRANSICOES: Record<Acao, { de: string[]; para: string; etapa: string; exig
   RECUSAR_PARCEIRO: { de: ['AGUARDA_PARCEIRO'], para: 'RECUSADA', etapa: 'Recusada pelo parceiro', exigeMotivo: true },
   ENCAMINHAR: { de: ['TRIAGEM'], para: 'GESTOR', etapa: 'Encaminhada ao gestor', exigeMotivo: false },
   FILA: { de: ['TRIAGEM'], para: 'FILA', etapa: 'Enviada para a lista de espera', exigeMotivo: false },
+  // Estacionar sem recusar. A lista de espera guarda ORDEM para quando abrir
+  // posição, e por isso só vale onde se disputa posição; tratativa futura é
+  // outra coisa — o pedido está certo, só não é agora. Sem ela, a triagem
+  // escolhia entre recusar (que apaga o pedido) e deixar em TRIAGEM (que
+  // entulha a caixa de quem tria com o que já foi lido e adiado).
+  TRATATIVA: {
+    de: ['TRIAGEM'], para: 'TRATATIVA', etapa: 'Enviada para tratativas futuras', exigeMotivo: false,
+  },
   PROMOVER: { de: ['FILA'], para: 'GESTOR', etapa: 'Promovida da lista de espera', exigeMotivo: false },
+  // Sair da fila e da tratativa pela decisão, e não só pela promoção ao gestor.
+  // Quem estacionou o pedido é quem costuma retomá-lo, e obrigá-lo a encaminhar
+  // ao gestor um caso que ele mesmo pode resolver era um desvio a mais no
+  // caminho — o mesmo motivo pelo qual APROVAR_TRIAGEM existe.
+  APROVAR_FILA: {
+    de: ['FILA'], para: 'APROVADA', etapa: 'Aprovada na lista de espera', exigeMotivo: false,
+  },
+  RECUSAR_FILA: {
+    de: ['FILA'], para: 'RECUSADA', etapa: 'Recusada na lista de espera', exigeMotivo: true,
+  },
+  APROVAR_TRATATIVA: {
+    de: ['TRATATIVA'], para: 'APROVADA', etapa: 'Aprovada nas tratativas futuras', exigeMotivo: false,
+  },
+  RECUSAR_TRATATIVA: {
+    de: ['TRATATIVA'], para: 'RECUSADA', etapa: 'Recusada nas tratativas futuras', exigeMotivo: true,
+  },
   RECUSAR_TRIAGEM: { de: ['TRIAGEM'], para: 'RECUSADA', etapa: 'Recusada na triagem', exigeMotivo: true },
   // Aprovar sem passar pelo gestor. É prerrogativa só do Planejamento: se o
   // gestor pudesse fazê-lo, ele estaria decidindo antes de a triagem escolher
@@ -370,10 +396,16 @@ export async function decidirSolicitacao(formData: FormData) {
   const { error } = await supabase.from('solicitacoes').update(patch).eq('id', id);
   if (error) erro(volta, 'Não foi possível registrar a decisão.');
 
-  await registrarEvento(sessao, id, etapa, motivo || resumoEfeito);
+  // Os dois, quando há os dois. `motivo || resumoEfeito` fazia a observação de
+  // quem aprovou APAGAR o registro do que a aprovação mexeu na escala — e é o
+  // segundo que alguém procura quando quer saber por que aquele dia mudou.
+  await registrarEvento(sessao, id, etapa, [motivo, resumoEfeito].filter(Boolean).join(' · '));
 
   // Ao sair da fila, renumera quem ficou pra trás — senão a lista fica com buracos.
-  if (acao === 'PROMOVER' || (s.status === 'FILA' && destino === 'RECUSADA')) {
+  // Qualquer saída da fila renumera quem ficou, e não só a promoção e a recusa:
+  // aprovar direto da lista deixaria um buraco na ordem, e a ordem É a razão de
+  // a lista existir.
+  if (s.status === 'FILA' && destino !== 'FILA') {
     const { data: restantes } = await supabase
       .from('solicitacoes')
       .select('id')

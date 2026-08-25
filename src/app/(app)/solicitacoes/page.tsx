@@ -7,17 +7,23 @@ import {
 import { formatarData } from '@/lib/domain/escalas/datas';
 import {
   OPCOES_FERIAS, STATUS_ABERTOS, STATUS_SOLICITACAO, TIPOS_COM_EFEITO_NA_ESCALA, TIPOS_SOLICITACAO,
+  type StatusSolicitacao,
 } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import { Volta } from '@/components/Volta';
 import { valorVolta } from '@/lib/volta';
 import { abrirSolicitacao, decidirSolicitacao } from '@/app/actions-solicitacoes';
 import { Abas, Aviso, Badge, Bloco, Pill, Vazio } from '@/components/Ui';
-import { FormRecusa } from '@/components/FormRecusa';
+import { FormDecisao, FormRecusa } from '@/components/FormDecisao';
 import { NovaSolicitacao } from '@/components/NovaSolicitacao';
 import type { AusenciaSobreposta, Solicitacao } from '@/lib/data/escalas';
 
-const ROTULO_ABA = { abertas: 'Abertas', fila: 'Lista de espera', historico: 'Histórico' };
+const ROTULO_ABA = {
+  abertas: 'Abertas',
+  fila: 'Lista de espera',
+  tratativa: 'Tratativas futuras',
+  historico: 'Histórico',
+};
 
 export default async function SolicitacoesPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
@@ -50,10 +56,18 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
   const colegas = colaboradores
     .filter(c => c.status === 'ativo' && c.id !== sessao.colaboradorId)
     .map(c => ({ id: c.id, nome: c.nome }));
-  const abertas = todas.filter(s => STATUS_ABERTOS.includes(s.status) && s.status !== 'FILA');
+  // Fila e tratativa têm aba própria justamente porque saíram da caixa de quem
+  // tria: misturá-las com as abertas devolveria à lista o que já foi lido e
+  // adiado, que é o entulho que a tratativa existe para evitar.
+  const estacionados: StatusSolicitacao[] = ['FILA', 'TRATATIVA'];
+  const abertas = todas.filter(s => STATUS_ABERTOS.includes(s.status) && !estacionados.includes(s.status));
   const fila = todas.filter(s => s.status === 'FILA').sort((a, b) => (a.posicaoFila ?? 99) - (b.posicaoFila ?? 99));
+  const tratativa = todas.filter(s => s.status === 'TRATATIVA');
   const historico = todas.filter(s => s.status === 'APROVADA' || s.status === 'RECUSADA');
-  const lista = aba === 'fila' ? fila : aba === 'historico' ? historico : abertas;
+  const lista = aba === 'fila' ? fila
+    : aba === 'tratativa' ? tratativa
+    : aba === 'historico' ? historico
+    : abertas;
 
   // Férias esperando o gestor: quem mais da equipe já está fora naquelas
   // semanas. Só para os cartões que ele pode decidir agora — carregar para o
@@ -143,11 +157,11 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
 
       <Abas
         ativa={aba}
-        itens={(['abertas', 'fila', 'historico'] as const).map(k => ({
+        itens={(['abertas', 'fila', 'tratativa', 'historico'] as const).map(k => ({
           chave: k,
           label: ROTULO_ABA[k],
           href: `/solicitacoes${comFiltros(busca, { aba: k })}`,
-          extra: k === 'abertas' ? abertas.length : k === 'fila' ? fila.length : historico.length,
+          extra: { abertas, fila, tratativa, historico }[k].length,
         }))}
       />
 
@@ -200,6 +214,8 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
                 ? 'Não há solicitações aguardando decisão neste momento.'
                 : aba === 'fila'
                 ? 'A lista de espera está vazia.'
+                : aba === 'tratativa'
+                ? 'Nada estacionado para tratar depois.'
                 : 'Nenhuma solicitação foi concluída ainda.'
             }
           />
@@ -359,37 +375,58 @@ function Cartao({
             </>
           )}
 
+          {/* As cinco saídas da triagem, na ordem em que se pensa nelas:
+              resolver agora (aprovar), passar adiante (gestor), guardar a vez
+              (lista de espera), estacionar (tratativa futura) e encerrar
+              (recusar). Só a recusa exige motivo — as demais oferecem. */}
           {papel === 'planejamento' && s.status === 'TRIAGEM' && (
             <>
-              <form action={decidirSolicitacao}>
-                <Volta busca={busca} />
-                <input type="hidden" name="id" value={s.id} />
-                <input type="hidden" name="acao" value="ENCAMINHAR" />
-                <button type="submit" className="esc-btn esc-btn-sm">Encaminhar ao gestor</button>
-              </form>
-              {/* Aprovar direto: nem todo pedido precisa da decisão do gestor, e
-                  encaminhar o que já está resolvido só atrasa a resposta. */}
-              <form action={decidirSolicitacao}>
-                <Volta busca={busca} />
-                <input type="hidden" name="id" value={s.id} />
-                <input type="hidden" name="acao" value="APROVAR_TRIAGEM" />
-                <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Aprovar direto</button>
-              </form>
-              {tipo.fila && (
-                <form action={decidirSolicitacao}>
-                <Volta busca={busca} />
-                  <input type="hidden" name="id" value={s.id} />
-                  <input type="hidden" name="acao" value="FILA" />
-                  <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Enviar para a lista de espera</button>
-                </form>
-              )}
-              <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_TRIAGEM" rotulo="Recusar na triagem" />
-              <span className="text-[11px] w-full" style={{ color: 'var(--muted)' }}>
-                <strong style={{ color: 'var(--text)' }}>Aprovar direto</strong> encerra o pedido sem passar pelo gestor
-                {mexeNaEscala
-                  ? ' e já altera a escala do dia, travando a alocação.'
-                  : '. Este tipo não altera a escala — vale como registro formal.'}
-              </span>
+              <FormDecisao
+                volta={valorVolta(busca)} id={s.id}
+                decisoes={[
+                  { acao: 'APROVAR_TRIAGEM', rotulo: 'Aprovar', tom: 'sucesso' },
+                  { acao: 'ENCAMINHAR', rotulo: 'Encaminhar ao gestor', tom: 'primario' },
+                  ...(tipo.fila ? [{ acao: 'FILA', rotulo: 'Lista de espera' as const }] : []),
+                  { acao: 'TRATATIVA', rotulo: 'Tratativa futura' },
+                ]}
+                dica={
+                  <>
+                    <strong style={{ color: 'var(--text)' }}>Aprovar</strong> encerra o pedido sem passar pelo gestor
+                    {mexeNaEscala
+                      ? ' e já altera a escala do dia, travando a alocação.'
+                      : '. Este tipo não altera a escala — vale como registro formal.'}
+                    {tipo.fila && ' A lista de espera guarda a ordem de chegada para quando abrir posição.'}
+                    {' '}<strong style={{ color: 'var(--text)' }}>Tratativa futura</strong> estaciona o pedido sem
+                    decidir: ele sai da sua caixa e continua vivo, para ser aprovado ou recusado quando for a hora.
+                  </>
+                }
+              />
+              <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_TRIAGEM" rotulo="Recusar" />
+            </>
+          )}
+
+          {/* Fila e tratativa não são becos: de dentro delas o Planejamento
+              decide. Obrigar a encaminhar ao gestor um caso que ele mesmo pode
+              resolver seria um desvio a mais no caminho. */}
+          {papel === 'planejamento' && (s.status === 'FILA' || s.status === 'TRATATIVA') && (
+            <>
+              <FormDecisao
+                volta={valorVolta(busca)} id={s.id}
+                decisoes={[
+                  { acao: s.status === 'FILA' ? 'APROVAR_FILA' : 'APROVAR_TRATATIVA', rotulo: 'Aprovar', tom: 'sucesso' },
+                  ...(s.status === 'FILA'
+                    ? [{ acao: 'PROMOVER', rotulo: 'Promover ao gestor', tom: 'primario' as const }]
+                    : []),
+                ]}
+                dica={s.status === 'FILA'
+                  ? 'Aprovar tira da fila e renumera quem ficou; promover manda a decisão ao gestor da equipe.'
+                  : 'Estacionada até alguém retomar. Aprovar ou recusar encerra o pedido.'}
+              />
+              <FormRecusa
+                volta={valorVolta(busca)} id={s.id}
+                acao={s.status === 'FILA' ? 'RECUSAR_FILA' : 'RECUSAR_TRATATIVA'}
+                rotulo="Recusar"
+              />
             </>
           )}
 
@@ -398,20 +435,13 @@ function Cartao({
               delegar com o botão ainda na mão de quem delegou não delega nada. */}
           {papel === 'gestor' && s.status === 'GESTOR' && (
             <>
-              <form action={decidirSolicitacao}>
-                <Volta busca={busca} />
-                <input type="hidden" name="id" value={s.id} />
-                <input type="hidden" name="acao" value="APROVAR" />
-                <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Aprovar</button>
-              </form>
-              {tipo.fila && (
-                <form action={decidirSolicitacao}>
-                  <Volta busca={busca} />
-                  <input type="hidden" name="id" value={s.id} />
-                  <input type="hidden" name="acao" value="FILA_GESTOR" />
-                  <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Enviar para a lista de espera</button>
-                </form>
-              )}
+              <FormDecisao
+                volta={valorVolta(busca)} id={s.id}
+                decisoes={[
+                  { acao: 'APROVAR', rotulo: 'Aprovar', tom: 'sucesso' },
+                  ...(tipo.fila ? [{ acao: 'FILA_GESTOR', rotulo: 'Lista de espera' as const }] : []),
+                ]}
+              />
               <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_GESTOR" rotulo="Recusar" />
               <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
                 {mexeNaEscala
@@ -437,12 +467,10 @@ function Cartao({
               aparecer como "a implantar" com a implantação já feita. */}
           {papel === 'planejamento' && s.status === 'IMPLANTAR' && (
             <>
-              <form action={decidirSolicitacao}>
-                <Volta busca={busca} />
-                <input type="hidden" name="id" value={s.id} />
-                <input type="hidden" name="acao" value="CONFIRMAR_IMPLANTACAO" />
-                <button type="submit" className="esc-btn esc-btn-sucesso esc-btn-sm">Confirmar implantação</button>
-              </form>
+              <FormDecisao
+                volta={valorVolta(busca)} id={s.id}
+                decisoes={[{ acao: 'CONFIRMAR_IMPLANTACAO', rotulo: 'Confirmar implantação', tom: 'sucesso' }]}
+              />
               <Link
                 href={`/calendario?competencia=${s.data.slice(0, 8)}01&dia=${s.data}`}
                 className="esc-btn esc-btn-outline esc-btn-sm"

@@ -61,13 +61,18 @@ export const TIPOS_SOLICITACAO: Record<TipoSolicitacao, { label: string; fila: b
 };
 
 export type StatusSolicitacao =
-  | 'AGUARDA_PARCEIRO' | 'TRIAGEM' | 'GESTOR' | 'FILA' | 'IMPLANTAR' | 'APROVADA' | 'RECUSADA';
+  | 'AGUARDA_PARCEIRO' | 'TRIAGEM' | 'GESTOR' | 'FILA' | 'TRATATIVA' | 'IMPLANTAR'
+  | 'APROVADA' | 'RECUSADA';
 
 export const STATUS_SOLICITACAO: Record<StatusSolicitacao, { label: string; cor: string; bg: string }> = {
   AGUARDA_PARCEIRO: { label: 'Aguarda parceiro', cor: '#6D28D9', bg: '#EDE9FE' },
   TRIAGEM: { label: 'Em triagem', cor: '#1A4E93', bg: '#DCEAF8' },
   GESTOR: { label: 'Com o gestor', cor: '#B45309', bg: '#FEF3C7' },
   FILA: { label: 'Lista de espera', cor: '#0A6169', bg: '#D7F0F1' },
+  // Estacionado, não decidido. A cor é discreta de propósito: quem varre a tela
+  // procurando o que precisa de atenção não deve parar aqui — o pedido está
+  // aqui justamente porque alguém já olhou e decidiu que não é agora.
+  TRATATIVA: { label: 'Tratativa futura', cor: '#57534E', bg: '#F5F5F4' },
   // Aprovada pelo gestor e esperando entrar na escala. É execução, não decisão
   // — por isso a cor não é a de "pendente de alguém decidir".
   IMPLANTAR: { label: 'A implantar', cor: '#7C3AED', bg: '#EDE9FE' },
@@ -101,7 +106,9 @@ export const GRUPO_DO_TIPO: Partial<Record<TipoSolicitacao, string>> = {
 // alguém mexer na escala — e trabalho que falta precisa de onde aparecer. Fora
 // desta lista ele sairia das Abertas e cairia no Histórico junto do que já está
 // resolvido, que é onde ninguém procura pelo que ainda tem de ser feito.
-export const STATUS_ABERTOS: StatusSolicitacao[] = ['AGUARDA_PARCEIRO', 'TRIAGEM', 'GESTOR', 'FILA', 'IMPLANTAR'];
+export const STATUS_ABERTOS: StatusSolicitacao[] = [
+  'AGUARDA_PARCEIRO', 'TRIAGEM', 'GESTOR', 'FILA', 'TRATATIVA', 'IMPLANTAR',
+];
 
 export type TipoOcorrencia =
   | 'ATRASO' | 'FALTA_J' | 'FALTA_I' | 'SAIDA_ANTEC'

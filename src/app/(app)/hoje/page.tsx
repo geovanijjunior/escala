@@ -11,7 +11,7 @@ import { TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { texto, type Busca } from '@/lib/pagina';
 import { decidirSolicitacao } from '@/app/actions-solicitacoes';
 import { Aviso, Bloco, Vazio, aparencia } from '@/components/Ui';
-import { FormRecusa } from '@/components/FormRecusa';
+import { FormRecusa } from '@/components/FormDecisao';
 
 const MESES = [
   'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
