@@ -16,6 +16,24 @@ import type { Busca } from '@/lib/pagina';
  */
 export const CAMPO_VOLTA = '_volta';
 
+/**
+ * Um caminho interno vindo de campo oculto, ou o padrão.
+ *
+ * Nem toda action usa o `_volta` acima: várias recebem um campo `volta` com a
+ * rota de origem crua, porque a mesma action é chamada de duas telas. Esse
+ * valor vem do cliente e vai direto para `redirect()`, que aceita URL absoluta
+ * — um formulário adulterado mandaria a pessoa para fora do sistema levando na
+ * query o que estivesse na tela.
+ *
+ * O filtro é deliberadamente estreito: barra, letra, e daí só o que compõe
+ * caminho. Isso recusa `//outro.host` (que o navegador lê como protocolo
+ * relativo) e qualquer coisa com `:`.
+ */
+export function rotaInterna(bruto: unknown, padrao: string): string {
+  const v = String(bruto ?? '');
+  return /^\/[a-zA-Z][\w/-]*$/.test(v) ? v : padrao;
+}
+
 /** Valor do campo oculto: a query string atual mais a âncora de destino. */
 export function valorVolta(busca: Busca, ancora?: string): string {
   const q = new URLSearchParams();

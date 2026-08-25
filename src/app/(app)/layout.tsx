@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NavEscalas, FaixaSecoes, type GrupoNav } from '@/components/NavEscalas';
 import { Marca } from '@/components/Marca';
 import { TabBar } from '@/components/TabBar';
+import { PreservarRolagem } from '@/components/PreservarRolagem';
 import { ROTULO_PAPEL } from '@/lib/supabase/types';
 import { sair } from '@/app/actions-sessao';
 
@@ -151,6 +152,13 @@ export default async function LayoutApp({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-dvh lg:flex">
+      {/* Não desenha nada: só devolve a rolagem ao lugar depois de cada action.
+          Dentro de um Suspense porque lê a query string, e sem a fronteira a
+          árvore de cliente acima dele deixaria de ser pré-renderizada. */}
+      <Suspense fallback={null}>
+        <PreservarRolagem />
+      </Suspense>
+
       <Suspense fallback={<div className="hidden lg:block w-[230px] shrink-0" style={{ background: 'var(--ink)' }} />}>
         <NavEscalas
           grupos={grupos}

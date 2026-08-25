@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirAprovador, exigirPlanejamento, type Sessao } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { avisarConviteDeTroca } from '@/lib/avisos';
-import { voltar, rotaComErro } from '@/lib/volta';
+import { voltar, rotaComErro, rotaInterna } from '@/lib/volta';
 import { getGeracaoAtual } from '@/lib/data/escalas';
 import { mensagemErroBanco } from '@/lib/erros-banco';
 import { addDias, diffDias, dowDeIso, fimDoTurno, formatarData, iso, partesIso } from '@/lib/domain/escalas/datas';
@@ -45,7 +45,7 @@ async function registrarEvento(
 
 export async function abrirSolicitacao(formData: FormData) {
   const sessao = await getSessao();
-  const volta = String(formData.get('volta') ?? '/minha-escala');
+  const volta = rotaInterna(formData.get('volta'), '/minha-escala');
 
   const tipo = String(formData.get('tipo') ?? '') as TipoSolicitacao;
   if (!TIPOS_SOLICITACAO[tipo]) erro(volta, 'Tipo de solicitação inválido.');
@@ -299,7 +299,7 @@ const TRANSICOES: Record<Acao, { de: string[]; para: string; etapa: string; exig
 
 export async function decidirSolicitacao(formData: FormData) {
   const sessao = await getSessao();
-  const volta = String(formData.get('volta') ?? VOLTA);
+  const volta = rotaInterna(formData.get('volta'), VOLTA);
   const acao = String(formData.get('acao') ?? '') as Acao;
   const id = Number(formData.get('id'));
   const motivo = String(formData.get('motivo') ?? '').trim();
@@ -574,7 +574,7 @@ async function aplicarNaEscala(
 
 export async function registrarOcorrencia(formData: FormData) {
   const sessao = await getSessao();
-  const volta = String(formData.get('volta') ?? '/calendario');
+  const volta = rotaInterna(formData.get('volta'), '/calendario');
   exigirAprovador(sessao.papel, volta);
 
   const colaboradorId = Number(formData.get('colaboradorId'));

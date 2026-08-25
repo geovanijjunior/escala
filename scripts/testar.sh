@@ -71,6 +71,7 @@ if [ "$alvo" = navegador ]; then
     # fim, e mês encerrado recusa ajuste — rodando antes, deixaria os outros
     # medindo um cenário fechado e culpando as telas erradas.
     executa 'Rotas por papel'  node scripts/manual/rotas.mjs
+    executa 'Rolagem'          node scripts/manual/rolagem.mjs
     executa 'Telas sem erro'   node scripts/manual/varrer.mjs
     executa 'Navegação'        node scripts/manual/navegar.mjs
     executa 'Entradas hostis'  node scripts/manual/hostil.mjs

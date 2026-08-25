@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirPlanejamento } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { listarUnidades } from '@/lib/data/escalas';
+import { rotaInterna } from '@/lib/volta';
 import { addDias, cicloEfetivo, diffDias, formatarCompetencia } from '@/lib/domain/escalas/datas';
 import { MODALIDADES } from '@/lib/domain/escalas/constantes';
 
@@ -163,7 +164,11 @@ export async function salvarPlano(formData: FormData) {
   );
 
   revalidatePath('/', 'layout');
-  redirect(`${VOLTA}?competencia=${competencia}&ok=1`);
+  // Com o `colab`, como no caminho de erro. Sem ele o editor FECHAVA ao salvar:
+  // a resposta era a lista, curta, no topo — e quem tinha acabado de ajustar
+  // uma pessoa perdia de vista o que gravou, além de ter de reabri-la para
+  // conferir. O erro já voltava para o lugar certo; só o sucesso é que não.
+  redirect(`${VOLTA}?competencia=${competencia}&colab=${colaboradorId}&ok=1`);
 }
 
 /** Copia os planos de um mês para outro. Férias e ausências ficam de fora de
@@ -368,8 +373,7 @@ export async function salvarAusencia(formData: FormData) {
   const competencia = String(formData.get('competencia') ?? '');
   // Quem chamou. A revisão da escala lança férias e folga tanto quanto o editor
   // do plano, e cada uma precisa receber a resposta de volta.
-  const daTela = String(formData.get('volta') ?? '').trim();
-  const volta = /^\/[^/]/.test(daTela) ? daTela : '';
+  const volta = rotaInterna(formData.get('volta'), '');
   // A etapa do fluxo, quando quem chamou está dentro dele. Sem ela a volta cai
   // na etapa que o estado do mês sugere — a de publicar, numa escala já
   // publicada — e quem lançou férias da revisão era cuspido para fora da grade,
@@ -454,15 +458,24 @@ export async function salvarAusencia(formData: FormData) {
 export async function removerAusencia(formData: FormData) {
   const sessao = await getSessao();
   const competencia = String(formData.get('competencia') ?? '');
-  exigirPlanejamento(sessao.papel, `${VOLTA}?competencia=${competencia}`);
+  // Mesma volta do lançamento, e pelo mesmo motivo: desde que a remoção saiu do
+  // editor do plano, quem a chama é o painel de ajustes, em `/gerar`. Sem ler
+  // estes dois campos — que o formulário sempre mandou — remover uma ausência
+  // durante a revisão da escala cuspia a pessoa no editor do plano, noutra
+  // tela, com a grade que ela estava conferindo para trás.
+  const volta = rotaInterna(formData.get('volta'), '');
+  const etapa = String(formData.get('etapa') ?? '').trim();
+  const sufixo = etapa ? `&etapa=${encodeURIComponent(etapa)}` : '';
+  exigirPlanejamento(sessao.papel, `${volta || VOLTA}?competencia=${competencia}`);
 
   const id = Number(formData.get('id'));
   const colaboradorId = Number(formData.get('colaboradorId'));
-  if (!id) erro(competencia, 'Ausência inválida.', colaboradorId);
+  if (!id) erro(competencia, 'Ausência inválida.', colaboradorId, volta);
 
   const supabase = await createClient();
   await supabase.from('ausencias').delete().eq('id', id);
   await registrarLog(sessao, 'Ausência removida', `Colaborador ${colaboradorId} · registro ${id}`);
   revalidatePath('/', 'layout');
+  if (volta) redirect(`${volta}?competencia=${competencia}${sufixo}&ok=1`);
   redirect(`${VOLTA}?competencia=${competencia}&colab=${colaboradorId}&ok=1#ausencias`);
 }

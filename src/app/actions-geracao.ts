@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { rotaComErro } from '@/lib/volta';
+import { rotaComErro, rotaInterna } from '@/lib/volta';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirPlanejamento, exigirEditorDeEscala } from '@/lib/sessao';
 import { avisarAlteracaoDaEscala, type Alcance } from '@/lib/avisos';
@@ -145,7 +145,7 @@ export async function mudarStatusEscala(formData: FormData) {
   const sessao = await getSessao();
   const competencia = String(formData.get('competencia') ?? '');
   const destino = String(formData.get('status') ?? '');
-  const volta = String(formData.get('volta') ?? '/calendario');
+  const volta = rotaInterna(formData.get('volta'), '/calendario');
   exigirPlanejamento(sessao.papel, volta);
 
   if (!['publicada', 'encerrada'].includes(destino)) erro(volta, 'Status inválido.');
@@ -173,7 +173,7 @@ export async function mudarStatusEscala(formData: FormData) {
 /** Trava/destrava a alocação de uma pessoa num dia, para sobreviver à regeração. */
 export async function alternarTrava(formData: FormData) {
   const sessao = await getSessao();
-  const volta = String(formData.get('volta') ?? '/calendario');
+  const volta = rotaInterna(formData.get('volta'), '/calendario');
 
   const colaboradorId = Number(formData.get('colaboradorId'));
   const data = String(formData.get('data') ?? '');
@@ -223,7 +223,7 @@ export async function alternarTrava(formData: FormData) {
 /** Move manualmente uma pessoa de modalidade/unidade num dia — e já deixa travado. */
 export async function reposicionarAlocacao(formData: FormData) {
   const sessao = await getSessao();
-  const volta = String(formData.get('volta') ?? '/calendario');
+  const volta = rotaInterna(formData.get('volta'), '/calendario');
 
   const colaboradorId = Number(formData.get('colaboradorId'));
   const data = String(formData.get('data') ?? '');
@@ -360,7 +360,7 @@ async function rotuloDoDestino(
  */
 export async function publicarAlteracoes(formData: FormData) {
   const sessao = await getSessao();
-  const volta = String(formData.get('volta') ?? '/calendario');
+  const volta = rotaInterna(formData.get('volta'), '/calendario');
   const competencia = String(formData.get('competencia') ?? '');
   const alcance: Alcance = formData.get('alcance') === 'todos' ? 'todos' : 'afetados';
 
@@ -409,7 +409,7 @@ export async function publicarAlteracoes(formData: FormData) {
 /** Descarta a caixa de saída sem avisar ninguém. A escala fica como está. */
 export async function descartarAlteracoesPendentes(formData: FormData) {
   const sessao = await getSessao();
-  const volta = String(formData.get('volta') ?? '/calendario');
+  const volta = rotaInterna(formData.get('volta'), '/calendario');
   const competencia = String(formData.get('competencia') ?? '');
 
   const geracao = await getGeracaoAtual(competencia);
@@ -435,7 +435,7 @@ export async function descartarAlteracoesPendentes(formData: FormData) {
 
 export async function liberarTodasAsTravas(formData: FormData) {
   const sessao = await getSessao();
-  const volta = String(formData.get('volta') ?? VOLTA);
+  const volta = rotaInterna(formData.get('volta'), VOLTA);
   exigirPlanejamento(sessao.papel, volta);
 
   const competencia = String(formData.get('competencia') ?? '');
