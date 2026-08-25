@@ -116,14 +116,16 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
           uma combinação em reunião ou de um telefonema. Antes só havia dois
           jeitos de registrar isso — pedir que a pessoa abrisse o pedido que já
           estava combinado, ou lançar a ausência à mão no plano, sem decisão de
-          gestor por trás. O pedido aberto aqui pula a triagem (quem triaria é
-          quem abriu), vai direto ao gestor e volta para implantação. */}
+          gestor por trás.
+
+          Abrir e decidir são dois momentos, e o pedido aberto aqui cai na
+          triagem como qualquer outro: de lá saem as cinco opções. */}
       {abrindo && (
         <div id="abrir" className="scroll-mt-16">
           <Bloco
             titulo={souPlanejamento ? 'Abrir solicitação para um colaborador' : 'Abrir solicitação'}
             desc={souPlanejamento
-              ? 'Vai direto ao gestor da equipe da pessoa. Aprovado, volta para você implantar na escala e confirmar.'
+              ? 'Entra na triagem, na aba Abertas, com as cinco saídas: aprovar na hora, encaminhar ao gestor, lista de espera, tratativa futura ou recusar.'
               : 'Vale para qualquer data de hoje em diante, mesmo que a escala do mês ainda não tenha sido publicada. Escolhendo um colega na troca de plantão, o pedido vai primeiro a ele.'}
             acoes={
               <Link href={`/solicitacoes${comFiltros(busca, { abrir: null })}`} className="esc-btn esc-btn-ghost esc-btn-sm">
@@ -386,7 +388,7 @@ function Cartao({
                 decisoes={[
                   { acao: 'APROVAR_TRIAGEM', rotulo: 'Aprovar', tom: 'sucesso' },
                   { acao: 'ENCAMINHAR', rotulo: 'Encaminhar ao gestor', tom: 'primario' },
-                  ...(tipo.fila ? [{ acao: 'FILA', rotulo: 'Lista de espera' as const }] : []),
+                  { acao: 'FILA', rotulo: 'Lista de espera' },
                   { acao: 'TRATATIVA', rotulo: 'Tratativa futura' },
                 ]}
                 dica={
@@ -395,7 +397,8 @@ function Cartao({
                     {mexeNaEscala
                       ? ' e já altera a escala do dia, travando a alocação.'
                       : '. Este tipo não altera a escala — vale como registro formal.'}
-                    {tipo.fila && ' A lista de espera guarda a ordem de chegada para quando abrir posição.'}
+                    {' '}A <strong style={{ color: 'var(--text)' }}>lista de espera</strong> guarda a ordem
+                    de chegada para quando abrir posição.
                     {' '}<strong style={{ color: 'var(--text)' }}>Tratativa futura</strong> estaciona o pedido sem
                     decidir: ele sai da sua caixa e continua vivo, para ser aprovado ou recusado quando for a hora.
                   </>
@@ -439,7 +442,7 @@ function Cartao({
                 volta={valorVolta(busca)} id={s.id}
                 decisoes={[
                   { acao: 'APROVAR', rotulo: 'Aprovar', tom: 'sucesso' },
-                  ...(tipo.fila ? [{ acao: 'FILA_GESTOR', rotulo: 'Lista de espera' as const }] : []),
+                  { acao: 'FILA_GESTOR', rotulo: 'Lista de espera' },
                 ]}
               />
               <FormRecusa volta={valorVolta(busca)} id={s.id} acao="RECUSAR_GESTOR" rotulo="Recusar" />
@@ -447,7 +450,7 @@ function Cartao({
                 {mexeNaEscala
                   ? 'Aprovar registra a sua decisão; a escala não muda neste momento. O pedido volta ao Planejamento, que lança os dias e confirma.'
                   : 'Este tipo não altera a escala — a aprovação encerra o pedido como registro formal.'}
-                {tipo.fila && ' A lista de espera guarda o pedido na ordem de chegada, em vez de descartá-lo.'}
+                {' '}A lista de espera guarda o pedido na ordem de chegada, em vez de descartá-lo.
               </span>
             </>
           )}
@@ -455,7 +458,7 @@ function Cartao({
           {papel === 'planejamento' && s.status === 'GESTOR' && (
             <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
               {s.abertaPeloPlanejamento
-                ? 'Aberta por você e enviada ao gestor da equipe. Aprovada, ela volta para cá com "A implantar".'
+                ? 'Aberta por você e encaminhada ao gestor. Aprovada, ela volta para cá com "A implantar".'
                 : 'Encaminhada — a decisão agora é do gestor da equipe.'}
             </span>
           )}

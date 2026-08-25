@@ -213,7 +213,7 @@ export function NovaSolicitacao({
 
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" className="esc-btn">
-          {pessoas ? 'Enviar ao gestor' : 'Enviar solicitação'}
+          {pessoas ? 'Abrir solicitação' : 'Enviar solicitação'}
         </button>
         {escolhido && (
           <span className="text-[11.5px]" style={{ color: 'var(--muted)' }}>

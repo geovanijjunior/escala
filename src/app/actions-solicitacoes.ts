@@ -141,39 +141,41 @@ export async function abrirSolicitacao(formData: FormData) {
     }
   }
 
-  // Quem abriu decide o caminho.
+  // Todo pedido nasce na triagem — inclusive o que o Planejamento abre em nome
+  // de alguém.
   //
-  // Aberto pelo Planejamento EM NOME de alguém, o pedido pula a triagem: quem
-  // triaria é justamente quem abriu, e mandá-lo para a própria caixa seria
-  // pedir que ele aprovasse a própria decisão. Vai direto ao gestor, e volta
-  // depois para implantação — ver `decidirSolicitacao`.
+  // Por um tempo esse caso pulava direto para o gestor, com o argumento de que
+  // quem triaria era quem tinha acabado de abrir. O argumento confunde dois
+  // momentos que são distintos na prática: ABRIR é registrar o que foi
+  // combinado no corredor ou na reunião; TRIAR é decidir o que fazer com aquilo
+  // — e as duas coisas quase nunca acontecem no mesmo minuto, nem
+  // necessariamente pela mesma pessoa do time de Planejamento.
+  //
+  // Pular a triagem tirava do pedido as cinco saídas que a triagem oferece.
+  // Quem abria uma folga já combinada não tinha como aprová-la: o pedido saía
+  // da mão dele para a caixa do gestor, e voltava só para implantar. Agora ele
+  // cai na triagem como qualquer outro, e de lá segue por onde a operação
+  // mandar — aprovar na hora, encaminhar, enfileirar, estacionar ou recusar.
   //
   // A troca com parceiro nomeado continua vindo antes de tudo: nada anda antes
   // de o colega aceitar, independentemente de quem abriu.
   const peloPlanejamento = sessao.papel === 'planejamento' && colaboradorId !== sessao.colaboradorId;
 
-  // Existe, é desta conta e tem gestor?
+  // Existe, é desta conta e está ativo?
   //
   // A leitura é feita pelo client sob RLS, então ela É a validação da conta: um
-  // id de outra área não traz linha nenhuma. A equipe importa por outro motivo
-  // — a caixa do gestor é recortada pela equipe dele, e um pedido de alguém sem
-  // equipe mandado para `GESTOR` não apareceria para gestor nenhum. Nesse caso
-  // ele fica na triagem do próprio Planejamento, que pode aprovar direto.
-  let temGestor = false;
+  // id de outra área não traz linha nenhuma.
   if (peloPlanejamento) {
     const { data: alvo } = await supabase
       .from('colaboradores')
-      .select('id, equipe_id, status')
+      .select('id, status')
       .eq('id', colaboradorId)
       .maybeSingle();
     if (!alvo) erro(volta, 'Colaborador não encontrado nesta área.');
     if (alvo.status !== 'ativo') erro(volta, 'Esse colaborador não está ativo.');
-    temGestor = alvo.equipe_id !== null;
   }
 
-  const status = parceiroId
-    ? 'AGUARDA_PARCEIRO'
-    : peloPlanejamento && temGestor ? 'GESTOR' : 'TRIAGEM';
+  const status = parceiroId ? 'AGUARDA_PARCEIRO' : 'TRIAGEM';
 
   const { data: nova, error } = await supabase
     .from('solicitacoes')
@@ -227,12 +229,7 @@ export async function abrirSolicitacao(formData: FormData) {
   // onde o pedido foi, porque o caminho não é o mesmo — e o cartão que ele vai
   // procurar na lista está no nome de outra pessoa.
   voltar(volta, formData, peloPlanejamento
-    ? {
-        abrir: '',
-        ok: temGestor
-          ? `Solicitação aberta e enviada ao gestor. Aprovada, ela volta para você implantar.`
-          : `Solicitação aberta. Esse colaborador não tem equipe, então o pedido ficou na sua triagem.`,
-      }
+    ? { abrir: '', ok: 'Solicitação aberta e na triagem. Decida agora: aprovar, encaminhar, enfileirar, estacionar ou recusar.' }
     : {});
 }
 
@@ -357,14 +354,8 @@ export async function decidirSolicitacao(formData: FormData) {
     if (sessao.papel !== 'gestor') {
       erro(volta, 'Depois de encaminhada, a decisão é do gestor da equipe.');
     }
-    if (acao === 'FILA_GESTOR' && !TIPOS_SOLICITACAO[s.tipo as TipoSolicitacao].fila) {
-      erro(volta, 'Esse tipo de solicitação não usa lista de espera.');
-    }
   } else {
     exigirPlanejamento(sessao.papel, volta);
-    if (acao === 'FILA' && !TIPOS_SOLICITACAO[s.tipo as TipoSolicitacao].fila) {
-      erro(volta, 'Esse tipo de solicitação não usa lista de espera.');
-    }
   }
 
   const patch: Record<string, unknown> = { status: destino };

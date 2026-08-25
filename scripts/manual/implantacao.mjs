@@ -82,9 +82,6 @@ await sql(`delete from solicitacao_eventos where solicitacao_id in
              (select id from solicitacoes where colaborador_id = $1 and data = $2)`, [alvo.id, DATA]);
 await sql('delete from solicitacoes where colaborador_id = $1 and data = $2', [alvo.id, DATA]);
 
-/** O cartão daquele pedido, e não o primeiro cartão da lista. */
-const cartao = () => p.locator('section.esc-card').filter({ hasText: CARTAO });
-
 /* ── 1. Planejamento abre o pedido em nome da pessoa ───────────────────── */
 console.log('1. Planejamento abre pela pessoa');
 sou(PLANEJAMENTO);
@@ -118,19 +115,33 @@ await p.fill('input[name="data"]', DATA);
 await p.fill('input[name="dataFim"]', FIM);
 await p.fill('textarea[name="detalhe"]', 'Folga combinada na reunião de escala de novembro.');
 await p.screenshot({ path: '/tmp/impl-1-form.png', fullPage: true });
-await p.getByRole('button', { name: /Enviar ao gestor/i }).click();
+await p.getByRole('button', { name: /Abrir solicitação/i }).click();
 
 const [criada] = (await ate(async () => sql(
   `select id, status, aberta_pelo_planejamento, aplicada from solicitacoes
     where colaborador_id = $1 and data = $2`, [alvo.id, DATA]))) ?? [];
 conferir(!!criada, 'a solicitação foi gravada');
-conferir(criada?.status === 'GESTOR', `foi direto ao gestor, sem triagem (status=${criada?.status})`);
+conferir(criada?.status === 'TRIAGEM', `caiu na triagem, como qualquer outra (status=${criada?.status})`);
 conferir(criada?.aberta_pelo_planejamento === true, 'ficou marcada como aberta pelo Planejamento');
-conferir(
-  !!(await ate(async () => (await p.locator('body').innerText()).includes('volta para você implantar'))),
-  'a tela diz para onde o pedido foi',
-);
+
+// As cinco saídas têm de estar ali: é justamente o que o pedido perdia quando
+// pulava a triagem e ia direto para a caixa do gestor.
+const cartao = () => p.locator('section.esc-card').filter({ hasText: CARTAO });
+await cartao().first().waitFor({ timeout: 10000 });
+for (const botao of ['Aprovar', 'Encaminhar ao gestor', 'Tratativa futura', 'Recusar']) {
+  conferir(
+    await cartao().getByRole('button', { name: new RegExp(`^${botao}$`) }).count() === 1,
+    `a triagem oferece "${botao}"`,
+  );
+}
 await p.screenshot({ path: '/tmp/impl-2-aberta.png', fullPage: true });
+
+/* ── 1b. Dali o Planejamento encaminha ao gestor ───────────────────────── */
+await cartao().getByRole('button', { name: /^Encaminhar ao gestor$/ }).click();
+conferir(
+  !!(await ate(async () => sql("select 1 from solicitacoes where id = $1 and status = 'GESTOR'", [criada.id]))),
+  'encaminhou ao gestor',
+);
 
 /* ── 2. Gestor aprova: decide, mas não mexe na escala ──────────────────── */
 console.log('\n2. Gestor aprova');

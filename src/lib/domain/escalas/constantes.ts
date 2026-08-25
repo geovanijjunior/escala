@@ -45,19 +45,35 @@ export type TipoSolicitacao =
   | 'AJUSTE_PONTO' | 'BANCO_HORAS' | 'FERIAS' | 'FOLGA' | 'LICENCA' | 'ATRASO'
   | 'PAUSA' | 'SAIDA_ANTEC' | 'TROCA_HORARIO' | 'TROCA_UNIDADE';
 
-export const TIPOS_SOLICITACAO: Record<TipoSolicitacao, { label: string; fila: boolean; sla: number }> = {
-  AJUSTE_PONTO: { label: 'Ajuste de Ponto', fila: false, sla: 48 },
-  BANCO_HORAS: { label: 'Banco de Horas', fila: false, sla: 72 },
-  FERIAS: { label: 'Férias', fila: false, sla: 120 },
-  FOLGA: { label: 'Folgas', fila: false, sla: 48 },
+/**
+ * Os tipos de pedido, com o prazo de resposta esperado de cada um.
+ *
+ * Havia aqui um `fila: boolean` que dizia quais tipos podiam ir para a lista de
+ * espera — só as duas trocas. A ideia era que a fila serve para disputar
+ * posição, e ajuste de ponto não disputa nada.
+ *
+ * O efeito na tela era outro: a triagem oferecia cinco saídas em dois tipos e
+ * quatro nos outros oito, sem dizer por quê. Justamente em FÉRIAS — o caso mais
+ * clássico de fila que existe numa operação, porque só cabem tantas pessoas
+ * fora ao mesmo tempo — o botão não aparecia. A regra estava invertida em
+ * relação à prática.
+ *
+ * A fila passou a valer para todo tipo. Onde ela não fizer sentido, ninguém vai
+ * usá-la; onde faz, ela está lá. Quem decide isso é quem tria, não uma tabela.
+ */
+export const TIPOS_SOLICITACAO: Record<TipoSolicitacao, { label: string; sla: number }> = {
+  AJUSTE_PONTO: { label: 'Ajuste de Ponto', sla: 48 },
+  BANCO_HORAS: { label: 'Banco de Horas', sla: 72 },
+  FERIAS: { label: 'Férias', sla: 120 },
+  FOLGA: { label: 'Folgas', sla: 48 },
   // Licença é afastamento de semanas; ia junto com folga, na mesma fila e no
   // mesmo prazo de um dia de banco de horas.
-  LICENCA: { label: 'Licenças', fila: false, sla: 120 },
-  ATRASO: { label: 'Justificativa de Atraso', fila: false, sla: 24 },
-  PAUSA: { label: 'Pausas', fila: false, sla: 24 },
-  SAIDA_ANTEC: { label: 'Saída Antecipada', fila: false, sla: 24 },
-  TROCA_HORARIO: { label: 'Troca de Horário', fila: true, sla: 48 },
-  TROCA_UNIDADE: { label: 'Troca de Unidade', fila: true, sla: 72 },
+  LICENCA: { label: 'Licenças', sla: 120 },
+  ATRASO: { label: 'Justificativa de Atraso', sla: 24 },
+  PAUSA: { label: 'Pausas', sla: 24 },
+  SAIDA_ANTEC: { label: 'Saída Antecipada', sla: 24 },
+  TROCA_HORARIO: { label: 'Troca de Horário', sla: 48 },
+  TROCA_UNIDADE: { label: 'Troca de Unidade', sla: 72 },
 };
 
 export type StatusSolicitacao =
