@@ -186,7 +186,15 @@ export async function abrirSolicitacao(formData: FormData) {
       detalhe,
       parceiro_id: parceiroId,
       aceite_parceiro: null,
-      aberta_pelo_planejamento: peloPlanejamento,
+      // Só vai quando é verdade.
+      //
+      // Mandar `false` explicitamente não acrescenta nada — é o padrão da
+      // coluna — e custa caro numa instalação que ainda não rodou a 0027: o
+      // PostgREST recusa a linha inteira por causa de uma coluna que só
+      // interessa ao Planejamento, e quem não consegue abrir pedido nenhum é o
+      // COLABORADOR. Omitindo, o caminho dele volta a funcionar em qualquer
+      // banco, e só o fluxo que depende da coluna precisa dela.
+      ...(peloPlanejamento ? { aberta_pelo_planejamento: true } : {}),
       unidade_desejada_id: unidadeDesejadaId,
       opcao_ferias: opcaoFerias,
       lancado_fiori: lancadoFiori,
@@ -196,7 +204,16 @@ export async function abrirSolicitacao(formData: FormData) {
     .select('id')
     .single();
 
-  if (error || !nova) erro(volta, 'Não foi possível abrir a solicitação.');
+  // A mensagem diz O QUE falhou. "Não foi possível abrir a solicitação" era
+  // verdadeira e inútil: mandava procurar em toda parte um erro que o banco
+  // tinha acabado de descrever com precisão — coluna faltando, migration não
+  // aplicada, chave estrangeira fora da conta. `mensagemErroBanco` traduz e diz
+  // qual arquivo rodar.
+  if (error || !nova) {
+    erro(volta, error
+      ? `Não foi possível abrir a solicitação: ${mensagemErroBanco(error)}`
+      : 'Não foi possível abrir a solicitação.');
+  }
 
   await registrarEvento(sessao, nova.id, 'Aberta', `${TIPOS_SOLICITACAO[tipo].label} para ${formatarData(data)}`);
   await registrarLog(sessao, 'Solicitação aberta', `#${nova.id} · ${TIPOS_SOLICITACAO[tipo].label} · ${formatarData(data)}`);

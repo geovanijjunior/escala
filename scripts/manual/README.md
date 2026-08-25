@@ -62,6 +62,7 @@ node scripts/manual/varrer.mjs       # 20 telas × 5 papéis, lista fixa
 node scripts/manual/navegar.mjs      # segue todo link a partir das raízes de cada papel
 node scripts/manual/hostil.mjs       # dado inválido em cada formulário; nada pode entrar
 node scripts/manual/implantacao.mjs  # o pedido do Planejamento, de ponta a ponta
+node scripts/manual/solicitar.mjs    # o pedido do colaborador, inclusive num banco sem a 0027
 node scripts/manual/acoes.mjs        # as ações de escrita, cada uma conferida no banco
 ```
 

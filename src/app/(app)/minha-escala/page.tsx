@@ -9,10 +9,8 @@ import {
 } from '@/lib/domain/escalas/datas';
 import { STATUS_SOLICITACAO, TIPOS_SOLICITACAO } from '@/lib/domain/escalas/constantes';
 import { competenciaDaBusca, texto, type Busca } from '@/lib/pagina';
-import { abrirSolicitacao } from '@/app/actions-solicitacoes';
 import { Aviso, Badge, Bloco, Pill, Vazio, aparencia } from '@/components/Ui';
 import { SeletorMes } from '@/components/SeletorMes';
-import { NovaSolicitacao } from '@/components/NovaSolicitacao';
 
 export default async function MinhaEscalaPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const busca = await searchParams;
@@ -300,19 +298,21 @@ export default async function MinhaEscalaPage({ searchParams }: { searchParams: 
         </>
       )}
 
+      {/* Uma porta só para abrir pedido.
+          O formulário morava aqui E o botão de Solicitações mandava para cá —
+          duas cópias do mesmo formulário para manter em sincronia, e um botão
+          que, em vez de abrir um formulário, jogava a pessoa numa tela de mês
+          para rolar até o fim. Agora o formulário vive em Solicitações, ao lado
+          da lista do que ela já pediu, e esta tela leva até ele. */}
       <Bloco
         titulo="Abrir solicitação"
-        desc="Escolhendo um colega na troca de plantão, o pedido vai primeiro a ele; depois passa pela triagem do Planejamento e só então vai ao gestor."
-      >
-        <form action={abrirSolicitacao} className="px-4 py-4">
-          <input type="hidden" name="volta" value="/minha-escala" />
-          <NovaSolicitacao
-            unidades={unidades.filter(u => u.ativa).map(u => ({ id: u.id, nome: u.nome }))}
-            tipos={Object.entries(TIPOS_SOLICITACAO).map(([k, v]) => ({ chave: k, label: v.label, sla: v.sla }))}
-            colegas={equipe.map(c => ({ id: c.id, nome: c.nome }))}
-          />
-        </form>
-      </Bloco>
+        desc="Férias, folga, licença, troca de plantão, ajuste de ponto. Vale para qualquer data de hoje em diante, mesmo que a escala do mês ainda não esteja publicada."
+        acoes={
+          <Link href="/solicitacoes?abrir=1#abrir" className="esc-btn esc-btn-sm">
+            Abrir solicitação
+          </Link>
+        }
+      />
 
       <Bloco titulo={`Minhas solicitações (${minhasSolicitacoes.length})`}>
         {minhasSolicitacoes.length === 0 ? (

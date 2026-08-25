@@ -220,7 +220,10 @@ await acao('salvarPlano', `/planos?${COMP}&colab=3`, async p => {
 {
   await p.goto(`${BASE}/planos?${COMP}&colab=3`, { waitUntil: 'networkidle' });
   const formulario = await p.locator('form:has(button:text("Lançar férias"))').count();
-  const aponta = (await p.evaluate(() => document.body.innerText)).includes('Férias vêm de solicitação aprovada');
+  // "solicitação aprovada" em vez da frase inteira: o texto do bloco já foi
+  // reescrito uma vez, e cravar a redação faz o teste quebrar quando alguém
+  // melhora a explicação — que é o oposto do que ele deveria proteger.
+  const aponta = /solicita[çc][ãa]o aprovada/i.test(await p.evaluate(() => document.body.innerText));
   if (formulario > 0 || !aponta) {
     falhas++;
     console.log(`  FALHOU férias fora do plano do mês        ${formulario > 0
@@ -496,7 +499,7 @@ await acao('gestor recusa com motivo', '/solicitacoes', async p => {
 // E o pedido que o próprio colaborador abre, que é o caminho de entrada mais
 // usado do sistema inteiro e só era exercitado pela ponta do Planejamento.
 como(FELIPE);
-await acao('colaborador abre solicitação', `/minha-escala?${COMP}`, async p => {
+await acao('colaborador abre solicitação', '/solicitacoes?abrir=1', async p => {
   await p.selectOption('select[name="tipo"]', 'AJUSTE_PONTO');
   await p.fill('input[name="data"]', '2026-11-27');
   await p.fill('textarea[name="detalhe"]', 'Esqueci de bater o ponto na saída.');

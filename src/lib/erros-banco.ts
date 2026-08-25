@@ -19,6 +19,11 @@ const ORIGEM: Record<string, string> = {
   unidades: '0002_escalas.sql',
   perfis: '0001_init.sql',
   contas: '0001_init.sql',
+  aberta_pelo_planejamento: '0027_implantacao_pelo_planejamento.sql',
+  na_escala: '0019_equipe_fora_da_escala.sql',
+  saida: '0020_entrada_saida_e_ciclo.sql',
+  minimo: '0021_cota_minima_e_posto_da_equipe.sql',
+  feriados: '0002_escalas.sql',
 };
 
 /**

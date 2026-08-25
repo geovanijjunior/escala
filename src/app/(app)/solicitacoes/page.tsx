@@ -36,7 +36,20 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
   const colabPorId = new Map(colaboradores.map(c => [c.id, c]));
 
   const aba = texto(busca, 'aba') || 'abertas';
-  const abrindo = sessao.papel === 'planejamento' && texto(busca, 'abrir') === '1';
+  // Quem abre pedido: o Planejamento, em nome de alguém, e o COLABORADOR, para
+  // si. O botão do colaborador levava a `/minha-escala` — a tela do mês dele,
+  // com o formulário lá no fim —, e quem clica em "Abrir nova solicitação"
+  // espera um formulário, não uma escala para rolar. Agora ele abre aqui, do
+  // lado da lista dos pedidos dele.
+  const podeAbrir = sessao.papel === 'planejamento' || sessao.papel === 'colaborador';
+  const abrindo = podeAbrir && texto(busca, 'abrir') === '1';
+  const souPlanejamento = sessao.papel === 'planejamento';
+
+  // Colegas ativos para a troca de plantão. Depois da 0026 a RLS entrega ao
+  // colaborador a própria equipe, então esta lista já vem recortada.
+  const colegas = colaboradores
+    .filter(c => c.status === 'ativo' && c.id !== sessao.colaboradorId)
+    .map(c => ({ id: c.id, nome: c.nome }));
   const abertas = todas.filter(s => STATUS_ABERTOS.includes(s.status) && s.status !== 'FILA');
   const fila = todas.filter(s => s.status === 'FILA').sort((a, b) => (a.posicaoFila ?? 99) - (b.posicaoFila ?? 99));
   const historico = todas.filter(s => s.status === 'APROVADA' || s.status === 'RECUSADA');
@@ -69,18 +82,15 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
           <h1 className="text-[17px] font-semibold tracking-tight">{titulo}</h1>
           <p className="text-[12px] mt-0.5" style={{ color: 'var(--muted)' }}>{subtitulo}</p>
         </div>
-        {sessao.papel === 'colaborador' && (
-          <Link href="/minha-escala" className="esc-btn esc-btn-sm">Abrir nova solicitação</Link>
-        )}
-        {/* O botão fica no cabeçalho, e não dentro de um bloco lá embaixo:
-            abrir um pedido em nome de alguém é a segunda coisa que se faz nesta
-            tela, depois de triar o que já chegou. */}
-        {sessao.papel === 'planejamento' && (
+        {/* O botão fica no cabeçalho, e não dentro de um bloco lá embaixo: abrir
+            um pedido é a segunda coisa que se faz nesta tela, depois de olhar o
+            que já está em andamento. */}
+        {podeAbrir && (
           <Link
             href={`/solicitacoes${comFiltros(busca, { abrir: abrindo ? null : '1' })}${abrindo ? '' : '#abrir'}`}
             className={`esc-btn esc-btn-sm${abrindo ? ' esc-btn-ghost' : ''}`}
           >
-            {abrindo ? 'Fechar' : 'Abrir solicitação para um colaborador'}
+            {abrindo ? 'Fechar' : souPlanejamento ? 'Abrir solicitação para um colaborador' : 'Abrir nova solicitação'}
           </Link>
         )}
       </div>
@@ -97,8 +107,10 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
       {abrindo && (
         <div id="abrir" className="scroll-mt-16">
           <Bloco
-            titulo="Abrir solicitação para um colaborador"
-            desc="Vai direto ao gestor da equipe da pessoa. Aprovado, volta para você implantar na escala e confirmar."
+            titulo={souPlanejamento ? 'Abrir solicitação para um colaborador' : 'Abrir solicitação'}
+            desc={souPlanejamento
+              ? 'Vai direto ao gestor da equipe da pessoa. Aprovado, volta para você implantar na escala e confirmar.'
+              : 'Vale para qualquer data de hoje em diante, mesmo que a escala do mês ainda não tenha sido publicada. Escolhendo um colega na troca de plantão, o pedido vai primeiro a ele.'}
             acoes={
               <Link href={`/solicitacoes${comFiltros(busca, { abrir: null })}`} className="esc-btn esc-btn-ghost esc-btn-sm">
                 Fechar
@@ -110,17 +122,19 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
               <NovaSolicitacao
                 unidades={unidades.filter(u => u.ativa).map(u => ({ id: u.id, nome: u.nome }))}
                 tipos={Object.entries(TIPOS_SOLICITACAO).map(([k, v]) => ({ chave: k, label: v.label, sla: v.sla }))}
-                // Troca de plantão aberta daqui vai sem par nomeado: o par
-                // depende da equipe de quem foi escolhido acima, que só se sabe
-                // depois da escolha. Quem já combinou a troca dos dois lados
-                // abre pelo colaborador, que enxerga a própria equipe.
-                colegas={[]}
+                // Aberto pelo Planejamento, o par da troca fica vazio: ele
+                // depende da equipe de quem for escolhido acima, que só se sabe
+                // depois da escolha. O colaborador nomeia o colega direto,
+                // porque a lista já é a equipe dele.
+                colegas={souPlanejamento ? [] : colegas}
                 // A matrícula vai junto porque o campo é digitável: ela
                 // desempata homônimos e é o que muita gente tem na ponta da
                 // língua ao abrir um pedido em nome de outra pessoa.
-                pessoas={colaboradores
-                  .filter(c => c.status === 'ativo')
-                  .map(c => ({ id: c.id, nome: c.nome, matricula: c.matricula }))}
+                pessoas={souPlanejamento
+                  ? colaboradores
+                      .filter(c => c.status === 'ativo')
+                      .map(c => ({ id: c.id, nome: c.nome, matricula: c.matricula }))
+                  : undefined}
               />
             </form>
           </Bloco>

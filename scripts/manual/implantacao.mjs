@@ -94,10 +94,25 @@ const abrir = p.getByRole('link', { name: /Abrir solicitação para um colaborad
 conferir(await abrir.count() > 0, 'o botão de abrir por outro está no cabeçalho');
 await abrir.first().click();
 
-const paraQuem = p.locator('select[name="colaboradorId"]');
+// "Para quem" é campo digitável, não `<select>`: com duzentos colaboradores a
+// lista rolável era o passo mais lento do formulário. O que o servidor recebe
+// continua sendo o id, num `hidden` que só é preenchido quando o texto casa com
+// alguém da lista — então o roteiro digita o RÓTULO inteiro, como quem escolhe
+// uma sugestão do navegador, e confere que o id chegou.
+const paraQuem = p.locator('input[list]').first();
 await paraQuem.waitFor({ timeout: 10000 });
 conferir(await paraQuem.count() > 0, 'o formulário pergunta "para quem"');
-await paraQuem.selectOption(String(alvo.id));
+
+const listaId = await paraQuem.getAttribute('list');
+const rotulos = await p.evaluate(id => [...document.getElementById(id).options].map(o => o.value), listaId);
+const rotulo = rotulos.find(r => r.startsWith(alvo.nome));
+conferir(!!rotulo, `o nome do alvo está na lista ("${rotulo ?? '—'}")`);
+await paraQuem.fill(rotulo);
+await p.waitForTimeout(250);
+conferir(
+  await p.locator('input[type=hidden][name="colaboradorId"]').inputValue() === String(alvo.id),
+  'digitar o nome resolveu o id da pessoa',
+);
 await p.selectOption('select[name="tipo"]', 'FOLGA');
 await p.fill('input[name="data"]', DATA);
 await p.fill('input[name="dataFim"]', FIM);
