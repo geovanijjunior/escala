@@ -115,9 +115,12 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
                 // depois da escolha. Quem já combinou a troca dos dois lados
                 // abre pelo colaborador, que enxerga a própria equipe.
                 colegas={[]}
+                // A matrícula vai junto porque o campo é digitável: ela
+                // desempata homônimos e é o que muita gente tem na ponta da
+                // língua ao abrir um pedido em nome de outra pessoa.
                 pessoas={colaboradores
                   .filter(c => c.status === 'ativo')
-                  .map(c => ({ id: c.id, nome: c.nome }))}
+                  .map(c => ({ id: c.id, nome: c.nome, matricula: c.matricula }))}
               />
             </form>
           </Bloco>

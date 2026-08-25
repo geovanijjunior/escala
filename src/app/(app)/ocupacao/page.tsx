@@ -6,6 +6,7 @@ import { DIAS_ABREV, diaSemana, diasNoMes, formatarCompetencia, formatarData, is
 import { competenciaDaBusca, comFiltros, texto, type Busca } from '@/lib/pagina';
 import { Aviso, BarraOcupacao, Badge, Bloco, Vazio } from '@/components/Ui';
 import { SeletorMes } from '@/components/SeletorMes';
+import { FiltrosAuto } from '@/components/FiltrosAuto';
 import { ExportarCsv } from '@/components/ExportarCsv';
 
 export default async function OcupacaoPage({ searchParams }: { searchParams: Promise<Busca> }) {
@@ -231,9 +232,17 @@ function Cabecalho({
       </div>
       <div className="flex flex-wrap items-end gap-2">
         {/* O gestor já enxerga só a própria equipe pela RLS — oferecer o filtro
-            a ele seria um seletor de um item só. */}
+            a ele seria um seletor de um item só.
+
+            Escolher a equipe JÁ filtra: `FiltrosAuto` envia o formulário na
+            troca do select, e o "Aplicar" sai de cena. Filtro que exige
+            confirmar parece quebrado — a pessoa escolhe a equipe, a tela não
+            muda, e ela vai procurar o que fez de errado antes de procurar o
+            botão. O mesmo componente já governa os filtros de Parâmetros, do
+            calendário e da revisão da escala; esta era a tela fora do padrão. */}
         {!parcial && equipes.length > 1 && (
           <form method="get" className="flex items-end gap-2">
+            <FiltrosAuto />
             <input type="hidden" name="competencia" value={competencia} />
             {texto(busca, 'dia') && <input type="hidden" name="dia" value={texto(busca, 'dia')} />}
             <label className="block">
@@ -247,7 +256,11 @@ function Cabecalho({
                 {equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
               </select>
             </label>
-            <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Aplicar</button>
+            {/* Sem JavaScript o envio automático não acontece, e sem o botão a
+                tela ficaria com um filtro que não filtra. */}
+            <noscript>
+              <button type="submit" className="esc-btn esc-btn-outline esc-btn-sm">Aplicar</button>
+            </noscript>
           </form>
         )}
         <SeletorMes competencia={competencia} />

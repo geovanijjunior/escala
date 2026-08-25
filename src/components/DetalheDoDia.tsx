@@ -3,6 +3,7 @@ import { DIAS_ABREV, dowDeIso, fimDoTurno, formatarData } from '@/lib/domain/esc
 import { MODALIDADES, TIPOS_OCORRENCIA } from '@/lib/domain/escalas/constantes';
 import { alternarTrava, reposicionarAlocacao } from '@/app/actions-geracao';
 import { LinhaDoColaborador } from './LinhaDoColaborador';
+import { EscolherPessoa } from './EscolherPessoa';
 import { Badge, Bloco, aparencia } from './Ui';
 import { capacidadeOperacional } from '@/lib/domain/escalas/conferencia';
 import type {
@@ -191,8 +192,15 @@ export function DetalheDoDia({
                   colunas={podeEditar || podeLancarOcorrencia ? 5 : 4}
                   colegas={trabalhando.filter(x => x.c.id !== c.id).map(x => ({ id: x.c.id, nome: x.c.nome }))}
                   podeLancarOcorrencia={podeLancarOcorrencia}
+                  // `key` em `mover` e `trava` pelo mesmo motivo dos `<td>`
+                  // abaixo, e com um agravante: eles só entram em cena quando a
+                  // gaveta de ajuste ABRE, e lá dentro ficam lado a lado numa
+                  // `<section>` — duas expressões irmãs, que o React achata num
+                  // array e passa a cobrar chave. Fechada a gaveta, nada é
+                  // renderizado e o aviso não sai; foi por isso que ele
+                  // sobreviveu a toda varredura que só carrega telas.
                   mover={podeEditar ? (
-                    <form action={reposicionarAlocacao} className="flex items-end gap-2">
+                    <form key="mover" action={reposicionarAlocacao} className="flex items-end gap-2">
                       <input type="hidden" name="colaboradorId" value={c.id} />
                       <input type="hidden" name="data" value={data} />
                       <input type="hidden" name="competencia" value={competencia} />
@@ -215,7 +223,7 @@ export function DetalheDoDia({
                     </form>
                   ) : undefined}
                   trava={podeEditar ? (
-                    <form action={alternarTrava} className="flex items-end">
+                    <form key="trava" action={alternarTrava} className="flex items-end">
                       <input type="hidden" name="colaboradorId" value={c.id} />
                       <input type="hidden" name="data" value={data} />
                       <input type="hidden" name="competencia" value={competencia} />
@@ -291,13 +299,20 @@ export function DetalheDoDia({
             <input type="hidden" name="volta" value={volta} />
             <label className="block">
               <span className="esc-rotulo">Trazer para este dia</span>
-              <select name="colaboradorId" className="esc-input w-56 py-1" aria-label="Quem trazer para este dia">
-                {foraDoDia.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.nome} — {equipePorId.get(c.equipeId)?.nome ?? 'sem equipe'}
-                  </option>
-                ))}
-              </select>
+              {/* A equipe entra no lugar da matrícula: quem escala um dia pensa
+                  "preciso de alguém do Suporte", e é por aí que vai digitar. */}
+              <EscolherPessoa
+                name="colaboradorId"
+                obrigatorio
+                largura="w-64 py-1"
+                placeholder="Digite o nome"
+                aoEscolher="Quem trazer para este dia"
+                pessoas={foraDoDia.map(c => ({
+                  id: c.id,
+                  nome: c.nome,
+                  matricula: equipePorId.get(c.equipeId)?.nome ?? 'sem equipe',
+                }))}
+              />
             </label>
             <label className="block">
               <span className="esc-rotulo">Alocação</span>

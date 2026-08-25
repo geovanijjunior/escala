@@ -140,7 +140,15 @@ export function EditorPlano({
 
             Mostrar continua valendo: quem monta o mês precisa ver quem está
             fora, e era essa a parte útil deste bloco. */}
-        <div id="ausencias" className="scroll-mt-24">
+        {/* Moldura própria, e não só um espaço em branco antes do bloco
+            seguinte. Sem ela, o formulário de AUSÊNCIAS — que vem logo abaixo —
+            é lido como sendo o das férias, e a tela parece continuar pedindo à
+            mão exatamente o que deixou de pedir. Foi assim que ela foi lida. */}
+        <div
+          id="ausencias"
+          className="scroll-mt-24 rounded-md border px-3 py-2.5"
+          style={{ borderColor: 'var(--line-2)', background: 'var(--bg)' }}
+        >
           <span className="esc-rotulo">Férias</span>
           {ferias ? (
             <p className="text-[12.5px]">
@@ -153,12 +161,13 @@ export function EditorPlano({
             </p>
           )}
           <p className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>
-            Férias vêm de solicitação aprovada — em Solicitações. A aprovação já marca os dias na escala.
+            <strong className="font-semibold">Não se lança férias aqui.</strong>{' '}
+            Elas vêm da solicitação aprovada, em Solicitações, e a aprovação já marca os dias na escala.
           </p>
         </div>
 
-        <div>
-          <span className="esc-rotulo">Ausências (folga, licença, atestado)</span>
+        <div className="pt-1 border-t" style={{ borderColor: 'var(--line)' }}>
+          <span className="esc-rotulo">Ausências (folga, licença, atestado) — outro assunto</span>
           {outras.length > 0 && (
             <ul className="mb-2 space-y-1">
               {outras.map(a => (

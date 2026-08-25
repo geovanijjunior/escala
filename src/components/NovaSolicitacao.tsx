@@ -5,6 +5,7 @@ import {
   GRUPO_DO_TIPO, GRUPOS_AUSENCIA, OPCOES_FERIAS, TIPOS_COM_PERIODO,
   type TipoSolicitacao,
 } from '@/lib/domain/escalas/constantes';
+import { EscolherPessoa, type PessoaEscolhivel } from './EscolherPessoa';
 
 /** Soma dias corridos a uma data ISO, sem passar por fuso. */
 function somaDias(iso: string, dias: number): string {
@@ -38,7 +39,7 @@ export function NovaSolicitacao({
    * pedir à pessoa que abrisse o pedido que ele já sabia que ia abrir — ou
    * lançar a ausência à mão, sem decisão de gestor por trás.
    */
-  pessoas?: { id: number; nome: string }[];
+  pessoas?: PessoaEscolhivel[];
 }) {
   const [tipo, setTipo] = useState(tipos[0]?.chave ?? '');
   const [opcao, setOpcao] = useState(OPCOES_FERIAS[0].chave);
@@ -62,10 +63,7 @@ export function NovaSolicitacao({
         {pessoas && (
           <label className="block">
             <span className="esc-rotulo">Para quem</span>
-            <select name="colaboradorId" required defaultValue="" className="esc-input">
-              <option value="" disabled>Selecione o colaborador</option>
-              {pessoas.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-            </select>
+            <EscolherPessoa name="colaboradorId" obrigatorio pessoas={pessoas} />
           </label>
         )}
 

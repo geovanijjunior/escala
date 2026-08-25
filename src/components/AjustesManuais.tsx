@@ -4,6 +4,7 @@ import { reposicionarAlocacao } from '@/app/actions-geracao';
 import { salvarAusencia } from '@/app/actions-planos';
 import { Bloco } from './Ui';
 import { LancarAusencia } from './LancarAusencia';
+import { EscolherPessoa } from './EscolherPessoa';
 import type { Colaborador, Unidade } from '@/lib/domain/escalas/tipos';
 
 interface Props {
@@ -44,13 +45,17 @@ export function AjustesManuais({
   const primeiroDia = iso(ano, mes, 1);
   const ultimoDia = iso(ano, mes, nDias);
 
+  // `id` continua no parâmetro para não mexer em quem chama, mas o campo agora
+  // é o `EscolherPessoa`: com duzentos nomes, rolar a lista era o passo mais
+  // lento do ajuste, e é justamente o ajuste que se faz com pressa.
   const seletorPessoa = (id: string) => (
-    <label className="block">
+    <label className="block" htmlFor={id}>
       <span className="esc-rotulo">Quem</span>
-      <select name="colaboradorId" id={id} defaultValue="" required className="esc-input w-full">
-        <option value="" disabled>Escolha a pessoa</option>
-        {pessoas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-      </select>
+      <EscolherPessoa
+        name="colaboradorId"
+        obrigatorio
+        pessoas={pessoas.map(c => ({ id: c.id, nome: c.nome, matricula: c.matricula }))}
+      />
     </label>
   );
 
