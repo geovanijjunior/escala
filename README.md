@@ -154,6 +154,7 @@ que sobra.
 ```bash
 ./scripts/testar.sh              # tudo: tipos, lint, motor, propriedades, autorização, build, banco
 ./scripts/testar.sh propriedades # só o fuzzing
+./scripts/testar.sh navegador    # fora do "tudo": as ações, num navegador de verdade
 ./scripts/testar.sh migracoes    # fora do "tudo": cria e derruba bancos próprios
 RODADAS=50000 ./scripts/testar.sh propriedades
 ```
@@ -169,7 +170,19 @@ RODADAS=50000 ./scripts/testar.sh propriedades
 | `supabase/tests/integridade.sql` | restrições, cascatas e vínculo entre contas |
 | `supabase/tests/feriados.sql` | a Páscoa e os feriados nacionais, ano a ano, de 2000 a 2100 |
 | `supabase/tests/migracoes.sh` | instalação do zero, reaplicação, o caminho sem a 0009 e o backfill da 0020 |
+| `scripts/manual/acoes.mjs` | **as 43 ações de escrita**, uma a uma: preenche o formulário, envia e confere a linha no banco |
+| `scripts/manual/rotas.mjs` | 5 papéis × 12 rotas: onde cada um entra, para onde é devolvido, e que nada da tela negada vaza antes do desvio |
+| `scripts/manual/varrer.mjs` | toda tela em todo papel, à caça de erro de HTTP, de JS e de consulta |
+| `scripts/manual/navegar.mjs` | descobre destinos seguindo todo link, em vez de confiar numa lista escrita à mão |
+| `scripts/manual/implantacao.mjs` | o pedido aberto pelo Planejamento de ponta a ponta, conferindo o banco a cada passo |
 | `scripts/manual/hostil.mjs` | dado forjado em cada formulário — o critério é o contrário: precisa NÃO gravar |
+
+Os seis últimos precisam de um dev server contra o shim e saem juntos em
+`./scripts/testar.sh navegador`; a receita está em
+[`scripts/manual/README.md`](scripts/manual/README.md). Eles ficaram fora da
+bateria por muito tempo, e o preço apareceu de uma vez: quinze conferências
+quebradas por mudanças de interface que ninguém tinha percebido, porque tipos,
+motor e RLS continuavam verdes sobre telas que já não gravavam.
 
 Três delas cobrem caminhos que os testes de dado não alcançam, e cada uma nasceu
 de um erro real:

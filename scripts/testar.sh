@@ -3,6 +3,7 @@
 #
 #   ./scripts/testar.sh                 # tudo
 #   ./scripts/testar.sh propriedades    # só o fuzzing do motor
+#   ./scripts/testar.sh navegador       # os roteiros de navegador (pede dev server)
 #   RODADAS=50000 ./scripts/testar.sh propriedades
 #
 # As partes de banco precisam de um Postgres com as migrations aplicadas; o
@@ -44,6 +45,40 @@ if quer banco; then
     executa 'Feriados'     psql -q -v ON_ERROR_STOP=1 -f supabase/tests/feriados.sql
   else
     printf '\n\033[33m── Banco: pulado (sem psql conectável). Defina PGDATABASE/PGHOST.\033[0m\n'
+  fi
+fi
+
+# Os roteiros de navegador.
+#
+# São eles que cobrem as AÇÕES — cada formulário preenchido, enviado e conferido
+# no banco — e ficavam fora da bateria inteira. Quem rodasse `./scripts/testar.sh`
+# antes de commitar tinha tipos, motor e RLS verdes sobre telas que podiam ter
+# parado de gravar, e foi por essa fresta que o roteiro de ações acumulou quinze
+# falhas: ninguém as via porque ninguém o rodava.
+#
+# Ficam fora de `tudo` porque precisam de um dev server apontado para o shim
+# (receita em `scripts/manual/README.md`). A ausência do servidor CONTA como
+# falha em vez de virar um pulo silencioso: quem pede `navegador` está pedindo
+# esta cobertura, e um aviso amarelo no meio do log é fácil demais de não ver.
+#
+#   scripts/manual/preparar.sh
+#   PGDATABASE=manual npm run dev        # noutro terminal, com o shim no lugar
+#   ./scripts/testar.sh navegador
+if [ "$alvo" = navegador ]; then
+  base="${BASE:-http://localhost:3000}"
+  if curl -sf -o /dev/null --noproxy '*' "$base/login"; then
+    # `acoes` fica por último de propósito: ele encerra o mês de novembro no
+    # fim, e mês encerrado recusa ajuste — rodando antes, deixaria os outros
+    # medindo um cenário fechado e culpando as telas erradas.
+    executa 'Rotas por papel'  node scripts/manual/rotas.mjs
+    executa 'Telas sem erro'   node scripts/manual/varrer.mjs
+    executa 'Navegação'        node scripts/manual/navegar.mjs
+    executa 'Entradas hostis'  node scripts/manual/hostil.mjs
+    executa 'Implantação'      node scripts/manual/implantacao.mjs
+    executa 'Ações de escrita' node scripts/manual/acoes.mjs
+  else
+    printf '\n\033[31m── Navegador: sem dev server em %s. Suba-o contra o shim antes.\033[0m\n' "$base"
+    falhas=$((falhas + 1))
   fi
 fi
 

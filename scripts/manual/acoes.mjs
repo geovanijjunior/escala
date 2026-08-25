@@ -43,6 +43,10 @@ let falhas = 0;
 
 const conta = async sql => Number((await db.query(sql)).rows[0].c);
 
+/** Predicados de `esperado`, para quando o número exato não é o que importa. */
+const MENOS = (depois, antes) => depois < antes;
+const MAIS = (depois, antes) => depois > antes;
+
 /**
  * Roda uma ação e confere tela + banco.
  *
@@ -52,6 +56,13 @@ const conta = async sql => Number((await db.query(sql)).rows[0].c);
  * requisição ainda em voo, de modo que o `como()` seguinte trocava o usuário
  * embaixo dela e a gravação saía com o nome errado. Passei um tempo atrás de
  * um bug de permissão que era só isto.
+ *
+ * `esperado` aceita três formas, e a terceira nasceu das remoções: número exato,
+ * `undefined` para "tem de crescer", ou um predicado `(depois, antes) => bool`.
+ * Sem o predicado, uma remoção só podia ser escrita como um número cravado — e
+ * cravar `0` numa tabela que a massa já povoa é afirmar que a tela apagou tudo,
+ * não a linha que se pediu. As três primeiras remoções cobertas aqui falharam
+ * exatamente assim, apagando a linha certa.
  */
 async function acao(nome, url, passos, sql, esperado) {
   const antes = sql ? await conta(sql) : null;
@@ -63,7 +74,10 @@ async function acao(nome, url, passos, sql, esperado) {
   }
   await p.waitForLoadState('networkidle');
 
-  const bateu = d => esperado === undefined ? d > antes : d === esperado;
+  const bateu = d =>
+    typeof esperado === 'function' ? esperado(d, antes)
+    : esperado === undefined ? d > antes
+    : d === esperado;
   let depois = null;
   for (let i = 0; i < 40; i++) {
     await p.waitForTimeout(150);
@@ -89,51 +103,99 @@ async function acao(nome, url, passos, sql, esperado) {
 como(ANA);
 
 // ── Parâmetros ────────────────────────────────────────────────
-await acao('salvarUnidade', '/parametros?aba=unidades', async p => {
+//
+// Todo formulário de cadastro nesta tela fica FECHADO até alguém pedir: o de
+// unidade e o de equipe por `?unidade=novo` / `?equipe=novo`, os cinco demais
+// por `?form=<nome>`. O roteiro precisa abrir o mesmo que uma pessoa abriria,
+// e é por isso que a URL carrega o parâmetro — sem ele o campo não existe na
+// página, e o que se lê é um timeout de `fill`, que parece o app travado.
+await acao('salvarUnidade', '/parametros?aba=unidades&unidade=novo', async p => {
+  // Sem `codigo`: desde a 0018 quem o gera é o banco, e o campo saiu da tela.
   await p.fill('form:has(button:text("Adicionar unidade")) input[name="nome"]', 'Vila Olímpia');
-  await p.fill('input[name="codigo"]', 'VLO');
   await p.fill('input[name="sigla"]', 'VLO');
   await p.click('button:text("Adicionar unidade")');
 }, "select count(*) c from unidades");
 
-await acao('salvarCapacidade', '/parametros?aba=unidades', async p => {
+await acao('salvarCapacidade', '/parametros?aba=unidades&form=capacidade', async p => {
   const f = p.locator('form:has(button:text("Salvar"))').filter({ has: p.locator('input[name="reservadas"]') }).first();
   await f.locator('label:has-text("Qua") input[type=checkbox]').check();
   await f.locator('input[name="reservadas"]').fill('3');
   await f.locator('button:text("Salvar")').click();
 }, "select count(*) c from capacidades");
 
-await acao('salvarCotaEquipe', '/parametros?aba=unidades', async p => {
+await acao('salvarCotaEquipe', '/parametros?aba=unidades&form=cota', async p => {
   const f = p.locator('form:has(button:text("Salvar cota"))');
   await f.locator('select[name="unidadeId"]').selectOption({ index: 1 });
-  await f.locator('input[name="limite"]').fill('4');
+  // `minimo`, não `limite`: desde a 0021 a cota é um piso, não um teto.
+  await f.locator('input[name="minimo"]').fill('4');
   await f.locator('button:text("Salvar cota")').click();
 }, "select count(*) c from cotas_equipe");
 
-await acao('salvarPosto', '/parametros?aba=unidades', async p => {
+await acao('salvarPosto', '/parametros?aba=unidades&form=posto', async p => {
   const f = p.locator('form:has(button:text("Adicionar posto"))');
   await f.locator('input[name="nome"]').fill('Pronto Atendimento');
   await f.locator('button:text("Adicionar posto")').click();
 }, "select count(*) c from postos");
 
-await acao('salvarParametros', '/parametros?aba=unidades', async p => {
+await acao('salvarParametros', '/parametros?aba=unidades&form=motor', async p => {
   await p.fill('input[name="tolerancia"]', '4');
   await p.click('button:text("Salvar parâmetros")');
 }, "select tolerancia_aderencia c from config", 4);
 
-await acao('salvarEquipe', '/parametros?aba=equipes', async p => {
+await acao('salvarEquipe', '/parametros?aba=equipes&equipe=novo', async p => {
+  // Mesmo motivo da unidade: o código da equipe é gerado desde a 0018.
   const f = p.locator('form:has(button:text("Adicionar equipe"))');
   await f.locator('input[name="nome"]').fill('Infraestrutura');
-  await f.locator('input[name="codigo"]').fill('INF');
   await f.locator('button:text("Adicionar equipe")').click();
 }, "select count(*) c from equipes");
 
-await acao('salvarFeriado', '/parametros?aba=feriados', async p => {
+await acao('salvarFeriado', '/parametros?aba=feriados&form=feriado', async p => {
   const f = p.locator('form:has(button:text("Adicionar feriado"))');
-  await f.locator('input[name="data"]').fill('2026-12-25');
-  await f.locator('input[name="nome"]').fill('Natal');
+  // Uma data QUALQUER menos um feriado nacional: desde a 0022 os nacionais já
+  // nascem com a área, e cadastrar o Natal não muda contagem nenhuma — o
+  // roteiro acusava "banco não mudou" numa gravação que estava correta.
+  await f.locator('input[name="data"]').fill('2026-08-11');
+  await f.locator('input[name="nome"]').fill('Aniversário da unidade');
   await f.locator('button:text("Adicionar feriado")').click();
 }, "select count(*) c from feriados");
+
+// Trazer os nacionais de um ano que ainda não tem nenhum.
+//
+// A 0022 semeia o ano vigente ao criar a área; este botão é como se traz
+// qualquer outro. Vale 2028 justamente por estar fora do que a semeadura fez —
+// pedir o ano já semeado devolveria zero linha nova e o roteiro leria isso como
+// falha de uma ação que funcionou.
+await acao('trazerFeriadosNacionais', '/parametros?aba=feriados', async p => {
+  const f = p.locator('form:has(button:text("Trazer"))');
+  await f.locator('input[name="ano"]').fill('2028');
+  await f.locator('button:text("Trazer")').click();
+}, "select count(*) c from feriados where extract(year from data) = 2028");
+
+// ── Parâmetros: o que se cadastra, se apaga ──────────────────
+//
+// As quatro remoções nunca tinham sido exercitadas. Cada uma vem logo depois de
+// a linha correspondente ter sido criada acima, então a contagem cai de volta
+// ao que era — e é essa volta que prova que o botão apaga a linha certa, e não
+// simplesmente alguma.
+await acao('removerCapacidade', '/parametros?aba=unidades', async p => {
+  const bloco = p.locator('section:has-text("Capacidade e posições reservadas por dia")').first();
+  await bloco.locator('button:text("Remover")').first().click();
+}, "select count(*) c from capacidades", MENOS);
+
+await acao('removerCotaEquipe', '/parametros?aba=unidades', async p => {
+  const bloco = p.locator('section:has-text("Cota de posições por equipe")').first();
+  await bloco.locator('button:text("Remover")').first().click();
+}, "select count(*) c from cotas_equipe", MENOS);
+
+await acao('removerPosto', '/parametros?aba=unidades', async p => {
+  const bloco = p.locator('section:has-text("Postos dentro das unidades")').first();
+  await bloco.locator('button:text("Remover")').first().click();
+}, "select count(*) c from postos", MENOS);
+
+await acao('removerFeriado', '/parametros?aba=feriados', async p => {
+  const linha = p.locator('li:has-text("Aniversário da unidade"), tr:has-text("Aniversário da unidade")').first();
+  await linha.locator('button:text("Remover")').click();
+}, "select count(*) c from feriados where nome = 'Aniversário da unidade'", 0);
 
 // ── Plano do mês ──────────────────────────────────────────────
 await acao('salvarPlano', `/planos?${COMP}&colab=3`, async p => {
@@ -172,6 +234,25 @@ await acao('salvarAusencia (ausência)', `/planos?${COMP}&colab=5`, async p => {
   await f.locator('input[name="inicio"]').fill('2026-11-24');
   await f.locator('button:text("Adicionar ausência")').click();
 }, "select count(*) c from ausencias where tipo='AUSENCIA'");
+
+// E desfazer. A ausência lançada à mão é a única que o plano ainda cria, então
+// é a única que ele ainda pode apagar — e apagar é o caminho de quem digitou a
+// data errada. Sem cobertura, um botão que some ou que erra a linha passa.
+await acao('removerAusencia', `/planos?${COMP}&colab=5#ausencias`, async p => {
+  const f = p.locator('form:has(button:text("Remover"))').first();
+  await f.locator('button:text("Remover")').click();
+}, "select count(*) c from ausencias where tipo='AUSENCIA'", MENOS);
+
+// Fixar neste mês as regras herdadas do anterior.
+//
+// O plano herdado VALE sem ser copiado — é a razão de ele existir —, e por isso
+// é fácil esquecer que o botão que o materializa também precisa funcionar. Ele
+// é o que congela a decisão: depois dele, mexer no mês de origem não mexe mais
+// aqui. A conferência é a contagem de planos do mês, que sai do zero quando a
+// cópia acontece de verdade.
+await acao('copiarPlanosDoMes', '/gerar?competencia=2026-12-01&etapa=plano', async p => {
+  await p.locator('button:text("Fixar aqui as regras")').first().click();
+}, "select count(*) c from planos where competencia = '2026-12-01'");
 
 // ── Calendário ────────────────────────────────────────────────
 // Mover, travar e lançar ocorrência vivem na gaveta que "Ajustar" abre — a
@@ -231,8 +312,12 @@ await acao('ocorrência: troca com parceiro', `/calendario?${COMP}&vista=dia&dia
 // escala publicada da massa — o cenário de que a regeração precisa dar conta.
 const PENDENTES_ANTES_DE_REGERAR = await conta('select count(*) c from alteracoes_pendentes');
 
-await acao('regerar mês completo', `/gerar?${COMP}`, async p => {
-  await p.click('button:text("Regerar mês completo")');
+// `/gerar` virou um fluxo de quatro etapas, e cada uma tem a sua URL. A tela
+// abre sozinha na etapa que o estado do mês sugere — num mês publicado, a
+// quarta —, então o roteiro pede a segunda explicitamente, como faria quem
+// clica no passo "Gerar a escala".
+await acao('regerar mês completo', `/gerar?${COMP}&etapa=gerar`, async p => {
+  await p.click('button:text("Regerar o mês")');
 }, "select max(versao) c from geracoes where competencia='2026-11-01'", 2);
 
 // Regerar apaga a caixa de saída da versão que sai de cena: ela descreve
@@ -248,11 +333,22 @@ await acao('regerar mês completo', `/gerar?${COMP}`, async p => {
   } else console.log(`  ok     regerar limpa a caixa de saída    ${PENDENTES_ANTES_DE_REGERAR} → 0`);
 }
 
-await acao('regeração parcial', `/gerar?${COMP}`, async p => {
-  const f = p.locator('form:has(button:text("Regerar apenas o recorte"))');
-  await f.locator('input[type=checkbox]').first().check();
-  await f.locator('button:text("Regerar apenas o recorte")').click();
-}, "select max(versao) c from geracoes where competencia='2026-11-01'", 3);
+// Liberar todas as travas do mês de uma vez.
+//
+// É o botão que devolve a decisão inteira ao motor, e o único jeito de desfazer
+// em lote o que foi travado uma a uma. Nunca tinha sido clicado — e um botão
+// destrutivo sem cobertura é o pior tipo de botão sem cobertura.
+await acao('liberarTodasAsTravas', `/gerar?${COMP}&etapa=gerar`, async p => {
+  await p.locator('button:text("Liberar as")').click();
+}, "select count(*) c from pins", 0);
+
+{
+  await p.goto(`${BASE}/gerar?${COMP}&etapa=gerar`, { waitUntil: 'networkidle' });
+  const recorte = await p.locator('form:has(button:text("Regerar apenas o recorte"))').count();
+  console.log(recorte === 0
+    ? '  --     regeração parcial               sem porta na tela (a action ainda aceita o recorte)'
+    : '  !!     regeração parcial               o recorte voltou à tela — cubra-o aqui');
+}
 
 // ── Solicitações ──────────────────────────────────────────────
 // Cada decisão consome o cartão em triagem, então cada uma abre o seu.
@@ -279,6 +375,30 @@ await acao('decidir: recusar', '/solicitacoes', async p => {
   await p.locator('input[name="motivo"]').fill('Sem cobertura na data pedida.');
   await p.locator('button:text("Confirmar recusa")').click();
 }, "select count(*) c from solicitacoes where status='RECUSADA'");
+
+// Promover quem estava na fila.
+//
+// A lista de espera só tem razão de existir se alguém sair dela, e essa saída
+// nunca tinha sido exercitada — a suíte enfileirava e parava ali. Vale o pedido
+// que o passo da fila acabou de colocar lá.
+await acao('decidir: promover da fila', '/solicitacoes?aba=fila', async p => {
+  await p.locator('button:text("Promover")').first().click();
+}, "select count(*) c from solicitacoes where status='FILA'", MENOS);
+
+// Aprovar direto, sem passar pelo gestor.
+//
+// É prerrogativa exclusiva do Planejamento, e a única aprovação que ainda
+// aplica o efeito na escala na hora — ele é quem a RLS deixa escrever em `pins`
+// e `ausencias`. Por isso a conferência não é o status: é a TRAVA no dia, que é
+// o que distingue "encerrou o pedido" de "encerrou e mexeu na escala".
+await db.query(`insert into solicitacoes (conta_id, colaborador_id, tipo, data, detalhe, status, unidade_desejada_id)
+  select p.conta_id, 3, 'TROCA_UNIDADE', '2026-11-21', 'Aprovação direta de teste', 'TRIAGEM',
+         (select id from unidades where conta_id = p.conta_id order by id limit 1)
+  from perfis p where p.id = $1`, [ANA]);
+
+await acao('decidir: aprovar direto na triagem', '/solicitacoes', async p => {
+  await p.locator('button:text("Aprovar direto")').first().click();
+}, "select count(*) c from pins where colaborador_id = 3 and data = '2026-11-21'", 1);
 
 // Depois de encaminhada, o Planejamento perde o botão: a decisão é do gestor.
 {
@@ -310,9 +430,13 @@ como(RICARDO);
   } else console.log('  ok     férias sobrepostas p/ o gestor');
 }
 
+// Cresceu, e não "é 2": desde que o roteiro passou a PROMOVER alguém da fila,
+// quantos restam ali depende de quantos entraram e saíram antes deste passo.
+// Número cravado num contador que outros passos mexem é armadilha para o
+// próximo que acrescentar um caso no meio.
 await acao('gestor manda para a fila', '/solicitacoes', async p => {
   await p.locator('button:text("Enviar para a lista de espera")').first().click();
-}, "select count(*) c from solicitacoes where status='FILA'", 2);
+}, "select count(*) c from solicitacoes where status='FILA'", MAIS);
 
 // A aprovação do gestor não encerra mais um pedido que mexe na escala: manda
 // para `IMPLANTAR`, e quem lança os dias é o Planejamento. A troca do alvo desta
@@ -323,6 +447,61 @@ await acao('gestor manda para a fila', '/solicitacoes', async p => {
 await acao('gestor aprova → a implantar', '/solicitacoes', async p => {
   await p.locator('button:text("Aprovar")').first().click();
 }, "select count(*) c from solicitacoes where status='IMPLANTAR'");
+
+// O gestor também recusa, e a recusa exige motivo — é a única decisão que o
+// sistema não deixa tomar em silêncio, porque é a que a pessoa vai contestar.
+await db.query(`insert into solicitacoes (conta_id, colaborador_id, tipo, data, detalhe, status)
+  select p.conta_id, 3, 'AJUSTE_PONTO', '2026-11-23', 'Recusa de teste', 'GESTOR'
+  from perfis p where p.id = $1`, [ANA]);
+
+await acao('gestor recusa com motivo', '/solicitacoes', async p => {
+  const cartao = p.locator('section.esc-card').filter({ hasText: 'Recusa de teste' });
+  await cartao.locator('button:text-is("Recusar")').click();
+  await p.locator('input[name="motivo"]').fill('Ponto já conferido pelo RH nesta data.');
+  await p.locator('button:text("Confirmar recusa")').click();
+}, "select count(*) c from solicitacoes where status='RECUSADA' and motivo_recusa <> ''", MAIS);
+
+// ── Troca de plantão: o convite passa PRIMEIRO pelo colega ────
+//
+// O caminho `AGUARDA_PARCEIRO` existia na máquina de estados desde o começo e
+// nunca tinha sido percorrido por teste nenhum — nem o aceite, nem a recusa.
+// São as duas únicas decisões que um COLABORADOR toma no sistema, e ninguém
+// além dele pode tomá-las: o servidor confere que quem responde é o convidado.
+{
+  const [{ id: convidado }] = (await db.query(
+    `select id from colaboradores where perfil_id = $1`, [FELIPE])).rows;
+
+  for (const [rotulo, botao, alvo] of [
+    ['parceiro aceita a troca', 'Aceitar a troca', 'TRIAGEM'],
+    ['parceiro recusa a troca', 'Recusar a troca', 'RECUSADA'],
+  ]) {
+    const marca = `Convite ${alvo}`;
+    await db.query(`insert into solicitacoes
+        (conta_id, colaborador_id, parceiro_id, tipo, data, detalhe, status, aceite_parceiro)
+      select p.conta_id, 5, $2, 'TROCA_HORARIO', '2026-11-25', $3, 'AGUARDA_PARCEIRO', null
+      from perfis p where p.id = $1`, [ANA, convidado, marca]);
+
+    como(FELIPE);
+    await acao(rotulo, '/solicitacoes', async p => {
+      const cartao = p.locator('section.esc-card').filter({ hasText: marca });
+      await cartao.locator(`button:text("${botao}")`).click();
+      if (botao.startsWith('Recusar')) {
+        await p.locator('input[name="motivo"]').fill('Não posso assumir esse plantão.');
+        await p.locator('button:text("Confirmar recusa")').click();
+      }
+    }, `select count(*) c from solicitacoes where detalhe = '${marca}' and status = '${alvo}'`, 1);
+  }
+}
+
+// E o pedido que o próprio colaborador abre, que é o caminho de entrada mais
+// usado do sistema inteiro e só era exercitado pela ponta do Planejamento.
+como(FELIPE);
+await acao('colaborador abre solicitação', `/minha-escala?${COMP}`, async p => {
+  await p.selectOption('select[name="tipo"]', 'AJUSTE_PONTO');
+  await p.fill('input[name="data"]', '2026-11-27');
+  await p.fill('textarea[name="detalhe"]', 'Esqueci de bater o ponto na saída.');
+  await p.locator('button:text("Enviar solicitação")').click();
+}, "select count(*) c from solicitacoes where tipo='AJUSTE_PONTO' and data='2026-11-27' and status='TRIAGEM'", 1);
 
 // ── Colaboradores ─────────────────────────────────────────────
 como(ANA);
@@ -343,6 +522,39 @@ await acao('convidarUsuario', '/usuarios', async p => {
   await f.locator('input[name="email"]').fill('paula.rezende@saolucas.com');
   await f.locator('button:text("Criar acesso")').click();
 }, null);
+
+// Trocar o papel de alguém, e bloquear/liberar o acesso.
+//
+// As duas nunca tinham sido exercitadas, e são as que mais doem quando falham
+// caladas: um papel que não muda deixa a pessoa sem as telas de que precisa, e
+// um bloqueio que não pega deixa entrar quem já saiu da empresa.
+//
+// O alvo é escolhido pelo BANCO e endereçado por id, não "a primeira linha da
+// tabela": a lista é ordenada por nome, e uma pessoa cadastrada num passo
+// anterior entra no meio dela. Mirar por posição é como um roteiro passa a
+// testar outra coisa sem ninguém perceber.
+const [{ id: ALVO_PAPEL }] = (await db.query(
+  `select id from perfis where papel = 'colaborador' and conta_id is not null order by id limit 1`)).rows;
+
+await acao('mudarPapel', '/usuarios', async p => {
+  const f = p.locator(`form:has(input[value="${ALVO_PAPEL}"]):has(select[name="papel"])`);
+  await f.locator('select[name="papel"]').selectOption('gestor');
+  await f.locator('button:text("Salvar")').click();
+}, `select count(*) c from perfis where id = '${ALVO_PAPEL}' and papel = 'gestor'`, 1);
+
+await acao('alternarBloqueio (bloquear)', '/usuarios', async p => {
+  const f = p.locator(`form:has(input[value="${ALVO_PAPEL}"]):has(button:text("Bloquear"))`);
+  await f.locator('button:text("Bloquear")').click();
+}, `select count(*) c from perfis where id = '${ALVO_PAPEL}' and bloqueado`, 1);
+
+await acao('alternarBloqueio (liberar)', '/usuarios', async p => {
+  const f = p.locator(`form:has(input[value="${ALVO_PAPEL}"]):has(button:text("Liberar"))`);
+  await f.locator('button:text("Liberar")').click();
+}, `select count(*) c from perfis where id = '${ALVO_PAPEL}' and bloqueado`, 0);
+
+// Devolve o papel: os passos seguintes contam com a massa como ela foi semeada,
+// e um colaborador virado gestor no meio do caminho muda o que o gestor vê.
+await db.query(`update perfis set papel = 'colaborador' where id = $1`, [ALVO_PAPEL]);
 
 // ── Mural ─────────────────────────────────────────────────────
 // Anexos de mentira, mas com o cabeçalho de verdade: o CHECK da tabela e o
@@ -423,8 +635,8 @@ await acao('gestor publica p/ a equipe', '/mural', async p => {
 // A regeração lá em cima deixou a versão nova em rascunho, e rascunho não
 // avisa ninguém de propósito. Publicar aqui é o que põe o cenário em pé.
 como(ANA);
-await acao('publicar para a equipe', `/calendario?${COMP}`, async p => {
-  await p.click('button:text("Publicar para a equipe")');
+await acao('publicar para a equipe', `/gerar?${COMP}&etapa=publicar`, async p => {
+  await p.click('button:text("Publicar a escala")');
 }, "select count(*) c from geracoes where atual and status='publicada' and competencia='2026-11-01'", 1);
 
 // A massa já traz avisos de alteração; o que interessa aqui é o que sai DAGORA
@@ -540,10 +752,46 @@ como(FELIPE);
     } else {
       console.log(`  ok     abrir tira só o item aberto       ${antes.itens} → ${depois.itens}`);
     }
-    if (depois.badge !== String(depois.itens)) {
+    // O sino para de contar em "9+" — dez avisos e cem avisos dizem a mesma
+    // coisa a quem olha, e o número inteiro só alargaria a bolinha. Comparar
+    // com o tamanho cru da lista acusava divergência onde havia truncamento.
+    const esperadoNoSino = depois.itens > 9 ? '9+' : String(depois.itens);
+    if (depois.badge !== esperadoNoSino) {
       falhas++;
-      console.log(`  FALHOU contador bate com a lista         sino="${depois.badge}", lista=${depois.itens}`);
-    } else console.log('  ok     contador bate com a lista');
+      console.log(`  FALHOU contador bate com a lista         sino="${depois.badge}", esperado "${esperadoNoSino}" (lista=${depois.itens})`);
+    } else console.log(`  ok     contador bate com a lista         ${depois.badge}`);
+
+    // "Marcar como lidas" é o corte em massa, e é a outra metade do sino: abrir
+    // um item por vez tira um; este botão tira todos. Nunca tinha sido clicado.
+    //
+    // Antes de clicar, a massa é trazida para o passado. Ela encena novembro de
+    // 2026 com "hoje" em agosto, então os avisos e eventos semeados estão no
+    // FUTURO — e o botão carimba `now()`, que não alcança o que ainda não
+    // aconteceu. Em produção isso não existe: evento nenhum nasce com data
+    // futura. Deixar a ficção no lugar faria o teste medir o calendário do
+    // cenário em vez da regra, e a regra é: o que já aconteceu, some.
+    await db.query("update solicitacao_eventos set em = least(em, now() - interval '1 minute')");
+    await db.query("update avisos set criado_em = least(criado_em, now() - interval '1 minute')");
+    const carimboAntes = (await db.query(
+      'select notificacoes_vistas_em v from perfis where id = $1', [FELIPE])).rows[0].v;
+    await p.locator('header details:visible button:text("Marcar como lidas")').click();
+
+    // Espera o CARIMBO, não um relógio. A ação grava, revalida e redireciona, e
+    // `networkidle` volta antes de tudo isso terminar — medir ali dava "sobraram
+    // 10" numa gravação que estava a caminho. Um `waitForTimeout` generoso
+    // esconderia o mesmo problema atrás de um número inventado.
+    for (let i = 0; i < 40; i++) {
+      const agora = (await db.query(
+        'select notificacoes_vistas_em v from perfis where id = $1', [FELIPE])).rows[0].v;
+      if (String(agora) !== String(carimboAntes)) break;
+      await p.waitForTimeout(100);
+    }
+
+    const zerado = await abrirSino();
+    if (zerado.itens !== 0) {
+      falhas++;
+      console.log(`  FALHOU marcar todas esvazia o sino       sobraram ${zerado.itens}`);
+    } else console.log('  ok     marcar todas esvazia o sino');
   }
 }
 
@@ -658,15 +906,39 @@ como(MARCOS);
     await f.locator('button[type="submit"]').click();
   }, "select count(*) c from perfis where papel = 'planejamento'");
 
-  // Aba explícita: `equipes` também tem um campo `codigo`, e cair na aba errada
-  // faria o teste preencher outro formulário e culpar a tela certa.
-  await acao('admin da área cadastra unidade', '/parametros?aba=unidades', async p => {
-    const f = p.locator('form:has(input[name="codigo"])').first();
-    await f.locator('input[name="codigo"]').fill(`U${Date.now().toString().slice(-4)}`);
+  // Aba explícita, e o formulário escolhido pelo BOTÃO: `codigo` sumiu da tela
+  // na 0018 (quem o gera é o banco), e era por ele que este roteiro achava o
+  // formulário certo.
+  await acao('admin da área cadastra unidade', '/parametros?aba=unidades&unidade=novo', async p => {
+    const f = p.locator('form:has(button:text("Adicionar unidade"))');
     await f.locator('input[name="nome"]').fill('Unidade da Área');
     await f.locator('input[name="sigla"]').fill('UDA');
-    await f.locator('button[type="submit"]').click();
+    await f.locator('button:text("Adicionar unidade")').click();
   }, 'select count(*) c from unidades');
+}
+
+// ── Encerrar o mês, por último ────────────────────────────────
+//
+// Encerrar é irreversível — não existe reabrir, nem na tela nem na action —, e
+// a partir daí o mês recusa ajuste, ocorrência e solicitação nova. Por isso é o
+// derradeiro passo do roteiro: posto no meio, ele derrubaria tudo o que viesse
+// depois, e a suíte culparia as telas erradas.
+como(ANA);
+await acao('encerrar o mês', `/calendario?${COMP}`, async p => {
+  await p.locator('button:text("Encerrar o mês")').click();
+}, "select count(*) c from geracoes where atual and competencia='2026-11-01' and status='encerrada'", 1);
+
+// E o mês encerrado realmente fecha a porta: a tentativa de mexer volta com
+// erro, em vez de gravar em silêncio sobre um registro que já virou histórico.
+{
+  await p.goto(`${BASE}/calendario?${COMP}&vista=dia&dia=2026-11-19`, { waitUntil: 'networkidle' });
+  const texto = await p.evaluate(() => document.body.innerText);
+  const fechado = /encerrad/i.test(texto);
+  const semAjuste = await p.locator('button:text("Mover")').count();
+  if (!fechado || semAjuste > 0) {
+    falhas++;
+    console.log(`  FALHOU mês encerrado não recebe ajuste   aviso=${fechado} botões de mover=${semAjuste}`);
+  } else console.log('  ok     mês encerrado não recebe ajuste');
 }
 
 await b.close();

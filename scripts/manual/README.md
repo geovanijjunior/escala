@@ -53,14 +53,39 @@ apaga alterações legítimas feitas no meio do caminho — e o erro só aparece
 
 ## Suíte de regressão
 
-Os três roteiros abaixo rodam contra o mesmo dev server das fotos e existem
-porque a tela de solicitações ficou vazia em produção sem ninguém perceber.
+Os roteiros abaixo rodam contra o mesmo dev server das fotos e existem porque a
+tela de solicitações ficou vazia em produção sem ninguém perceber.
 
 ```bash
-node scripts/manual/varrer.mjs   # 20 telas × 5 papéis, lista fixa
-node scripts/manual/navegar.mjs  # segue todo link a partir das raízes de cada papel
-node scripts/manual/acoes.mjs    # as ações de escrita, cada uma conferida no banco
+node scripts/manual/rotas.mjs        # 5 papéis × 12 rotas: onde cada um pode entrar
+node scripts/manual/varrer.mjs       # 20 telas × 5 papéis, lista fixa
+node scripts/manual/navegar.mjs      # segue todo link a partir das raízes de cada papel
+node scripts/manual/hostil.mjs       # dado inválido em cada formulário; nada pode entrar
+node scripts/manual/implantacao.mjs  # o pedido do Planejamento, de ponta a ponta
+node scripts/manual/acoes.mjs        # as ações de escrita, cada uma conferida no banco
 ```
+
+Os seis juntos são o alvo `navegador` da bateria, que é como se roda todos de
+uma vez com o veredito somado:
+
+```bash
+./scripts/testar.sh navegador
+```
+
+**`acoes.mjs` por último, sempre.** Ele encerra o mês de novembro no fim, e mês
+encerrado recusa ajuste, ocorrência e solicitação nova — rodá-lo antes deixa os
+demais medindo um cenário fechado e culpando as telas erradas.
+
+Dois hábitos que este conjunto cobrou caro para ensinar:
+
+- **Esperar o suficiente antes de concluir.** O desvio de rota sai embutido no
+  fluxo de uma resposta 200, não num 307, e a gravação de uma Server Action
+  termina depois de `networkidle`. Medir cedo produz o pior tipo de resultado:
+  um relatório vermelho sobre um sistema que está certo. `rotas.mjs` explica o
+  caso em detalhe no cabeçalho.
+- **Um roteiro de cada vez.** Todos escrevem em `/tmp/foto-usuario.json` para
+  trocar de papel. Dois rodando em paralelo trocam o usuário embaixo um do
+  outro, e o resultado não é um erro: são duas listas plausíveis e erradas.
 
 Num ambiente que já traz o Chromium instalado — CI, container pronto — o
 Playwright costuma querer outra build e morre pedindo `npx playwright install`.
