@@ -506,6 +506,7 @@ async function aplicarNaEscala(
 
     case 'FOLGA':
     case 'LICENCA':
+    case 'ATESTADO':
     case 'FERIAS': {
       const tipoAusencia = s.tipo === 'FERIAS' ? 'FERIAS' : 'AUSENCIA';
       const fim = s.data_fim ?? s.data;
@@ -532,7 +533,14 @@ async function aplicarNaEscala(
           dias,
           // O motivo veio do pedido; 'Compensação' era um chute que apagava
           // a razão real — atestado virava folga por compensação no histórico.
-          grupo: tipoAusencia === 'AUSENCIA' ? (s.tipo === 'LICENCA' ? 'Licença' : 'Folga') : '',
+          //
+          // O grupo sai de `GRUPO_DO_TIPO`, a mesma tabela que a tela usa para
+          // montar a lista de motivos. Estava escrito à mão aqui, com um `else`
+          // que mandava tudo o que não fosse licença para "Folga" — e foi assim
+          // que o atestado, quando chegou, teria virado folga de novo.
+          grupo: tipoAusencia === 'AUSENCIA'
+            ? (GRUPO_DO_TIPO[s.tipo] ?? 'Folga')
+            : '',
           motivo: tipoAusencia === 'AUSENCIA' ? (s.motivo || 'Compensação') : '',
           criado_por: sessao.usuario.id,
         });
@@ -545,7 +553,9 @@ async function aplicarNaEscala(
         await travar(s.colaborador_id, d, s.tipo === 'FERIAS' ? 'FERIAS' : 'FOLGA', null, `Solicitação #${s.id} aprovada`);
       }
 
-      const rotulo = s.tipo === 'FERIAS' ? 'férias' : 'ausência';
+      const rotulo = s.tipo === 'FERIAS'
+        ? 'férias'
+        : (GRUPO_DO_TIPO[s.tipo] ?? 'ausência').toLowerCase();
       return dias === 1
         ? `${formatarData(s.data)} lançado como ${rotulo} e travado na escala.`
         : `${formatarData(s.data)} a ${formatarData(fim)} (${dias} dias) lançados como ${rotulo} e travados na escala.`;

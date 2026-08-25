@@ -131,7 +131,9 @@ export function NovaSolicitacao({
                     : 'Preencha o início e o fim é calculado.')
                 : tipo === 'FOLGA'
                   ? 'Vazio = só o dia de início.'
-                  : 'O período inteiro entra na escala quando a licença for aprovada.'}
+                  // Sem citar o tipo pelo nome: o texto era da licença e passou
+                  // a aparecer também no atestado, dizendo a palavra errada.
+                  : 'O período inteiro entra na escala quando o pedido for aprovado.'}
             </span>
           </label>
         )}

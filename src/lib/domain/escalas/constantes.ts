@@ -42,8 +42,8 @@ export const GRUPOS_AUSENCIA: { grupo: string; motivos: string[] }[] = [
 export const GRUPOS_SENSIVEIS = ['Atestado'];
 
 export type TipoSolicitacao =
-  | 'AJUSTE_PONTO' | 'BANCO_HORAS' | 'FERIAS' | 'FOLGA' | 'LICENCA' | 'ATRASO'
-  | 'PAUSA' | 'SAIDA_ANTEC' | 'TROCA_HORARIO' | 'TROCA_UNIDADE';
+  | 'AJUSTE_PONTO' | 'BANCO_HORAS' | 'FERIAS' | 'FOLGA' | 'LICENCA' | 'ATESTADO'
+  | 'ATRASO' | 'PAUSA' | 'SAIDA_ANTEC' | 'TROCA_HORARIO' | 'TROCA_UNIDADE';
 
 /**
  * Os tipos de pedido, com o prazo de resposta esperado de cada um.
@@ -69,6 +69,13 @@ export const TIPOS_SOLICITACAO: Record<TipoSolicitacao, { label: string; sla: nu
   // Licença é afastamento de semanas; ia junto com folga, na mesma fila e no
   // mesmo prazo de um dia de banco de horas.
   LICENCA: { label: 'Licenças', sla: 120 },
+  // Separado de LICENÇA de propósito, embora os dois afastem por período.
+  // Licença se PROGRAMA — paternidade, gala, nojo — e atestado chega depois do
+  // fato, quase sempre com o dia já perdido. Somados num tipo só, o relatório de
+  // afastamentos não distinguia o previsível do imprevisível, que é a única
+  // coisa que ele precisa distinguir. O prazo curto é consequência: não há o que
+  // decidir sobre um atestado, há o que registrar antes que a folha feche.
+  ATESTADO: { label: 'Atestado médico', sla: 24 },
   ATRASO: { label: 'Justificativa de Atraso', sla: 24 },
   PAUSA: { label: 'Pausas', sla: 24 },
   SAIDA_ANTEC: { label: 'Saída Antecipada', sla: 24 },
@@ -97,7 +104,7 @@ export const STATUS_SOLICITACAO: Record<StatusSolicitacao, { label: string; cor:
 };
 
 /** Tipos que cobrem um intervalo de datas, não um dia só. */
-export const TIPOS_COM_PERIODO: TipoSolicitacao[] = ['FERIAS', 'FOLGA', 'LICENCA'];
+export const TIPOS_COM_PERIODO: TipoSolicitacao[] = ['FERIAS', 'FOLGA', 'LICENCA', 'ATESTADO'];
 
 /**
  * Tipos cuja aprovação mexe na escala: trava dias, move alocação, grava
@@ -109,13 +116,17 @@ export const TIPOS_COM_PERIODO: TipoSolicitacao[] = ['FERIAS', 'FOLGA', 'LICENCA
  * "não altera a escala" num pedido de licença de duas semanas que altera.
  */
 export const TIPOS_COM_EFEITO_NA_ESCALA: TipoSolicitacao[] = [
-  'FERIAS', 'FOLGA', 'LICENCA', 'TROCA_HORARIO', 'TROCA_UNIDADE',
+  'FERIAS', 'FOLGA', 'LICENCA', 'ATESTADO', 'TROCA_HORARIO', 'TROCA_UNIDADE',
 ];
 
 /** Tipos cujo motivo sai da lista de ausências, e de qual grupo dela. */
 export const GRUPO_DO_TIPO: Partial<Record<TipoSolicitacao, string>> = {
   FOLGA: 'Folga',
   LICENCA: 'Licença',
+  // O grupo Atestado já existia em `GRUPOS_AUSENCIA` e era alcançável só pelo
+  // lançamento manual no plano do mês. Faltava a porta pelo pedido, que é por
+  // onde o atestado realmente chega.
+  ATESTADO: 'Atestado',
 };
 
 // `IMPLANTAR` conta como aberto. O pedido já foi decidido, mas ainda falta
