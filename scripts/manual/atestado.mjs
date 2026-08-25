@@ -76,13 +76,32 @@ console.log('1. Aberto pelo colaborador');
   conferir(await p.locator('input[name="dataFim"]').count() === 1, 'o formulário pede o fim do período');
   const motivos = await p.locator('select[name="motivo"] option').evaluateAll(os => os.map(o => o.value));
   conferir(
-    motivos.includes('Atestado médico') && motivos.includes('Consulta')
-      && motivos.includes('Acompanhamento familiar'),
+    motivos.includes('Afastamento por doença') && motivos.includes('Consulta ou exame')
+      && motivos.includes('Acompanhamento de familiar'),
     `os motivos são os do grupo Atestado (${motivos.join(', ')})`,
   );
   conferir(!motivos.includes('Aniversário'), 'e não os de folga');
+  // Nenhum motivo pode repetir o nome do tipo. "Tipo: Atestado médico · Motivo:
+  // Atestado médico" era a lista antiga, e não acrescentava nada a quem escolhe.
+  conferir(!motivos.includes('Atestado médico'), 'e nenhum deles repete o nome do tipo');
 
-  await p.selectOption('select[name="motivo"]', 'Atestado médico');
+  // Cada motivo se explica ao lado do campo. É a diferença entre saber que há
+  // três opções e saber qual delas é a sua.
+  const ajuda = () => p.locator('label:has(select[name="motivo"]) span.esc-ajuda').innerText();
+  await p.selectOption('select[name="motivo"]', 'Consulta ou exame');
+  await p.waitForTimeout(200);
+  const daConsulta = (await ajuda().catch(() => '')).trim();
+  conferir(daConsulta.length > 20, `"Consulta ou exame" vem explicado ("${daConsulta.slice(0, 55)}…")`);
+
+  await p.selectOption('select[name="motivo"]', 'Acompanhamento de familiar');
+  await p.waitForTimeout(200);
+  const doFamiliar = (await ajuda().catch(() => '')).trim();
+  conferir(
+    doFamiliar.length > 20 && doFamiliar !== daConsulta,
+    `e o do familiar traz outra explicação ("${doFamiliar.slice(0, 55)}…")`,
+  );
+
+  await p.selectOption('select[name="motivo"]', 'Afastamento por doença');
   await p.fill('input[name="data"]', '2026-12-14');
   await p.fill('input[name="dataFim"]', '2026-12-16');
   await p.fill('textarea[name="detalhe"]', marca);
@@ -96,7 +115,7 @@ console.log('1. Aberto pelo colaborador');
   // string dá "Wed Dec 16 2026…" e acusa diferença onde há só formatação.
   const iso = d => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10));
   conferir(iso(criada?.data_fim) === '2026-12-16', `o período inteiro foi gravado (${iso(criada?.data_fim)})`);
-  conferir(criada?.motivo === 'Atestado médico', `o motivo veio junto (${criada?.motivo})`);
+  conferir(criada?.motivo === 'Afastamento por doença', `o motivo veio junto (${criada?.motivo})`);
   await p.screenshot({ path: '/tmp/atestado-1-colab.png', fullPage: true });
 }
 
@@ -127,7 +146,7 @@ console.log('\n2. Aberto pelo Planejamento, em nome da pessoa');
 
   await p.selectOption('select[name="tipo"]', 'ATESTADO');
   await p.waitForTimeout(300);
-  await p.selectOption('select[name="motivo"]', 'Consulta');
+  await p.selectOption('select[name="motivo"]', 'Consulta ou exame');
   await p.fill('input[name="data"]', '2026-12-21');
   await p.fill('input[name="dataFim"]', '2026-12-23');
   await p.fill('textarea[name="detalhe"]', marca);
@@ -151,7 +170,7 @@ console.log('\n2. Aberto pelo Planejamento, em nome da pessoa');
   // O `else` da gravação mandava para "Folga" tudo o que não fosse licença: um
   // atestado aprovado apareceria no histórico como folga.
   conferir(aus?.grupo === 'Atestado', `no grupo Atestado, e não em Folga (${aus?.grupo})`);
-  conferir(aus?.motivo === 'Consulta', `com o motivo do pedido (${aus?.motivo})`);
+  conferir(aus?.motivo === 'Consulta ou exame', `com o motivo do pedido (${aus?.motivo})`);
   conferir(Number(aus?.dias) === 3, `cobrindo os três dias (${aus?.dias})`);
 
   const travas = await sql(
@@ -176,7 +195,7 @@ console.log('\n4. No bloco de férias e ausências');
   conferir(await bloco.count() === 1, 'o bloco existe no mês');
   const t = await bloco.innerText();
   conferir(t.includes('ATESTADO'), 'a ausência aparece identificada como ATESTADO');
-  conferir(t.includes('Consulta'), 'com o motivo na lista');
+  conferir(t.includes('Consulta ou exame'), 'com o motivo na lista');
 }
 
 conferir(erros.length === 0, `nenhum erro de JS (${erros.join('; ') || 'limpo'})`);

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  GRUPO_DO_TIPO, GRUPOS_AUSENCIA, OPCOES_FERIAS, TIPOS_COM_PERIODO,
+  AJUDA_MOTIVO, GRUPO_DO_TIPO, GRUPOS_AUSENCIA, OPCOES_FERIAS, TIPOS_COM_PERIODO,
   type TipoSolicitacao,
 } from '@/lib/domain/escalas/constantes';
 import { EscolherPessoa, type PessoaEscolhivel } from './EscolherPessoa';
@@ -44,11 +44,18 @@ export function NovaSolicitacao({
   const [tipo, setTipo] = useState(tipos[0]?.chave ?? '');
   const [opcao, setOpcao] = useState(OPCOES_FERIAS[0].chave);
   const [inicio, setInicio] = useState('');
+  const [motivo, setMotivo] = useState('');
 
   const escolhido = tipos.find(t => t.chave === tipo);
   const temPeriodo = TIPOS_COM_PERIODO.includes(tipo as TipoSolicitacao);
   const grupo = GRUPO_DO_TIPO[tipo as TipoSolicitacao];
   const motivos = GRUPOS_AUSENCIA.find(g => g.grupo === grupo)?.motivos ?? [];
+
+  // Trocar de tipo troca a lista de motivos, e o que estava escolhido pode não
+  // existir na lista nova. Cair no primeiro da lista quando isso acontece
+  // dispensa um efeito para "limpar" o campo — e evita o estado em que a tela
+  // mostra um motivo de folga sob um pedido de atestado.
+  const motivoAtual = motivos.includes(motivo) ? motivo : (motivos[0] ?? '');
 
   // Férias: a opção define quantos dias tem a primeira parcela, e o fim sai da
   // conta assim que a data de início é preenchida. Calcular de cabeça "20 dias
@@ -92,9 +99,21 @@ export function NovaSolicitacao({
         {grupo && (
           <label className="block">
             <span className="esc-rotulo">Motivo</span>
-            <select name="motivo" required className="esc-input">
+            <select
+              name="motivo"
+              required
+              className="esc-input"
+              value={motivoAtual}
+              onChange={e => setMotivo(e.target.value)}
+            >
               {motivos.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
+            {/* O que o motivo escolhido significa. Sem esta linha, o que separa
+                "Consulta ou exame" de "Acompanhamento de familiar" só estava
+                claro para quem já sabia — e quem já sabe não é quem erra. */}
+            {AJUDA_MOTIVO[motivoAtual] && (
+              <span className="esc-ajuda mt-1 block">{AJUDA_MOTIVO[motivoAtual]}</span>
+            )}
           </label>
         )}
 

@@ -34,9 +34,35 @@ export function ehDiaTrabalhado(m: Modalidade): boolean {
 export const GRUPOS_AUSENCIA: { grupo: string; motivos: string[] }[] = [
   { grupo: 'Folga', motivos: ['Aniversário', 'Banco de Horas', 'Profissional da Saúde', 'Compensação', 'Doação de Sangue'] },
   { grupo: 'Licença', motivos: ['Nojo (falecimento)', 'Gala (casamento)', 'Paternidade', 'Maternidade', 'Sem vencimento'] },
-  { grupo: 'Atestado', motivos: ['Atestado médico', 'Consulta', 'Acompanhamento familiar'] },
+  // Os três do Atestado eram 'Atestado médico', 'Consulta' e 'Acompanhamento
+  // familiar', e não diziam o que separava um do outro:
+  //
+  //  - o primeiro repetia o nome do próprio tipo. "Tipo: Atestado médico ·
+  //    Motivo: Atestado médico" não acrescenta uma palavra ao que já se sabia;
+  //  - "Consulta" não dizia de quem — a mesma dúvida que "Acompanhamento
+  //    familiar" já respondia, o que fazia os dois parecerem sobrepostos;
+  //  - nenhum deles dizia a única coisa que muda a escala: se são dias
+  //    corridos de afastamento ou um compromisso de algumas horas.
+  //
+  // Os nomes abaixo são paralelos e dizem a situação. O que cada um significa
+  // na prática está em `AJUDA_MOTIVO`, ao lado do campo na hora de escolher.
+  { grupo: 'Atestado', motivos: ['Afastamento por doença', 'Consulta ou exame', 'Acompanhamento de familiar'] },
   { grupo: 'Outros', motivos: ['Convocação legal', 'Suspensão', 'Outros'] },
 ];
+
+/**
+ * O que cada motivo quer dizer, em uma linha, para aparecer junto do campo.
+ *
+ * Nem todo motivo precisa: "Aniversário" e "Doação de Sangue" se explicam. Os
+ * do Atestado precisam, porque a diferença entre eles não está no nome — está
+ * em quem foi atendido e em quantos dias a pessoa fica fora, que é justamente o
+ * que a escala precisa saber. Onde não há entrada, nada é desenhado.
+ */
+export const AJUDA_MOTIVO: Record<string, string> = {
+  'Afastamento por doença': 'A pessoa está doente e o atestado cobre o período inteiro, em dias corridos.',
+  'Consulta ou exame': 'Compromisso marcado do próprio colaborador — em geral algumas horas ou um dia.',
+  'Acompanhamento de familiar': 'Quem foi atendido é um dependente; o atestado sai no nome dele, não no do colaborador.',
+};
 
 /** Motivos de saúde só aparecem para Planejamento e gestor direto (LGPD). */
 export const GRUPOS_SENSIVEIS = ['Atestado'];

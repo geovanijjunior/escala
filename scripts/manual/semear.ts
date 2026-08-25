@@ -226,7 +226,7 @@ async function main() {
   // Férias em curso e uma ausência curta — a grade fica realista.
   await db.query(`insert into ausencias (conta_id, colaborador_id, tipo, inicio, dias, grupo, motivo, criado_por) values
     ($1, 4, 'FERIAS', '2026-11-09', 12, '', '', $2),
-    ($1, 9, 'AUSENCIA', '2026-11-17', 2, 'Atestado', 'Consulta', $2)`, [CONTA, ANA]);
+    ($1, 9, 'AUSENCIA', '2026-11-17', 2, 'Atestado', 'Consulta ou exame', $2)`, [CONTA, ANA]);
 
   // Planos: distribuição, unidade fixa, home office e o posto do Felipe.
   for (const [i, p] of pessoas.entries()) {

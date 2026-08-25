@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AJUDA_MOTIVO } from '@/lib/domain/escalas/constantes';
 
 /**
  * Campos de "lançar férias ou folga", que mudam conforme o tipo.
@@ -19,7 +20,12 @@ export function LancarAusencia({
 }) {
   const [tipo, setTipo] = useState<'FERIAS' | 'AUSENCIA'>('AUSENCIA');
   const [grupo, setGrupo] = useState(grupos[0]?.grupo ?? '');
+  const [motivo, setMotivo] = useState('');
   const motivos = grupos.find(g => g.grupo === grupo)?.motivos ?? [];
+  // Trocar de grupo troca a lista, e o motivo escolhido antes pode não existir
+  // nela. Cair no primeiro evita a tela mostrar um motivo de folga sob o grupo
+  // Atestado — e dispensa um efeito só para limpar o campo.
+  const motivoAtual = motivos.includes(motivo) ? motivo : (motivos[0] ?? '');
 
   return (
     <>
@@ -51,9 +57,19 @@ export function LancarAusencia({
           </label>
           <label className="block">
             <span className="esc-rotulo">Motivo</span>
-            <select name="motivo" className="esc-input w-full">
+            <select
+              name="motivo"
+              className="esc-input w-full"
+              value={motivoAtual}
+              onChange={e => setMotivo(e.target.value)}
+            >
               {motivos.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
+            {/* A mesma linha da abertura de pedido: quem lança à mão escolhe
+                entre os mesmos motivos e tem exatamente a mesma dúvida. */}
+            {AJUDA_MOTIVO[motivoAtual] && (
+              <span className="esc-ajuda mt-1 block">{AJUDA_MOTIVO[motivoAtual]}</span>
+            )}
           </label>
         </>
       )}

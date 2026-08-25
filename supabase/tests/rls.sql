@@ -117,9 +117,9 @@ insert into plano_posto (conta_id, plano_id, posto_id, dias, semana) values
   ('11111111-1111-1111-1111-111111111111', 1, 1, 5, 2);
 
 insert into ausencias (conta_id, colaborador_id, tipo, inicio, dias, grupo, motivo) values
-  ('11111111-1111-1111-1111-111111111111', 1, 'AUSENCIA', '2026-08-10', 2, 'Atestado', 'Consulta'),
-  ('11111111-1111-1111-1111-111111111111', 3, 'AUSENCIA', '2026-08-10', 2, 'Atestado', 'Consulta'),
-  ('22222222-2222-2222-2222-222222222222', 4, 'AUSENCIA', '2026-08-10', 2, 'Atestado', 'Consulta');
+  ('11111111-1111-1111-1111-111111111111', 1, 'AUSENCIA', '2026-08-10', 2, 'Atestado', 'Consulta ou exame'),
+  ('11111111-1111-1111-1111-111111111111', 3, 'AUSENCIA', '2026-08-10', 2, 'Atestado', 'Consulta ou exame'),
+  ('22222222-2222-2222-2222-222222222222', 4, 'AUSENCIA', '2026-08-10', 2, 'Atestado', 'Consulta ou exame');
 
 insert into geracoes (id, conta_id, competencia, versao, status) overriding system value values
   (1, '11111111-1111-1111-1111-111111111111', '2026-08-01', 1, 'rascunho');

@@ -46,7 +46,7 @@ await sql(`
   from (values
     (1, 'FERIAS',   '2026-12-07', 15, '',         ''),
     (2, 'AUSENCIA', '2026-12-10',  3, 'Licença',  'Paternidade'),
-    (3, 'AUSENCIA', '2026-12-14',  2, 'Atestado', 'Consulta'),
+    (3, 'AUSENCIA', '2026-12-14',  2, 'Atestado', 'Consulta ou exame'),
     (5, 'AUSENCIA', '2026-12-21',  1, 'Folga',    'Aniversário')
   ) as v(cid, tipo, inicio, dias, grupo, motivo)
   join colaboradores c on c.id = v.cid`, [ANA]);
@@ -78,7 +78,7 @@ for (const rotulo of ['FÉRIAS', 'LICENÇA', 'ATESTADO', 'FOLGA']) {
 
 // A lista de baixo é onde cabe o motivo por extenso — uma pastilha de nove
 // pixels não comporta "Licença — Paternidade".
-for (const motivo of ['Paternidade', 'Consulta', 'Aniversário']) {
+for (const motivo of ['Paternidade', 'Consulta ou exame', 'Aniversário']) {
   conferir(texto.includes(motivo), `o motivo "${motivo}" consta na lista`);
 }
 // `innerText` devolve o texto COMO É PINTADO, e `esc-rotulo` põe tudo em
