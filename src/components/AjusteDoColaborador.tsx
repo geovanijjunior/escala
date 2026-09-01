@@ -70,6 +70,10 @@ export function AjusteDoColaborador({
 
   return (
     <Bloco
+      // Alvo da célula da grade. A grade fica DEPOIS deste bloco na página, e
+      // sem âncora o clique numa célula lá embaixo devolvia a pessoa ao topo —
+      // com o painel que ela abriu em algum ponto do meio, fora da vista.
+      id="ajuste-do-dia"
       titulo={`${c.nome} — ${DIAS_ABREV[dow]}, ${formatarData(data)}${feriado ? ` · ${feriado}` : ''}`}
       desc={`${c.cargo} · ${equipe?.nome ?? 'sem equipe'} · ${c.regime} · ${c.entrada}–${fimDoTurno(c.saida, c.sextaReduzida, dow)}`}
       acoes={

@@ -96,6 +96,11 @@ export function DetalheDoDia({
 
   return (
     <Bloco
+      // Mesma âncora do ajuste de uma pessoa, de propósito: os dois ocupam o
+      // mesmo lugar na página e são as duas respostas possíveis ao mesmo
+      // clique — com colaborador na URL vem um, sem ele vem o outro. Um nome
+      // só evita a célula ter de adivinhar qual dos dois vai aparecer.
+      id="ajuste-do-dia"
       titulo={`${DIAS_ABREV[dow]}, ${formatarData(data)}${feriado ? ` · ${feriado}` : ''}`}
       desc={`${trabalhando.length} pessoa(s) em atividade neste dia.`}
       acoes={<Link href={fecharHref} className="esc-btn esc-btn-ghost esc-btn-sm">Fechar</Link>}

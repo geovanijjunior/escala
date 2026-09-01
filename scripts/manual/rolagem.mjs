@@ -123,7 +123,50 @@ console.log('\n3. Remover ausência pelo painel de ajustes');
   }
 }
 
-/* ── 4. Um link continua levando ao topo da tela nova ───────────────────── */
+/* ── 4. A célula da grade abre o painel sem perder o lugar ──────────────── */
+//
+// A grade é o caso mais duro da queixa, e é de LINK, não de formulário: clicar
+// numa célula da vigésima linha para trocar alguém de unidade devolvia a pessoa
+// ao topo, e ela tinha de rolar tudo de novo — passando, no meio do caminho,
+// pelo painel que já estava aberto. A reposição de rolagem não alcança esse
+// caso de propósito (link é para chegar a outro lugar); quem resolve é a
+// âncora, que leva direto ao painel.
+console.log('\n4. Clique numa célula da grade');
+{
+  await p.goto(`${BASE}/gerar?${COMP}&etapa=revisar`, { waitUntil: 'networkidle' });
+  // Uma célula bem no fim da grade, que é onde o salto doía.
+  const celula = p.locator('table a.esc-celula').last();
+  await celula.waitFor({ timeout: 15000 });
+  await celula.scrollIntoViewIfNeeded();
+  await p.waitForTimeout(250);
+  const antes = await p.evaluate(() => window.scrollY);
+  conferir(antes > TOLERANCIA, `a célula estava fora da primeira tela (${antes})`);
+
+  await celula.click();
+  await p.waitForLoadState('networkidle');
+  await p.waitForTimeout(700);
+
+  const painel = await p.evaluate(() => {
+    const el = document.getElementById('ajuste-do-dia');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { topo: Math.round(r.top), y: Math.round(window.scrollY) };
+  });
+
+  if (!painel) {
+    conferir(false, 'o painel de ajuste não abriu');
+  } else {
+    conferir(painel.y > TOLERANCIA, `a tela não voltou ao topo (${antes} → ${painel.y})`);
+    // Dentro da janela, e perto do alto dela: é isso que "caiu no painel"
+    // significa. Só medir a rolagem deixaria passar parar num ponto qualquer.
+    conferir(
+      painel.topo >= -30 && painel.topo < 300,
+      `e parou no painel que abriu (topo a ${painel.topo}px da janela)`,
+    );
+  }
+}
+
+/* ── 5. Um link continua levando ao topo da tela nova ───────────────────── */
 //
 // Não há um quarto caso na triagem de solicitações, e a tentativa merece nota:
 // ela clicava "Aprovar" no último pedido da lista. Com a massa semeada a lista
@@ -135,7 +178,7 @@ console.log('\n3. Remover ausência pelo painel de ajustes');
 //
 // A reposição é para a AÇÃO que devolve à mesma tela. Trocar de tela por um
 // link é chegar noutro lugar, e chegar no meio dele seria o defeito oposto.
-console.log('\n4. Navegar por link ainda começa no topo');
+console.log('\n5. Navegar por link ainda começa no topo');
 {
   await p.goto(`${BASE}/gerar?${COMP}&etapa=revisar`, { waitUntil: 'networkidle' });
   await p.evaluate(() => window.scrollTo(0, 1200));

@@ -161,9 +161,16 @@ export function GradeDoMes({
                     // a lista do dia inteiro para procurar de novo, que com
                     // duzentas pessoas é justamente o trabalho que a grade
                     // deveria poupar.
+                    // A âncora leva ao painel que o clique abre, e existe por
+                    // uma razão bem concreta: o painel fica ACIMA da grade na
+                    // página. Sem ela, clicar numa célula da vigésima linha
+                    // devolvia a pessoa ao topo da tela, e ela tinha de rolar
+                    // tudo de novo — para encontrar, no meio do caminho, o
+                    // painel que já estava aberto. Com ela, o clique cai
+                    // exatamente no que foi pedido.
                     const href = editavel
-                      ? `${baseHref}${sep}dia=${data}&colab=${c.id}`
-                      : `${baseHref}${sep}dia=${data}`;
+                      ? `${baseHref}${sep}dia=${data}&colab=${c.id}#ajuste-do-dia`
+                      : `${baseHref}${sep}dia=${data}#ajuste-do-dia`;
 
                     // Folga também é clicável quando a grade edita: é por aqui
                     // que se traz alguém para um dia. Antes a célula vazia não
