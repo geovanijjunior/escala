@@ -135,6 +135,10 @@ export async function importarPlanilha(conteudo: string): Promise<Relatorio> {
       eleg_home: l.elegHome,
       eleg_externo: l.elegExterno,
       sexta_reduzida: l.sextaReduzida,
+      cpf: l.cpf,
+      telefone: l.telefone,
+      // `null`, e não string vazia: a coluna é `date`.
+      nascimento: l.nascimento || null,
       admissao: l.admissao,
       // `status` fica FORA do payload de propósito. A coluna já nasce 'ativo',
       // então quem é criado entra ativo; e quem já existe mantém o status que

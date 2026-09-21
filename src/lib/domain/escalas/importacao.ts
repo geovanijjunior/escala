@@ -1,5 +1,6 @@
 import { horaNormalizada } from './datas';
-import type { Equipe, Unidade } from './tipos';
+import { cpfValido, telefoneValido } from '../../documentos';
+import type { Equipe, Turno, Unidade } from './tipos';
 
 /**
  * Leitura de uma planilha de colaboradores.
@@ -28,7 +29,12 @@ export interface LinhaImportada {
   equipeNome: string;
   unidadeBaseId: number | null;
   unidadeNome: string;
-  turno: 'D' | 'N';
+  turno: Turno;
+  /** Ficha da pessoa (0030): só dígitos, vazio quando não informado. */
+  cpf: string;
+  telefone: string;
+  /** ISO `aaaa-mm-dd`, ou vazio. */
+  nascimento: string;
   ciclo: 'IMPAR' | 'PAR' | null;
   entrada: string;
   saida: string;
@@ -140,6 +146,13 @@ const COLUNAS = {
   elegExterno: ['trabalho externo', 'externo', 'eleg externo'],
   sextaReduzida: ['sexta reduzida', 'sexta'],
   admissao: ['admissao', 'data de admissao', 'data admissao'],
+  // A ficha da pessoa (0030). Ficaram de fora quando os campos entraram nos
+  // formulários, e a primeira planilha real veio com as três colunas — 79
+  // pessoas teriam entrado sem CPF, que é justamente o dado que depois se
+  // cruza com a folha.
+  cpf: ['cpf', 'documento'],
+  telefone: ['telefone', 'celular', 'contato', 'fone'],
+  nascimento: ['data de nascimento', 'nascimento', 'data nascimento'],
 } as const;
 
 type Campo = keyof typeof COLUNAS;
@@ -278,10 +291,18 @@ export function lerPlanilha(
     const unidade = acharUnidade.get(chaveDe(unidadeBruta));
     if (!unidade) problemas.push(`Unidade "${unidadeBruta}" não está cadastrada ou está inativa.`);
 
+    // Os três valores da 0031. O vespertino ficou de fora daqui quando entrou
+    // nas telas, e a primeira planilha de verdade veio com três pessoas nele —
+    // que teriam entrado como DIURNAS, sem erro nenhum à vista.
     const turnoBruto = chaveDe(campo('turno'));
-    const turno: 'D' | 'N' = ['n', 'noturno'].includes(turnoBruto) ? 'N' : 'D';
-    if (turnoBruto && !['d', 'diurno', 'n', 'noturno'].includes(turnoBruto)) {
-      problemas.push(`Turno "${campo('turno')}" não é diurno nem noturno.`);
+    const DE_TURNO: Record<string, Turno> = {
+      d: 'D', diurno: 'D',
+      v: 'V', vespertino: 'V', tarde: 'V',
+      n: 'N', noturno: 'N', noite: 'N',
+    };
+    const turno: Turno = DE_TURNO[turnoBruto] ?? 'D';
+    if (turnoBruto && !(turnoBruto in DE_TURNO)) {
+      problemas.push(`Turno "${campo('turno')}" não é diurno, vespertino nem noturno.`);
     }
 
     // O ciclo só existe no 12x36, e ali é obrigatório: sem ele o motor não sabe
@@ -300,6 +321,18 @@ export function lerPlanilha(
       if (['impar', 'impares', 'i'].includes(cicloBruto)) ciclo = 'IMPAR';
       else if (['par', 'pares', 'p'].includes(cicloBruto)) ciclo = 'PAR';
       else problemas.push('Quem é 12x36 exige o ciclo: "ímpar" ou "par".');
+    }
+
+    // Só dígitos, como no formulário: a máscara é da planilha, não do banco.
+    const cpf = campo('cpf').replace(/\D/g, '');
+    if (cpf && !cpfValido(cpf)) problemas.push(`CPF "${campo('cpf')}" não confere — revise os dígitos.`);
+    const telefone = campo('telefone').replace(/\D/g, '');
+    if (telefone && !telefoneValido(telefone)) {
+      problemas.push(`Telefone "${campo('telefone')}" precisa de DDD e número (10 ou 11 dígitos).`);
+    }
+    const nascimento = data(campo('nascimento'));
+    if (campo('nascimento') && nascimento === null) {
+      problemas.push(`Data de nascimento inválida: "${campo('nascimento')}".`);
     }
 
     const entradaBruta = campo('entrada');
@@ -337,6 +370,9 @@ export function lerPlanilha(
       unidadeBaseId: unidade?.id ?? null,
       unidadeNome: unidade?.nome ?? unidadeBruta,
       turno,
+      cpf,
+      telefone,
+      nascimento: nascimento ?? '',
       regime,
       ciclo,
       entrada: entrada ?? '08:00',
