@@ -6,6 +6,7 @@ import { ROTULO_PAPEL } from '@/lib/supabase/types';
 import { mudarPapel, alternarBloqueio } from '@/app/actions-usuarios';
 import { Aviso, Badge, Bloco, Pill } from '@/components/Ui';
 import { FormNovoUsuario } from '@/components/FormNovoUsuario';
+import { ConvidarEmLote } from '@/components/ConvidarEmLote';
 import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
 
 const PAPEIS: { valor: PapelEscalas; label: string; desc: string }[] = [
@@ -153,6 +154,14 @@ export default async function UsuariosPage({
             </li>
           ))}
         </ul>
+      </Bloco>
+
+      <Bloco
+        id="acesso-em-lote"
+        titulo="Dar acesso a quem já está na escala"
+        desc="Depois de importar a planilha de colaboradores, cria de uma vez o login de todo mundo que ainda não tem — um por pessoa, com senha temporária própria."
+      >
+        <ConvidarEmLote />
       </Bloco>
 
       {/* A ficha da escala e a importação por planilha continuam existindo —

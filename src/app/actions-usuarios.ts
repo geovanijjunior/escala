@@ -10,6 +10,7 @@ import { registrarLog } from '@/lib/log';
 import { mensagemErroAuth } from '@/lib/erros-auth';
 import { mensagemErroBanco } from '@/lib/erros-banco';
 import { montarColaborador } from '@/lib/colaborador-form';
+import { senhaTemporaria } from '@/lib/senha';
 import { voltar } from '@/lib/volta';
 import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
 
@@ -29,12 +30,6 @@ function erro(msg: string): never {
  * conveniência, não a trava.
  */
 const PAPEIS: PapelEscalas[] = ['planejamento', 'gestor', 'colaborador'];
-
-/** Sem ambiguidade visual: nada de O/0, I/l/1. */
-function senhaTemporaria(): string {
-  const alfabeto = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 12 }, () => alfabeto[Math.floor(Math.random() * alfabeto.length)]).join('');
-}
 
 /**
  * Cria o login de alguém na organização — e, se for colaborador, o cadastro

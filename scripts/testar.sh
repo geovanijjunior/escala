@@ -98,6 +98,7 @@ if [ "$alvo" = navegador ]; then
     roteiro 'Remover cadastro'  remover-cadastro.mjs
     roteiro 'Cargos e ficha'    cargos-e-ficha.mjs
     roteiro 'Regime e turno'    regime-e-turno.mjs
+    roteiro 'Convite em lote'   convite-em-lote.mjs
     executa 'Ações de escrita' node scripts/manual/acoes.mjs
   else
     printf '\n\033[31m── Navegador: sem dev server em %s. Suba-o contra o shim antes.\033[0m\n' "$base"

@@ -79,20 +79,25 @@ Os roteiros abaixo rodam contra o mesmo dev server das fotos e existem porque a
 tela de solicitações ficou vazia em produção sem ninguém perceber.
 
 ```bash
-node scripts/manual/rotas.mjs        # 5 papéis × 12 rotas: onde cada um pode entrar
-node scripts/manual/varrer.mjs       # 20 telas × 5 papéis, lista fixa
-node scripts/manual/navegar.mjs      # segue todo link a partir das raízes de cada papel
-node scripts/manual/hostil.mjs       # dado inválido em cada formulário; nada pode entrar
-node scripts/manual/implantacao.mjs  # o pedido do Planejamento, de ponta a ponta
-node scripts/manual/solicitar.mjs    # o pedido do colaborador, inclusive num banco sem a 0027
-node scripts/manual/triagem.mjs      # as saídas da triagem e as decisões a partir de fila e tratativa
-node scripts/manual/ausencias.mjs    # a natureza de cada ausência no mês, e os filtros do bloco
-node scripts/manual/atestado.mjs     # afastamento por atestado, das duas portas de abertura
-node scripts/manual/acoes.mjs        # as ações de escrita, cada uma conferida no banco
+node scripts/manual/rotas.mjs            # 5 papéis × 12 rotas: onde cada um pode entrar
+node scripts/manual/rolagem.mjs          # a tela não volta ao topo a cada ação
+node scripts/manual/varrer.mjs           # 20 telas × 5 papéis, lista fixa
+node scripts/manual/navegar.mjs          # segue todo link a partir das raízes de cada papel
+node scripts/manual/hostil.mjs           # dado inválido em cada formulário; nada pode entrar
+node scripts/manual/implantacao.mjs      # o pedido do Planejamento, de ponta a ponta
+node scripts/manual/solicitar.mjs        # o pedido do colaborador, inclusive num banco sem a 0027
+node scripts/manual/triagem.mjs          # as saídas da triagem e as decisões a partir de fila e tratativa
+node scripts/manual/ausencias.mjs        # a natureza de cada ausência no mês, e os filtros do bloco
+node scripts/manual/atestado.mjs         # afastamento por atestado, das duas portas de abertura
+node scripts/manual/remover-cadastro.mjs # apagar equipe e unidade, e o que impede cada uma
+node scripts/manual/cargos-e-ficha.mjs   # cargo como cadastro da área; CPF, telefone e nascimento
+node scripts/manual/regime-e-turno.mjs   # regime na pessoa, turno de três valores
+node scripts/manual/convite-em-lote.mjs  # o login de quem entrou por planilha, com senha por pessoa
+node scripts/manual/acoes.mjs            # as ações de escrita, cada uma conferida no banco
 ```
 
-Os seis juntos são o alvo `navegador` da bateria, que é como se roda todos de
-uma vez com o veredito somado:
+Todos juntos são o alvo `navegador` da bateria, que é como se roda a lista
+inteira de uma vez com o veredito somado:
 
 ```bash
 ./scripts/testar.sh navegador
