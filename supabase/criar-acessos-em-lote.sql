@@ -8,8 +8,10 @@
 -- A senha é escolhida na PARTE 0: uma só para todo mundo, ou uma diferente
 -- para cada um. Editar aquela linha é a única coisa que muda entre os dois.
 --
--- Como rodar: Supabase → SQL Editor. A PARTE 1 é só leitura — rode ela
--- primeiro e confira o número. As partes 2 a 4 escrevem.
+-- Como rodar: Supabase → SQL Editor. Cada parte roda sozinha — selecione as
+-- linhas dela e tecle Ctrl+Enter (Cmd+Enter no Mac). A PARTE 1 é só leitura:
+-- rode ela primeiro e confira o número. A PARTE 4 nasce comentada, então
+-- rodar o arquivo inteiro de uma vez também é seguro.
 --
 -- ── ANTES DE COMEÇAR, QUATRO COISAS ──────────────────────────────────
 --
@@ -20,10 +22,10 @@
 --    quando mudar este script para de funcionar. Ele existe como atalho de
 --    implantação, não como o caminho de todo dia.
 --
--- 2. A PARTE 3 IMPRIME SENHAS EM CLARO. Copie, distribua e rode a PARTE 4,
---    que apaga a lista do banco. Enquanto ela existir, é uma tabela com as
---    senhas de todo mundo — por isso ela nasce num schema fora do `public`,
---    que a API REST não expõe.
+-- 2. A PARTE 3 IMPRIME SENHAS EM CLARO. Copie, distribua e rode a PARTE 4
+--    (que está comentada — tire os tracinhos), a qual apaga a lista do banco.
+--    Enquanto ela existir, é uma tabela com as senhas de todo mundo — por isso
+--    ela nasce num schema fora do `public`, que a API REST não expõe.
 --
 -- 3. A TROCA NO PRIMEIRO ACESSO AINDA NÃO É FORÇADA. O campo
 --    `precisa_trocar_senha` é gravado, e o sistema hoje só o registra: não há
@@ -53,9 +55,6 @@
 -- quem foi criado deixou de ter `perfil_id` nulo.
 -- =====================================================================
 
-set search_path = public, extensions;
-
-
 -- =====================================================================
 -- ── PARTE 0 — A SENHA  ◀── EDITE AQUI ────────────────────────────────
 -- =====================================================================
@@ -75,6 +74,21 @@ create schema if not exists lote_temp;
 create or replace function lote_temp.senha_do_lote() returns text
 language sql immutable as $$
   select 'TROQUE-ESTA-SENHA'::text
+$$;
+
+-- O bcrypt, embrulhado numa função com `search_path` próprio.
+--
+-- `crypt` e `gen_salt` são do pgcrypto, que no Supabase mora no schema
+-- `extensions` e em outras instalações mora no `public`. Um `set search_path`
+-- solto no topo do arquivo resolveria — e some no Run seguinte, porque cada
+-- execução do SQL Editor é uma sessão nova. Quem rodasse por partes, como as
+-- instruções mandam, esbarraria em "function gen_salt does not exist" na hora
+-- de criar. Preso à função, o caminho vai junto.
+create or replace function lote_temp.hash(senha text) returns text
+language sql volatile
+set search_path = public, extensions
+as $$
+  select crypt(senha, gen_salt('bf'))
 $$;
 
 -- A recusa. Sem ela, um "rodar tudo" distraído criaria oitenta contas com uma
@@ -136,7 +150,9 @@ order by c.nome;
 
 -- ── PARTE 2 — CRIAR ──────────────────────────────────────────────────
 
--- A senha sorteada, usada só quando a PARTE 0 ficou vazia. `gen_random_bytes` do pgcrypto, e não `random()`: isto é
+-- A senha sorteada, usada só quando a PARTE 0 ficou vazia.
+--
+-- `gen_random_bytes` do pgcrypto, e não `random()`: isto é
 -- credencial, e `random()` é previsível a partir de saídas anteriores — num
 -- lote de oitenta, quem recebesse a própria senha teria material para as
 -- outras. O alfabeto exclui O/0 e I/l/1, que viram chamado de suporte quando
@@ -209,7 +225,7 @@ select
   'authenticated',
   'authenticated',
   f.email,
-  crypt(f.senha, gen_salt('bf')),
+  lote_temp.hash(f.senha),
   now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
   jsonb_build_object(
@@ -311,5 +327,12 @@ order by f.nome;
 --
 -- Depois de copiar. Enquanto este schema existir, as senhas de todo mundo
 -- estão em claro dentro do banco.
+--
+-- Nasce COMENTADA de propósito: assim, rodar o arquivo inteiro de uma vez é
+-- seguro, e o último resultado que aparece na tela é a lista da PARTE 3. Se
+-- ela rodasse junto, apagaria as senhas antes de alguém as ler — e no modo
+-- sorteado elas não se recuperam, porque não ficam gravadas em lugar nenhum.
+--
+-- Tire os dois tracinhos da linha abaixo, selecione só ela e rode.
 
-drop schema lote_temp cascade;
+-- drop schema lote_temp cascade;

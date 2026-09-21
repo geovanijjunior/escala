@@ -51,13 +51,22 @@ limpar() {
 }
 trap limpar EXIT
 
-# Uma variante do script com a PARTE 0 já editada e sem a PARTE 4 — é dela que
-# saem as senhas, e o teste precisa lê-las depois.
+# Uma variante do script com a PARTE 0 já editada. A PARTE 4 não precisa ser
+# retirada: ela já vem comentada no arquivo, que é o que torna seguro rodar
+# tudo de uma vez — e é isso que este teste exercita.
 variante() { # $1 = senha ('' para o modo sorteado)
   [ -n "$TMP_SQL" ] && rm -f "$TMP_SQL"
   TMP_SQL="$(mktemp)"
-  sed "s/'TROQUE-ESTA-SENHA'::text/'$1'::text/" supabase/criar-acessos-em-lote.sql \
-    | grep -v '^drop schema lote_temp cascade;' > "$TMP_SQL"
+  sed "s/'TROQUE-ESTA-SENHA'::text/'$1'::text/" supabase/criar-acessos-em-lote.sql > "$TMP_SQL"
+}
+
+# As linhas de uma parte só, para rodá-la isolada — como faz quem seleciona um
+# trecho no SQL Editor e tecla Ctrl+Enter.
+parte() { # $1 = número da parte
+  awk -v alvo="$1" '
+    /^-- ── PARTE [0-9]/ { atual = $4 }
+    atual == alvo       { print }
+  ' "$TMP_SQL"
 }
 
 montar_banco() {
@@ -140,8 +149,7 @@ SQL
 # "rodar tudo" distraído daria a oitenta pessoas a senha que está no Git.
 titulo 'Sem editar a PARTE 0, o script recusa'
 montar_banco || exit 1
-saida="$(grep -v '^drop schema lote_temp cascade;' supabase/criar-acessos-em-lote.sql \
-         | psql -v ON_ERROR_STOP=1 -d "$BANCO" 2>&1)"
+saida="$(psql -v ON_ERROR_STOP=1 -d "$BANCO" -f supabase/criar-acessos-em-lote.sql 2>&1)"
 case "$saida" in
   *'Edite a PARTE 0'*) ok 'recusa, dizendo o que editar' ;;
   *) erro "devia recusar com 'Edite a PARTE 0'; veio: $(printf '%s' "$saida" | tail -1)" ;;
@@ -220,6 +228,36 @@ conferir 2 "$(valor 'select count(*) from lote_temp.fila
 conferir 2 "$(valor 'select count(*) from lote_temp.fila f join auth.users u on u.id = f.usuario_id
                       where u.encrypted_password = crypt(f.senha, u.encrypted_password)')" \
   'cada uma confere pelo bcrypt'
+
+
+# ── 4. Parte por parte, cada uma em sessão própria ───────────────────
+#
+# É assim que o script é usado: seleciona-se um trecho no SQL Editor e teclas
+# Ctrl+Enter. Cada Run é uma SESSÃO NOVA — o que um `set` deixou configurado
+# no anterior não está mais lá. Foi o que derrubou a primeira versão deste
+# script, que dependia de um `set search_path` no topo do arquivo: rodando
+# tudo de uma vez funcionava, e rodando por partes, como manda o cabeçalho,
+# morria em "function gen_salt does not exist".
+#
+# Cada `psql` abaixo é uma conexão nova, que é a reprodução fiel disso.
+titulo 'Cada parte roda sozinha, em sessão separada'
+montar_banco || exit 1
+variante "$SENHA_COMUM"
+falhou=''
+for p in 0 1 2 3; do
+  parte "$p" | psql -q -v ON_ERROR_STOP=1 -d "$BANCO" >/dev/null 2>&1 || falhou="$falhou $p"
+done
+[ -z "$falhou" ] && ok 'as partes 0, 1, 2 e 3 rodam isoladas' \
+                 || erro "parte(s) que falharam sozinhas:$falhou"
+conferir 2 "$(valor 'select count(*) from lote_temp.fila')" 'e o resultado é o mesmo de rodar tudo junto'
+conferir 2 "$(valor 'select count(*) from lote_temp.fila f join auth.users u on u.id = f.usuario_id
+                      where u.encrypted_password = crypt(f.senha, u.encrypted_password)')" \
+  'com o bcrypt gravado certo, que é o que o search_path solto quebrava'
+
+# A PARTE 4 vem comentada, e é isso que faz "rodar tudo" não apagar a lista
+# antes de alguém a ler. No modo sorteado, apagada ela não se recupera.
+conferir 1 "$(valor "select count(*) from information_schema.schemata where schema_name = 'lote_temp'")" \
+  'a lista sobrevive ao arquivo inteiro, porque a PARTE 4 está comentada'
 
 printf '\n'
 if [ "$falhas" -eq 0 ]; then
