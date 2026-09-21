@@ -114,6 +114,14 @@ fi
 #   ./scripts/testar.sh migracoes
 [ "$alvo" = migracoes ] && executa 'Migrations' ./supabase/tests/migracoes.sh
 
+# Mesma razão para ficar de fora: monta o próprio banco. Cobre
+# `supabase/criar-acessos-em-lote.sql`, que escreve em `auth.users` à mão —
+# onde errar não dá erro, dá um usuário que entra no banco e não consegue
+# entrar no sistema.
+#
+#   ./scripts/testar.sh lote
+[ "$alvo" = lote ] && executa 'Lote por SQL' ./supabase/tests/lote-sql.sh
+
 printf '\n'
 if [ "$falhas" -eq 0 ]; then
   printf '\033[32mTUDO PASSOU\033[0m\n'
