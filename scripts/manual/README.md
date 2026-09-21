@@ -23,6 +23,28 @@ telas sutilmente erradas.
 | `varrer.mjs` | Abre toda tela em todo papel e acusa erro de HTTP, de JS ou de consulta |
 | `navegar.mjs` | Descobre os destinos navegando: segue todo link, abre toda gaveta |
 | `acoes.mjs` | Executa cada ação de escrita e confere que ela gravou no banco |
+| `base-zerada.mjs` | Confere que uma base recém-limpa ainda abre em todos os papéis |
+
+## Depois de zerar a base
+
+`supabase/zerar-base-de-teste.sql` apaga a operação inteira e preserva três
+usuários de teste. Rodar o SQL sem erro não prova nada sobre o sistema: o que
+interessa é se as telas ainda abrem em cima de uma base vazia — um colaborador
+sem registro de pessoa, um mês sem escala, uma triagem sem pedido nenhum.
+
+`base-zerada.mjs` entra como cada um dos três e abre as telas do papel dele.
+Ele fica FORA da bateria (`testar.sh navegador`) de propósito: depende dos três
+`teste_*@teste.com`, que a massa de `semear.ts` não cria, e numa base semeada
+normal falharia por ausência deles, não por defeito.
+
+```bash
+PGDATABASE=manual node scripts/manual/base-zerada.mjs
+```
+
+Medido nas duas situações: com `semear-base-de-teste.sql` as 17 telas abrem e o
+vínculo existe; **sem ele**, as 17 telas ainda abrem — a base fica vazia, não
+quebrada — e só a conferência do vínculo acusa, que é exatamente o que aquele
+script existe para resolver.
 
 ## Receita
 
