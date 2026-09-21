@@ -15,6 +15,8 @@ const unidades: Unidade[] = [
 
 const mkColab = (id: number, over: Partial<Colaborador> = {}): Colaborador => ({
   id, perfilId: null, nome: `P${id}`, matricula: String(id), email: '', cargo: 'Analista Jr',
+  // Ficha da pessoa: o motor não lê nenhum dos três, mas o tipo os exige.
+  cpf: '', nascimento: null, telefone: '',
   equipeId: 1, gestorId: null, regime: '5x2', turno: 'D', ciclo: null, entrada: '08:00', saida: '17:00',
   unidadeBaseId: 1, elegHome: true, elegExterno: false, sextaReduzida: true, status: 'ativo',
   admissao: '2024-01-01', desligamento: null, ...over,

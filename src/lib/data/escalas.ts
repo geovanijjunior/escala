@@ -21,8 +21,8 @@ interface LinhaUnidade {
 
 interface LinhaColaborador {
   id: number; perfil_id: string | null; nome: string; matricula: string; email: string;
-  cargo: string; equipe_id: number; gestor_id: string | null; regime: '12x36' | '5x2';
-  turno: 'D' | 'N'; ciclo: 'IMPAR' | 'PAR' | null; entrada: string; saida: string;
+  cargo: string; cpf: string | null; nascimento: string | null; telefone: string | null; equipe_id: number; gestor_id: string | null; regime: '12x36' | '5x2';
+  turno: 'D' | 'V' | 'N'; ciclo: 'IMPAR' | 'PAR' | null; entrada: string; saida: string;
   unidade_base_id: number; eleg_home: boolean; eleg_externo: boolean; sexta_reduzida: boolean;
   status: 'ativo' | 'afastado' | 'desligado'; motivo_status: string | null;
   admissao: string; desligamento: string | null;
@@ -102,7 +102,8 @@ const paraUnidade = (u: LinhaUnidade): Unidade => ({
 
 const paraColaborador = (c: LinhaColaborador): Colaborador => ({
   id: c.id, perfilId: c.perfil_id, nome: c.nome, matricula: c.matricula, email: c.email,
-  cargo: c.cargo, equipeId: c.equipe_id, gestorId: c.gestor_id, regime: c.regime, turno: c.turno,
+  cargo: c.cargo, cpf: c.cpf ?? '', nascimento: c.nascimento ?? null, telefone: c.telefone ?? '',
+  equipeId: c.equipe_id, gestorId: c.gestor_id, regime: c.regime, turno: c.turno,
   ciclo: c.ciclo, entrada: (c.entrada ?? '08:00').slice(0, 5), saida: (c.saida ?? '17:00').slice(0, 5),
   unidadeBaseId: c.unidade_base_id, elegHome: c.eleg_home, elegExterno: c.eleg_externo,
   sextaReduzida: c.sexta_reduzida, status: c.status, motivoStatus: c.motivo_status ?? '',
@@ -159,15 +160,30 @@ export async function listarUnidades(): Promise<Unidade[]> {
   return ((data ?? []) as LinhaUnidade[]).map(paraUnidade);
 }
 
+/**
+ * Os cargos que a área mantém.
+ *
+ * Ordenado por `ordem` e depois por nome: a ordem existe para a lista sair na
+ * hierarquia da operação (Técnico I antes de Técnico III), e o nome é o
+ * desempate para quem cadastrou sem se importar com isso — sem ele, dois
+ * cargos de mesma ordem sairiam em ordem indefinida, que muda entre uma
+ * consulta e outra e faz a lista "pular" na tela sem motivo.
+ */
+export async function listarCargos(): Promise<{ id: number; nome: string; ordem: number }[]> {
+  const supabase = await createClient();
+  const data = conferir('listarCargos', await supabase.from('cargos').select('id, nome, ordem').order('ordem').order('nome'));
+  return (data ?? []) as { id: number; nome: string; ordem: number }[];
+}
+
 export async function listarEquipes(): Promise<Equipe[]> {
   const supabase = await createClient();
   const data = conferir('listarEquipes', await supabase.from('equipes').select('*').order('nome'));
   return ((data ?? []) as {
-    id: number; codigo: string; nome: string; regime: '12x36' | '5x2'; turno: 'D' | 'N';
+    id: number; codigo: string; nome: string; turno: 'D' | 'V' | 'N';
     gestor_id: string | null; na_escala: boolean | null;
   }[])
     .map(e => ({
-      id: e.id, codigo: e.codigo, nome: e.nome, regime: e.regime, turno: e.turno, gestorId: e.gestor_id,
+      id: e.id, codigo: e.codigo, nome: e.nome, turno: e.turno, gestorId: e.gestor_id,
       // `?? true` cobre a instalação que ainda não rodou a 0019: sem a coluna o
       // campo vem nulo, e o silêncio tem de significar "está na escala" — que é
       // como o sistema sempre se comportou.

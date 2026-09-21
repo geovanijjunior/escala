@@ -73,9 +73,9 @@ insert into perfis (id, conta_id, nome, email, papel) values
   ('bbbbbbb1-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Plan B',   'plan.b@x.com',   'planejamento'),
   ('ccccccc1-0000-0000-0000-000000000001', null,                                   'Geral',    'geral@x.com',    'admin_geral');
 
-insert into equipes (id, conta_id, codigo, nome, regime, turno) overriding system value values
-  (1, '11111111-1111-1111-1111-111111111111', 'EQA', 'Equipe A', '5x2', 'D'),
-  (2, '22222222-2222-2222-2222-222222222222', 'EQB', 'Equipe B', '5x2', 'D');
+insert into equipes (id, conta_id, codigo, nome, turno) overriding system value values
+  (1, '11111111-1111-1111-1111-111111111111', 'EQA', 'Equipe A', 'D'),
+  (2, '22222222-2222-2222-2222-222222222222', 'EQB', 'Equipe B', 'D');
 
 insert into unidades (id, conta_id, codigo, nome, sigla) overriding system value values
   (1, '11111111-1111-1111-1111-111111111111', 'UA', 'Unidade A', 'UA'),
@@ -252,8 +252,8 @@ end $$;
 do $$
 declare eq bigint; ct uuid;
 begin
-  insert into equipes (conta_id, codigo, nome, regime, turno)
-    values ('11111111-1111-1111-1111-111111111111', 'EQX', 'Equipe efemera', '5x2', 'D')
+  insert into equipes (conta_id, codigo, nome, turno)
+    values ('11111111-1111-1111-1111-111111111111', 'EQX', 'Equipe efemera', 'D')
     returning id into eq;
   insert into postos (conta_id, unidade_id, nome, equipe_id)
     values ('11111111-1111-1111-1111-111111111111', 1, 'Posto da efemera', eq);
@@ -317,15 +317,23 @@ declare
   -- aceita "de quem" por parâmetro, que é a diferença entre elas e o buraco que
   -- a 0023 fechou.
   --
-  -- As três que ESCREVEM estão examinadas nos blocos acima e em `rls.sql`:
-  -- `handle_novo_usuario` e `feriados_da_conta_nova` são triggers (não há como
-  -- chamá-las por fora), `resumo_areas` é leitura com `where eh_admin_geral()`
-  -- dentro, e `semear_feriados_nacionais` é o assunto da seção 1.
+  -- As que ESCREVEM estão examinadas nos blocos acima e em `rls.sql`:
+  -- `handle_novo_usuario`, `feriados_da_conta_nova` e `cargos_da_conta_nova`
+  -- são triggers (não há como chamá-las por fora), `resumo_areas` é leitura com
+  -- `where eh_admin_geral()` dentro, e `semear_feriados_nacionais` é o assunto
+  -- da seção 1.
+  --
+  -- `semear_cargos_padrao` (0030) recebe a ÁREA por parâmetro, que é a forma
+  -- perigosa — a mesma que a 0023 teve de fechar em
+  -- `semear_feriados_nacionais(uuid, int)`. Está aqui pelo mesmo motivo que
+  -- aquela: a própria migration revoga a execução de `authenticated` e de
+  -- `anon`, de modo que só o gatilho de área nova a alcança. O bloco de
+  -- permissões abaixo é o que cobra isso de verdade.
   conhecidas text[] := array[
     'conta_id', 'papel', 'eh_planejamento', 'eh_admin_geral', 'eh_admin_local',
     'minha_equipe', 'minhas_equipes_geridas', 'pode_ver_colaborador',
     'handle_novo_usuario', 'resumo_areas', 'semear_feriados_nacionais',
-    'feriados_da_conta_nova'
+    'feriados_da_conta_nova', 'semear_cargos_padrao', 'cargos_da_conta_nova'
   ];
   nova text;
 begin
@@ -338,6 +346,18 @@ begin
     raise exception 'FALHA: funcao `security definer` fora do inventario: %()  — confira quem pode chama-la e acrescente a lista', nova;
   end loop;
   raise notice 'ok: toda funcao definer do schema esta no inventario';
+end $$;
+
+-- A forma perigosa da 0030, pelo mesmo teste que a 0023 exigiu: quem está
+-- logado não pode semear cargo em área nenhuma — nem na própria. Sem a revoga,
+-- `semear_cargos_padrao(uuid)` seria uma escrita com área escolhida por quem
+-- chama, rodando como dono.
+do $$
+begin
+  if has_function_privilege('authenticated', 'public.semear_cargos_padrao(uuid)', 'execute') then
+    raise exception 'FALHA: authenticated executa semear_cargos_padrao(uuid) — a area vem por parametro';
+  end if;
+  raise notice 'ok: semear_cargos_padrao(uuid) fechada a quem esta logado';
 end $$;
 
 \echo ''

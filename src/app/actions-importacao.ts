@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getSessao, exigirCadastrador } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
-import { listarEquipes, listarUnidades } from '@/lib/data/escalas';
+import { listarCargos, listarEquipes, listarUnidades } from '@/lib/data/escalas';
 import { lerPlanilha, type LinhaImportada } from '@/lib/domain/escalas/importacao';
 import { mensagemErroBanco } from '@/lib/erros-banco';
 
@@ -39,8 +39,8 @@ export interface Relatorio {
 const LIMITE_BYTES = 1024 * 1024;
 
 async function analisar(conteudo: string): Promise<Relatorio> {
-  const [equipes, unidades] = await Promise.all([listarEquipes(), listarUnidades()]);
-  const leitura = lerPlanilha(conteudo, { equipes, unidades });
+  const [equipes, unidades, cargos] = await Promise.all([listarEquipes(), listarUnidades(), listarCargos()]);
+  const leitura = lerPlanilha(conteudo, { equipes, unidades, cargos: cargos.map(c => c.nome) });
 
   if (leitura.erros.length) {
     return { erros: leitura.erros, ignoradas: leitura.ignoradas, linhas: [], criar: 0, atualizar: 0, recusadas: 0 };
@@ -118,10 +118,14 @@ export async function importarPlanilha(conteudo: string): Promise<Relatorio> {
       email: l.email,
       cargo: l.cargo,
       equipe_id: l.equipeId,
-      // O regime é da equipe, nunca do arquivo: deixar a planilha declarar
-      // regime abriria a porta para uma pessoa 5x2 dentro de uma equipe 12x36,
-      // que é um estado que o motor não sabe resolver.
-      regime: equipe?.regime ?? '5x2',
+      // O regime vem do ARQUIVO, uma pessoa de cada vez. Aqui morava o
+      // contrário, com a justificativa de que 5x2 dentro de uma equipe 12x36
+      // seria "um estado que o motor não sabe resolver" — e isso não era
+      // verdade: o motor lê `c.regime`, da pessoa, e nunca o da equipe. A
+      // restrição protegia de um problema que não existia, e cobrava o preço
+      // real de obrigar a partir um time só para misturar plantão e
+      // administrativo. Desde a 0031 a equipe nem tem mais regime.
+      regime: l.regime,
       gestor_id: equipe?.gestorId ?? null,
       turno: l.turno,
       ciclo: l.ciclo,

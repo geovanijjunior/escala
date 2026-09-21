@@ -337,7 +337,19 @@ await acao('ocorrência: saída antecipada', `/calendario?${COMP}&vista=dia&dia=
   await f.locator('select[name="tipo"]').selectOption('SAIDA_ANTEC');
   await f.locator('input[name="horaSaida"]').fill('15:00');
   await f.locator('button:text("Registrar")').click();
-}, "select count(*) c from ocorrencias where tipo='SAIDA_ANTEC' and minutos = 120");
+// O número cravado aqui era 120, que só vale para quem sai às 17:00 — e
+// parou de valer no dia em que a massa ganhou gente vespertina, saindo às
+// 21:00. A falha então apontava para a ação de registrar ocorrência, que
+// estava perfeita.
+//
+// A conferência passou a cobrar a REGRA: os minutos são a diferença entre o
+// fim do turno DAQUELA pessoa e a hora digitada. Assim ela vale para quem
+// quer que a tela tenha aberto, e ainda cobre o que o número fixo não cobria,
+// que é o cálculo estar certo.
+}, `select count(*) c from ocorrencias o
+      join colaboradores c on c.id = o.colaborador_id
+     where o.tipo = 'SAIDA_ANTEC'
+       and o.minutos = (extract(epoch from c.saida::time) - extract(epoch from time '15:00')) / 60`);
 
 await acao('ocorrência: troca com parceiro', `/calendario?${COMP}&vista=dia&dia=2026-11-12`, async p => {
   await ajustar(p);

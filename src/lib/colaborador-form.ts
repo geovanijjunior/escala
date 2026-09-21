@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { CARGOS, MOTIVOS_INATIVACAO } from '@/lib/domain/escalas/constantes';
+import { MOTIVOS_INATIVACAO, turnoValido } from '@/lib/domain/escalas/constantes';
 import { horaNormalizada } from '@/lib/domain/escalas/datas';
+import { cpfValido, soDigitos, telefoneValido } from '@/lib/documentos';
 
 /**
  * Leitura e validação dos campos de colaborador vindos de um formulário.
@@ -31,10 +32,13 @@ export interface RegistroColaborador {
   matricula: string;
   email: string;
   cargo: string;
+  cpf: string;
+  nascimento: string | null;
+  telefone: string;
   equipe_id: number;
   gestor_id: string | null;
   regime: string;
-  turno: 'D' | 'N';
+  turno: 'D' | 'V' | 'N';
   entrada: string;
   saida: string;
   unidade_base_id: number;
@@ -74,6 +78,12 @@ export async function montarColaborador(
 
   const matricula = texto(formData, 'matricula');
   const cargo = texto(formData, 'cargo');
+  // Guardados só com os dígitos: a máscara é assunto da tela, e gravar o que
+  // chegou formatado faria "123.456.789-09" e "12345678909" conviverem no banco
+  // como se fossem duas pessoas.
+  const cpf = soDigitos(texto(formData, 'cpf'));
+  const telefone = soDigitos(texto(formData, 'telefone'));
+  const nascimento = texto(formData, 'nascimento');
   const equipeId = Number(formData.get('equipeId'));
   const unidadeBaseId = Number(formData.get('unidadeBaseId'));
   // Normalizados aqui, e não conferidos por formato lá embaixo: `8:00` e
@@ -91,12 +101,38 @@ export async function montarColaborador(
   const motivoStatus = ativo ? '' : texto(formData, 'motivoStatus');
   const regra = MOTIVOS_INATIVACAO.find(m => m.chave === motivoStatus);
   const status = ativo ? 'ativo' : (regra?.desliga ? 'desligado' : 'afastado');
-  const turno = texto(formData, 'turno') === 'N' ? 'N' : 'D';
+  const turno = turnoValido(texto(formData, 'turno'));
+  // Vazio cai em 5x2, que é o expediente comum: é o padrão que erra menos
+  // quando alguém não preencheu.
+  const regime = texto(formData, 'regime') === '12x36' ? '12x36' : '5x2';
 
   if (!nome) return { ok: false, erro: 'Informe o nome.' };
   if (!matricula) return { ok: false, erro: 'Informe a matrícula.' };
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, erro: 'E-mail em formato inválido.' };
-  if (cargo && !CARGOS.includes(cargo)) return { ok: false, erro: 'Cargo inválido.' };
+  // O cargo agora sai de uma lista que a área mantém, e não de um array no
+  // código. A conferência continua existindo pelo mesmo motivo de antes —
+  // campo de texto livre vira "Analista PL", "analista pl" e "Analista Pleno"
+  // na mesma base —, mas o que é válido passou a ser assunto de quem cadastra.
+  if (cargo) {
+    const { data: existe } = await supabase
+      .from('cargos').select('id').eq('nome', cargo).maybeSingle();
+    if (!existe) {
+      return { ok: false, erro: `"${cargo}" não está na lista de cargos. Cadastre-o em Parâmetros → Cargos.` };
+    }
+  }
+  // CPF confere os dígitos verificadores, e não só o tamanho: onze dígitos
+  // quaisquer passariam, e um CPF errado só aparece meses depois, quando
+  // alguém tenta cruzar a base com a folha e não acha a pessoa.
+  if (cpf && !cpfValido(cpf)) return { ok: false, erro: 'CPF inválido — confira os números digitados.' };
+  if (telefone && !telefoneValido(telefone)) {
+    return { ok: false, erro: 'Telefone inválido — informe DDD e número, com 10 ou 11 dígitos.' };
+  }
+  if (nascimento && !/^\d{4}-\d{2}-\d{2}$/.test(nascimento)) {
+    return { ok: false, erro: 'Data de nascimento inválida.' };
+  }
+  if (nascimento && nascimento >= new Date().toISOString().slice(0, 10)) {
+    return { ok: false, erro: 'A data de nascimento precisa estar no passado.' };
+  }
   if (!equipeId) return { ok: false, erro: 'Selecione a equipe.' };
   if (!unidadeBaseId) return { ok: false, erro: 'Selecione a unidade base.' };
   if (!entrada) return { ok: false, erro: 'Horário de entrada inválido.' };
@@ -119,9 +155,13 @@ export async function montarColaborador(
     return { ok: false, erro: 'O desligamento não pode ser anterior à admissão.' };
   }
 
-  // Regime e turno vêm da equipe; o turno pode ser sobreposto caso a caso.
+  // Da equipe vem só o gestor padrão. O regime é da PESSOA desde a 0031: antes
+  // ele era copiado daqui, e o campo nem existia no formulário — a equipe
+  // decidia se alguém era 12x36 ou 5x2 e ninguém podia discordar dela. Um time
+  // com plantonista e administrativo junto tinha de ser partido em dois só
+  // para o sistema aceitar.
   const { data: equipe } = await supabase
-    .from('equipes').select('regime, turno, gestor_id').eq('id', equipeId).single();
+    .from('equipes').select('turno, gestor_id').eq('id', equipeId).single();
   if (!equipe) return { ok: false, erro: 'Equipe não encontrada.' };
 
   // O ciclo do 12x36 NÃO é pedido aqui: quem decide é o plano do mês, que o
@@ -142,16 +182,24 @@ export async function montarColaborador(
       matricula,
       email,
       cargo,
+      // `null`, e não string vazia: a coluna é `date`, e '' não é data. Quem
+      // não informou fica sem nascimento, que é diferente de nascido no dia
+      // zero — a distinção some se isto virar um default silencioso.
+      cpf,
+      nascimento: nascimento || null,
+      telefone,
       equipe_id: equipeId,
       gestor_id: texto(formData, 'gestorId') || equipe.gestor_id,
-      regime: equipe.regime,
+      regime,
       turno,
       entrada,
       saida,
       unidade_base_id: unidadeBaseId,
       eleg_home: marcado(formData, 'elegHome'),
       eleg_externo: marcado(formData, 'elegExterno'),
-      sexta_reduzida: equipe.regime === '5x2' && marcado(formData, 'sextaReduzida'),
+      // Sexta reduzida é coisa de expediente administrativo: não existe em
+      // plantão de doze horas, que não tem sexta mais curta.
+      sexta_reduzida: regime === '5x2' && marcado(formData, 'sextaReduzida'),
       status,
       motivo_status: motivoStatus,
       // Sem data, deixa o banco pôr o `default` em vez de gravar nulo numa

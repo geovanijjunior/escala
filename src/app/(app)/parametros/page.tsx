@@ -2,12 +2,13 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
-import { getConfig, listarEquipes, listarFeriados, listarLogs, listarUnidades } from '@/lib/data/escalas';
+import { getConfig, listarCargos, listarEquipes, listarFeriados, listarLogs, listarUnidades } from '@/lib/data/escalas';
 import { DIAS_ABREV, dowDeIso, formatarCompetencia, formatarData } from '@/lib/domain/escalas/datas';
-import { REGRAS_MOTOR } from '@/lib/domain/escalas/constantes';
+import { REGRAS_MOTOR, TURNOS, TURNOS_EM_ORDEM } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import {
-  removerCapacidade, removerCotaEquipe, removerFeriado, removerPosto, salvarCapacidade,
+  removerCapacidade, removerCotaEquipe, removerEquipe, removerFeriado, removerPosto,
+  removerCargo, removerUnidade, salvarCapacidade, salvarCargo,
   salvarCotaEquipe, salvarEquipe, salvarFeriado, salvarParametros, salvarPosto, salvarUnidade,
   trazerFeriadosNacionais,
 } from '@/app/actions-cadastros';
@@ -22,7 +23,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
   if (!podeCadastrar(sessao.papel)) redirect('/');
 
   const supabase = await createClient();
-  const [unidades, equipes, config, feriados, logs, capRes, perfisRes, cotaRes, postoRes] = await Promise.all([
+  const [unidades, equipes, config, feriados, logs, capRes, perfisRes, cotaRes, postoRes, cargos, cargoUsoRes] = await Promise.all([
     listarUnidades(),
     listarEquipes(),
     getConfig(sessao.conta.id),
@@ -32,16 +33,28 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
     supabase.from('perfis').select('id, nome, papel').order('nome'),
     supabase.from('cotas_equipe').select('*'),
     supabase.from('postos').select('*').order('nome'),
+    listarCargos(),
+    supabase.from('colaboradores').select('cargo'),
   ]);
   const capacidades = (capRes.data ?? []) as { id: number; unidade_id: number; dow: number | null; data: string | null; total: number; reservadas: number }[];
   const perfis = (perfisRes.data ?? []) as { id: string; nome: string; papel: string | null }[];
   const cotas = (cotaRes.data ?? []) as { id: number; unidade_id: number; equipe_id: number; dow: number | null; minimo: number }[];
   const postos = (postoRes.data ?? []) as { id: number; unidade_id: number; nome: string; vagas: number; ativo: boolean; equipe_id: number | null }[];
 
+  // Quantas fichas citam cada cargo. Sai de uma leitura só, e não de uma por
+  // linha da tabela: com trinta cargos seriam trinta consultas para mostrar
+  // uma coluna.
+  const pessoasPorCargo = new Map<string, number>();
+  for (const linha of ((cargoUsoRes.data ?? []) as { cargo: string | null }[])) {
+    const nome = linha.cargo ?? '';
+    if (nome) pessoasPorCargo.set(nome, (pessoasPorCargo.get(nome) ?? 0) + 1);
+  }
+
   const aba = texto(busca, 'aba') || 'unidades';
   const href = (a: string) => `/parametros${comFiltros(busca, { aba: a })}`;
   const editandoUnidade = unidades.find(u => u.id === Number(texto(busca, 'unidade')));
   const editandoEquipe = equipes.find(e => e.id === Number(texto(busca, 'equipe')));
+  const editandoCargo = cargos.find(c => c.id === Number(texto(busca, 'cargo')));
 
   // O formulário de cadastro fica fechado por padrão e o estado vive na URL:
   // `?unidade=7` edita a de id 7, `?unidade=novo` abre em branco. Assim o botão
@@ -51,6 +64,8 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
   const criandoEquipe = texto(busca, 'equipe') === 'novo';
   const formUnidadeAberto = Boolean(editandoUnidade) || criandoUnidade;
   const formEquipeAberto = Boolean(editandoEquipe) || criandoEquipe;
+  const criandoCargo = texto(busca, 'cargo') === 'novo';
+  const formCargoAberto = Boolean(editandoCargo) || criandoCargo;
 
   /**
    * Os demais formulários da tela — exceção de capacidade, cota, posto,
@@ -83,6 +98,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
         itens={[
           { chave: 'unidades', label: 'Unidades e capacidade', href: href('unidades') },
           { chave: 'equipes', label: 'Equipes', href: href('equipes') },
+          { chave: 'cargos', label: 'Cargos', href: href('cargos') },
           { chave: 'feriados', label: 'Feriados', href: href('feriados') },
           { chave: 'motor', label: 'Regras do motor', href: href('motor') },
           { chave: 'auditoria', label: 'Auditoria e LGPD', href: href('auditoria') },
@@ -132,9 +148,19 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                             : <Badge cor="var(--muted)" bg="var(--bg)">Inativa</Badge>}
                         </td>
                         <td className="text-right">
-                          <Link href={`/parametros${comFiltros(busca, { unidade: String(u.id) })}`} className="esc-btn esc-btn-outline esc-btn-sm">
-                            Editar
-                          </Link>
+                          <div className="inline-flex items-center gap-2">
+                            <Link href={`/parametros${comFiltros(busca, { unidade: String(u.id) })}`} className="esc-btn esc-btn-outline esc-btn-sm">
+                              Editar
+                            </Link>
+                            {/* Mesma regra da equipe: desfaz cadastro errado, e
+                                recusa unidade que já tenha base, escala ou
+                                pedido apontando para ela. */}
+                            <form action={removerUnidade} className="inline">
+                              <Volta busca={busca} ancora="bloco-unidades" />
+                              <input type="hidden" name="id" value={u.id} />
+                              <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
+                            </form>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -558,8 +584,7 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                 {equipes.map(e => (
                   <tr key={e.id}>
                     <td className="font-medium">{e.nome}</td>
-                    <td><Badge cor="var(--brand-700)" bg="var(--brand-100)">{e.regime}</Badge></td>
-                    <td style={{ color: 'var(--muted)' }}>{e.turno === 'N' ? 'Noturno' : 'Diurno'}</td>
+                    <td style={{ color: 'var(--muted)' }}>{TURNOS[e.turno].label}</td>
                     <td>
                       {e.naEscala
                         ? <Badge cor="var(--green)" bg="var(--green-bg)">Entra</Badge>
@@ -567,9 +592,19 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
                     </td>
                     <td style={{ color: 'var(--muted)' }}>{perfis.find(p => p.id === e.gestorId)?.nome ?? '—'}</td>
                     <td className="text-right">
-                      <Link href={`/parametros${comFiltros(busca, { aba: 'equipes', equipe: String(e.id) })}`} className="esc-btn esc-btn-outline esc-btn-sm">
-                        Editar
-                      </Link>
+                      <div className="inline-flex items-center gap-2">
+                        <Link href={`/parametros${comFiltros(busca, { aba: 'equipes', equipe: String(e.id) })}`} className="esc-btn esc-btn-outline esc-btn-sm">
+                          Editar
+                        </Link>
+                        {/* Existe para desfazer cadastro errado, e só. A action
+                            recusa equipe com gente ou com comunicado dirigido a
+                            ela, dizendo o que fazer no lugar. */}
+                        <form action={removerEquipe} className="inline">
+                          <Volta busca={busca} ancora="bloco-equipes" />
+                          <input type="hidden" name="id" value={e.id} />
+                          <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -590,18 +625,15 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
               <span className="esc-rotulo">Nome</span>
               <input name="nome" defaultValue={editandoEquipe?.nome} required className="esc-input w-56" />
             </label>
-            <label className="block">
-              <span className="esc-rotulo">Regime</span>
-              <select name="regime" defaultValue={editandoEquipe?.regime ?? '5x2'} className="esc-input w-32">
-                <option value="5x2">5x2</option>
-                <option value="12x36">12x36</option>
-              </select>
-            </label>
+            {/* Sem campo de regime: desde a 0031 ele é da PESSOA. A equipe
+                decidia 12x36 ou 5x2 para todo mundo dentro dela, e um time com
+                plantonista e administrativo junto precisava ser partido em dois
+                só para o sistema aceitar. O regime agora está na ficha de cada
+                colaborador, e uma equipe pode misturar os dois. */}
             <label className="block">
               <span className="esc-rotulo">Turno</span>
-              <select name="turno" defaultValue={editandoEquipe?.turno ?? 'D'} className="esc-input w-32">
-                <option value="D">Diurno</option>
-                <option value="N">Noturno</option>
+              <select name="turno" defaultValue={editandoEquipe?.turno ?? 'D'} className="esc-input w-36">
+                {TURNOS_EM_ORDEM.map(v => <option key={v} value={v}>{TURNOS[v].label}</option>)}
               </select>
             </label>
             <label className="block">
@@ -627,6 +659,100 @@ export default async function ParametrosPage({ searchParams }: { searchParams: P
             </Link>
           </form>
           )}
+        </Bloco>
+      )}
+
+      {aba === 'cargos' && (
+        <Bloco
+          id="bloco-cargos"
+          titulo="Cargos"
+          desc="Como a área chama cada função que exerce. É esta lista que aparece na ficha do colaborador e no cadastro de usuário. A ordem define como os cargos saem na lista — use-a para a hierarquia da operação, não para a ordem alfabética."
+          acoes={!formCargoAberto && (
+            <Link
+              href={`/parametros${comFiltros(busca, { aba: 'cargos', cargo: 'novo' })}#bloco-cargos`}
+              className="esc-btn esc-btn-sm"
+            >
+              Novo cargo
+            </Link>
+          )}
+        >
+          {cargos.length === 0 ? (
+            <Vazio
+              titulo="Nenhum cargo cadastrado"
+              desc="Sem cargo na lista, a ficha do colaborador fica com o campo vazio. Cadastre os que a sua operação usa."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="esc-tabela">
+                <thead>
+                  <tr><th className="text-right">Ordem</th><th>Cargo</th><th className="text-right">Pessoas</th><th /></tr>
+                </thead>
+                <tbody>
+                  {cargos.map(c => {
+                    // Quantas pessoas estão neste cargo — a mesma conta que a
+                    // remoção faz para recusar. Mostrar aqui evita descobrir o
+                    // impedimento só depois de clicar em Remover.
+                    const pessoas = pessoasPorCargo.get(c.nome) ?? 0;
+                    return (
+                      <tr key={c.id}>
+                        <td className="text-right esc-num" style={{ color: 'var(--muted)' }}>{c.ordem}</td>
+                        <td className="font-medium">{c.nome}</td>
+                        <td className="text-right esc-num" style={{ color: pessoas ? undefined : 'var(--faint)' }}>
+                          {pessoas || '—'}
+                        </td>
+                        <td className="text-right">
+                          <div className="inline-flex items-center gap-2">
+                            <Link
+                              href={`/parametros${comFiltros(busca, { aba: 'cargos', cargo: String(c.id) })}#bloco-cargos`}
+                              className="esc-btn esc-btn-outline esc-btn-sm"
+                            >
+                              Editar
+                            </Link>
+                            <form action={removerCargo} className="inline">
+                              <Volta busca={busca} ancora="bloco-cargos" />
+                              <input type="hidden" name="id" value={c.id} />
+                              <button type="submit" className="esc-btn esc-btn-ghost esc-btn-sm">Remover</button>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {formCargoAberto && (
+            <form action={salvarCargo} className="px-4 py-3 border-t flex flex-wrap items-end gap-3" style={{ borderColor: 'var(--line)' }}>
+              <Volta busca={busca} ancora="bloco-cargos" />
+              {editandoCargo && <input type="hidden" name="id" value={editandoCargo.id} />}
+              <label className="block">
+                <span className="esc-rotulo">Nome do cargo</span>
+                <input name="nome" defaultValue={editandoCargo?.nome} required maxLength={60} className="esc-input w-64" />
+              </label>
+              <label className="block">
+                <span className="esc-rotulo">Ordem</span>
+                <input
+                  type="number" name="ordem" min={0} max={999}
+                  defaultValue={editandoCargo?.ordem ?? cargos.length + 1}
+                  className="esc-input esc-num w-24"
+                />
+              </label>
+              <button type="submit" className="esc-btn">{editandoCargo ? 'Salvar cargo' : 'Adicionar cargo'}</button>
+              <Link href={`/parametros${comFiltros(busca, { aba: 'cargos', cargo: null })}`} className="esc-btn esc-btn-ghost esc-btn-sm">
+                Cancelar
+              </Link>
+            </form>
+          )}
+
+          {/* Renomear não reescreve ficha: o cargo é gravado como texto na
+              pessoa. Dizer isso aqui evita a descoberta pelo caminho ruim, que
+              é renomear e depois achar que o sistema perdeu o dado. */}
+          <p className="px-4 py-3 border-t text-[11.5px]" style={{ borderColor: 'var(--line)', color: 'var(--muted)' }}>
+            Renomear um cargo muda só a lista de escolha — quem já está cadastrado continua com o nome antigo na ficha,
+            até ser editado. Por isso a remoção é recusada enquanto houver gente no cargo.
+          </p>
         </Bloco>
       )}
 

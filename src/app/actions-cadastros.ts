@@ -6,6 +6,7 @@ import { getSessao, exigirCadastrador } from '@/lib/sessao';
 import { registrarLog } from '@/lib/log';
 import { montarColaborador } from '@/lib/colaborador-form';
 import { DIAS_ABREV } from '@/lib/domain/escalas/datas';
+import { TURNOS, turnoValido } from '@/lib/domain/escalas/constantes';
 import { voltar, voltarComErro } from '@/lib/volta';
 import { mensagemErroBanco } from '@/lib/erros-banco';
 
@@ -118,6 +119,70 @@ export async function salvarUnidade(formData: FormData) {
 }
 
 /**
+ * Apaga uma unidade que ainda não entrou em operação.
+ *
+ * Mesma regra da equipe, e pelo mesmo motivo: o alvo é o cadastro errado —
+ * sigla trocada, unidade duplicada, teste que ficou. Unidade que já recebeu
+ * gente tem histórico, e para ela existe outro caminho, que é desativá-la:
+ * some das telas de alocação e o que já aconteceu continua de pé.
+ *
+ * As três conferências correspondem às três formas de a unidade ter passado a
+ * existir de verdade, e nenhuma delas o banco explicaria em português:
+ *
+ *  - é a base de alguém (`colaboradores.unidade_base_id`, restrict);
+ *  - aparece em escala gerada (`alocacoes.unidade_id`, restrict);
+ *  - é o destino de um pedido de troca — e este o banco deixaria passar
+ *    ANULANDO o destino (`solicitacoes.unidade_desejada_id` é `set null`),
+ *    o que transformaria "quero ir para o Morumbi" num pedido de troca para
+ *    lugar nenhum, sem avisar quem pediu.
+ *
+ * O que sai junto é só configuração da própria unidade: capacidade, cota,
+ * posto e as linhas de plano que a citam.
+ */
+export async function removerUnidade(formData: FormData) {
+  const sessao = await getSessao();
+  exigirCadastrador(sessao.papel, PARAMS);
+
+  const id = Number(formData.get('id'));
+  if (!id) voltarComErro(PARAMS, formData, 'Unidade inválida.');
+
+  const supabase = await createClient();
+  const { data: unidade } = await supabase.from('unidades').select('nome').eq('id', id).maybeSingle();
+  if (!unidade) voltarComErro(PARAMS, formData, 'Unidade não encontrada.');
+
+  const { count: pessoas } = await supabase
+    .from('colaboradores').select('id', { count: 'exact', head: true }).eq('unidade_base_id', id);
+  if (pessoas) {
+    voltarComErro(PARAMS, formData,
+      `${unidade.nome} é a unidade base de ${pessoas} colaborador(es) e por isso não pode ser apagada. `
+      + 'Troque a base dessas pessoas, ou desative a unidade para ela sair das telas sem perder o histórico.');
+  }
+
+  const { count: escalada } = await supabase
+    .from('alocacoes').select('id', { count: 'exact', head: true }).eq('unidade_id', id);
+  if (escalada) {
+    voltarComErro(PARAMS, formData,
+      `${unidade.nome} já aparece em escala gerada (${escalada} alocação(ões)) — apagá-la levaria junto registro de meses passados. `
+      + 'Desative a unidade: ela some das telas de alocação e o histórico fica.');
+  }
+
+  const { count: pedidos } = await supabase
+    .from('solicitacoes').select('id', { count: 'exact', head: true }).eq('unidade_desejada_id', id);
+  if (pedidos) {
+    voltarComErro(PARAMS, formData,
+      `${unidade.nome} é o destino de ${pedidos} pedido(s) de troca de unidade. Apagá-la deixaria esses pedidos sem destino, `
+      + 'sem avisar quem pediu — decida-os antes, ou desative a unidade.');
+  }
+
+  const { error } = await supabase.from('unidades').delete().eq('id', id);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a unidade: ${mensagemErroBanco(error)}`);
+
+  await registrarLog(sessao, 'Unidade removida', unidade.nome);
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData, { unidade: '' });
+}
+
+/**
  * Capacidade excepcional por dia da semana ou por data.
  *
  * Total em branco herda a capacidade padrão da unidade, porque o caso comum é
@@ -208,8 +273,8 @@ export async function salvarEquipe(formData: FormData) {
 
   const id = Number(formData.get('id') ?? 0);
   const nome = texto(formData, 'nome');
-  const regime = texto(formData, 'regime') === '12x36' ? '12x36' : '5x2';
-  const turno = texto(formData, 'turno') === 'N' ? 'N' : 'D';
+  // Sem regime: desde a 0031 ele é da pessoa, não da equipe.
+  const turno = turnoValido(texto(formData, 'turno'));
   if (!nome) voltarComErro(PARAMS, formData, 'Informe o nome da equipe.');
 
   const supabase = await createClient();
@@ -218,7 +283,6 @@ export async function salvarEquipe(formData: FormData) {
   const registro = {
     conta_id: sessao.conta.id,
     nome,
-    regime,
     turno,
     gestor_id: texto(formData, 'gestorId') || null,
     na_escala: marcado(formData, 'naEscala'),
@@ -231,8 +295,155 @@ export async function salvarEquipe(formData: FormData) {
   await registrarLog(
     sessao,
     id ? 'Equipe atualizada' : 'Equipe criada',
-    `${nome} · ${regime} · turno ${turno}${registro.na_escala ? '' : ' · fora da escala'}`,
+    `${nome} · turno ${TURNOS[turno].label}${registro.na_escala ? '' : ' · fora da escala'}`,
   );
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData, { equipe: '' });
+}
+
+/* ============================================================
+   CARGOS
+   ============================================================ */
+
+/**
+ * Cargo: como a área chama cada função que exerce.
+ *
+ * Era uma lista fechada de nove nomes dentro do código, e por isso só mudava
+ * com deploy. Um hospital tem Enfermeiro e Técnico de Enfermagem; uma operação
+ * de TI tem Analista Pl; nenhum dos dois quer ver a lista do outro.
+ *
+ * O cargo continua sendo gravado como TEXTO na ficha do colaborador — esta
+ * tabela controla o que se pode ESCOLHER, não substitui o que já foi escolhido.
+ * É o que permite renomear um cargo sem reescrever fichas antigas, e o que faz
+ * a importação por planilha continuar aceitando cargo digitado à mão.
+ */
+export async function salvarCargo(formData: FormData) {
+  const sessao = await getSessao();
+  exigirCadastrador(sessao.papel, PARAMS);
+
+  const id = Number(formData.get('id')) || 0;
+  const nome = texto(formData, 'nome');
+  const ordem = inteiro(formData, 'ordem') ?? 0;
+
+  if (!nome) voltarComErro(PARAMS, formData, 'Informe o nome do cargo.');
+  if (nome.length > 60) voltarComErro(PARAMS, formData, 'Nome de cargo muito longo.');
+
+  const supabase = await createClient();
+  const registro = { conta_id: sessao.conta.id, nome, ordem };
+
+  const { error } = id
+    ? await supabase.from('cargos').update(registro).eq('id', id)
+    : await supabase.from('cargos').insert(registro);
+
+  if (error) {
+    // Nome repetido é o erro esperado aqui, e "duplicate key" não diz nada a
+    // quem só cadastrou duas vezes sem perceber.
+    const msg = /duplicate|unique/i.test(error.message ?? '')
+      ? `Já existe um cargo chamado "${nome}".`
+      : `Não foi possível salvar o cargo: ${mensagemErroBanco(error)}`;
+    voltarComErro(PARAMS, formData, msg);
+  }
+
+  await registrarLog(sessao, id ? 'Cargo atualizado' : 'Cargo criado', nome);
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData, { cargo: '' });
+}
+
+/**
+ * Apaga um cargo da lista de escolha.
+ *
+ * Mesma regra da equipe e da unidade — apaga-se o que ainda não tem história —,
+ * com uma diferença que vale dizer: como a ficha guarda o TEXTO do cargo, o
+ * banco não impediria nada. Apagar "Analista Pl" com trinta pessoas nele não
+ * daria erro algum: as trinta continuariam Analista Pl, o cargo sumiria da
+ * lista, e a próxima edição de qualquer uma delas abriria com o campo em branco
+ * e gravaria em branco sem ninguém notar.
+ *
+ * Por isso a conferência é feita aqui, comparando pelo nome: é o único lugar
+ * onde ela pode existir.
+ */
+export async function removerCargo(formData: FormData) {
+  const sessao = await getSessao();
+  exigirCadastrador(sessao.papel, PARAMS);
+
+  const id = Number(formData.get('id'));
+  if (!id) voltarComErro(PARAMS, formData, 'Cargo inválido.');
+
+  const supabase = await createClient();
+  const { data: cargo } = await supabase.from('cargos').select('nome').eq('id', id).maybeSingle();
+  if (!cargo) voltarComErro(PARAMS, formData, 'Cargo não encontrado.');
+
+  const { count: pessoas } = await supabase
+    .from('colaboradores').select('id', { count: 'exact', head: true }).eq('cargo', cargo.nome);
+  if (pessoas) {
+    voltarComErro(PARAMS, formData,
+      `${pessoas} colaborador(es) estão como "${cargo.nome}". Apagar o cargo não mudaria a ficha deles, mas o campo `
+      + 'ficaria em branco na próxima edição. Troque o cargo dessas pessoas antes, ou renomeie este.');
+  }
+
+  const { error } = await supabase.from('cargos').delete().eq('id', id);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover o cargo: ${mensagemErroBanco(error)}`);
+
+  await registrarLog(sessao, 'Cargo removido', cargo.nome);
+  revalidatePath('/', 'layout');
+  voltar(PARAMS, formData, { cargo: '' });
+}
+
+/**
+ * Apaga uma equipe que ainda não é de ninguém.
+ *
+ * O caso é o cadastro errado: alguém criou "Analistas Suport" com o dedo
+ * trocado e precisa tirar aquilo da lista. Não é o caso de uma equipe que
+ * existiu de verdade e acabou — essa tem gente, tem histórico, e o que se faz
+ * com ela é tirá-la da escala (`na_escala`), não apagá-la.
+ *
+ * A regra é essa mesma: apaga-se o que ainda não tem história.
+ *
+ * O banco já recusaria uma equipe com colaboradores — `colaboradores.equipe_id`
+ * é `on delete restrict` —, mas recusaria falando de chave estrangeira, que não
+ * diz a ninguém o que fazer a seguir. As conferências abaixo existem para a
+ * mensagem nomear o que está segurando e apontar a saída.
+ *
+ * E uma delas o banco NÃO faria: `comunicados.equipe_id` é `on delete set
+ * null`, e comunicado com equipe nula é comunicado para a área inteira. Apagar
+ * a equipe destinatária, portanto, ABRIRIA para todo mundo um recado dirigido a
+ * cinco pessoas — em silêncio, e sem desfazer.
+ */
+export async function removerEquipe(formData: FormData) {
+  const sessao = await getSessao();
+  exigirCadastrador(sessao.papel, PARAMS);
+
+  const id = Number(formData.get('id'));
+  if (!id) voltarComErro(PARAMS, formData, 'Equipe inválida.');
+
+  const supabase = await createClient();
+  const { data: equipe } = await supabase.from('equipes').select('nome').eq('id', id).maybeSingle();
+  if (!equipe) voltarComErro(PARAMS, formData, 'Equipe não encontrada.');
+
+  // Todos os colaboradores, inclusive desligados: um desligado é exatamente o
+  // histórico que esta regra protege.
+  const { count: pessoas } = await supabase
+    .from('colaboradores').select('id', { count: 'exact', head: true }).eq('equipe_id', id);
+  if (pessoas) {
+    voltarComErro(PARAMS, formData,
+      `${equipe.nome} tem ${pessoas} colaborador(es) e por isso não pode ser apagada. `
+      + 'Mova essas pessoas para outra equipe, ou marque a equipe como fora da escala para ela parar de ser alocada.');
+  }
+
+  const { count: recados } = await supabase
+    .from('comunicados').select('id', { count: 'exact', head: true }).eq('equipe_id', id);
+  if (recados) {
+    voltarComErro(PARAMS, formData,
+      `${equipe.nome} é destinatária de ${recados} comunicado(s). Apagá-la abriria esses recados para a área inteira — `
+      + 'remova os comunicados no Mural antes, se eles não forem mais necessários.');
+  }
+
+  const { error } = await supabase.from('equipes').delete().eq('id', id);
+  if (error) voltarComErro(PARAMS, formData, `Não foi possível remover a equipe: ${mensagemErroBanco(error)}`);
+
+  // Cotas por equipe saem em cascata e postos ficam sem equipe (`set null`):
+  // nos dois casos é configuração daquela equipe, não registro do que houve.
+  await registrarLog(sessao, 'Equipe removida', equipe.nome);
   revalidatePath('/', 'layout');
   voltar(PARAMS, formData, { equipe: '' });
 }

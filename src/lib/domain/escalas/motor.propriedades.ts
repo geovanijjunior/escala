@@ -119,6 +119,7 @@ export function gerarCenario(a: Aleatorio): GerarEscalaInput {
       matricula: String(i + 1),
       email: '',
       cargo: a.de(CARGOS),
+      cpf: '', nascimento: null, telefone: '',
       equipeId: a.de(equipes).id,
       gestorId: null,
       regime,

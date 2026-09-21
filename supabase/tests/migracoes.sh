@@ -137,8 +137,8 @@ insert into contas (id, nome) values ('99999999-9999-9999-9999-999999999999', 'B
 -- `overriding system value` porque `id` é identity `generated always` desde a
 -- 0018: sem isso o insert é recusado, e a massa deste teste precisa de ids
 -- fixos para as linhas de colaborador apontarem para eles.
-insert into equipes (id, conta_id, codigo, nome, regime, turno) overriding system value
-  values (901, '99999999-9999-9999-9999-999999999999', 'E901', 'Equipe', '5x2', 'D');
+insert into equipes (id, conta_id, codigo, nome, turno) overriding system value
+  values (901, '99999999-9999-9999-9999-999999999999', 'E901', 'Equipe', 'D');
 insert into unidades (id, conta_id, codigo, nome, sigla, capacidade_total) overriding system value
   values (901, '99999999-9999-9999-9999-999999999999', 'U901', 'Unidade', 'UNI', 50);
 -- Um caso por regra do cálculo antigo: acima de seis horas entra 1h de

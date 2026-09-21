@@ -1,5 +1,11 @@
 export type Regime = '12x36' | '5x2';
-export type Turno = 'D' | 'N';
+/**
+ * Diurno, Vespertino, Noturno.
+ *
+ * Os rótulos e a ordem de exibição vivem em `TURNOS`, nas constantes — aqui
+ * fica só o conjunto, para o tipo não depender do módulo de apresentação.
+ */
+export type Turno = 'D' | 'V' | 'N';
 export type Ciclo = 'IMPAR' | 'PAR';
 export type StatusColaborador = 'ativo' | 'afastado' | 'desligado';
 export type ModoHomeOffice = 'FIXO' | 'COTA';
@@ -83,7 +89,13 @@ export interface Equipe {
   id: number;
   codigo: string;
   nome: string;
-  regime: Regime;
+  /**
+   * O turno CLASSIFICA a equipe; não há mais regime aqui.
+   *
+   * Até a 0031 a equipe também carregava o regime, e era ele que definia o da
+   * pessoa no cadastro. Um time com plantonista e administrativo junto — que é
+   * o caso comum — tinha de ser partido em dois só para o sistema aceitar.
+   */
   turno: Turno;
   gestorId: string | null;
   /**
@@ -103,6 +115,12 @@ export interface Colaborador {
   matricula: string;
   email: string;
   cargo: string;
+  /** Só dígitos, sem máscara; vazio quando não informado. */
+  cpf: string;
+  /** ISO `aaaa-mm-dd`, ou `null` quando não informado. */
+  nascimento: string | null;
+  /** Só dígitos, com DDD; vazio quando não informado. */
+  telefone: string;
   equipeId: number;
   gestorId: string | null;
   regime: Regime;

@@ -15,11 +15,14 @@ const unidades: Unidade[] = [
 ];
 
 const equipes: Equipe[] = [
-  { id: 1, codigo: 'TEC', nome: 'Técnicos de Campo', regime: '5x2', turno: 'D', gestorId: null, naEscala: true },
-  { id: 2, codigo: 'PLA', nome: 'Plantão 12x36', regime: '12x36', turno: 'D', gestorId: null, naEscala: true },
+  { id: 1, codigo: 'TEC', nome: 'Técnicos de Campo', turno: 'D', gestorId: null, naEscala: true },
+  { id: 2, codigo: 'PLA', nome: 'Plantão 12x36', turno: 'D', gestorId: null, naEscala: true },
 ];
 
-const ler = (csv: string) => lerPlanilha(csv, { equipes, unidades });
+// Os cargos da 'área' deste teste. Antes vinham de `CARGOS`, no código; agora
+// entram como dado, que é o que mudou na vida real também.
+const cargos = ['Técnico I', 'Técnico II', 'Analista Jr', 'Analista Pl', 'Analista Sr', 'Especialista'];
+const ler = (csv: string) => lerPlanilha(csv, { equipes, unidades, cargos });
 const CAB = 'nome;matricula;equipe;unidade base;admissao';
 
 // ── 1. O caminho feliz
@@ -52,7 +55,7 @@ const CAB = 'nome;matricula;equipe;unidade base;admissao';
 {
   const r = ler(`${CAB};cargo\nAna;100;TEC;MOR;01/03/2024;"Analista Pl, Sênior"`);
   ok(r.linhas.length === 1, 'campo entre aspas não vira duas linhas');
-  ok(/Cargo "Analista Pl, Sênior" não existe/.test(r.linhas[0]?.erros[0] ?? ''),
+  ok(/Cargo "Analista Pl, Sênior" não está cadastrado/.test(r.linhas[0]?.erros[0] ?? ''),
     'o conteúdo entre aspas chega inteiro à validação', JSON.stringify(r.linhas[0]?.erros));
 }
 
@@ -106,12 +109,36 @@ const CAB = 'nome;matricula;equipe;unidade base;admissao';
   ok(/inativa/.test(r.linhas[0].erros[0] ?? ''), 'unidade inativa é recusada com o motivo certo');
 }
 
-// ── 10. 12x36 exige ciclo; 5x2 não tem ciclo
+// ── 10. O regime é da PESSOA, declarado na planilha
+//
+// Antes destes testes serem reescritos, o 12x36 era montado pondo a pessoa na
+// EQUIPE de plantão — a equipe decidia o regime de todo mundo dentro dela.
+// Desde a 0031 quem declara é a linha, e é por isso que a equipe aqui é a
+// mesma (`TEC`) nos dois casos: o que muda é a coluna `regime`.
 {
-  const semCiclo = ler(`${CAB}\nAna;100;Plantão 12x36;MOR;01/03/2024`);
+  const semRegime = ler(`${CAB}\nAna;100;TEC;MOR;01/03/2024`);
+  ok(semRegime.linhas[0].regime === '5x2' && semRegime.linhas[0].erros.length === 0,
+    'coluna em branco vale 5x2, sem reclamar', JSON.stringify(semRegime.linhas[0].erros));
+
+  const desconhecido = ler(`${CAB};regime\nAna;100;TEC;MOR;01/03/2024;8x4`);
+  ok(/não reconhecido/.test(desconhecido.linhas[0].erros[0] ?? ''),
+    'regime fora dos dois é recusado', JSON.stringify(desconhecido.linhas[0].erros));
+
+  // Plantonista e administrativo na MESMA equipe, que era o estado impossível
+  // de representar antes — e que o motor sempre soube resolver, porque lê o
+  // regime da pessoa e nunca o da equipe.
+  const misto = ler(`${CAB};regime;ciclo\nAna;100;TEC;MOR;01/03/2024;12x36;ímpar\nBia;101;TEC;MOR;01/03/2024;5x2;`);
+  ok(misto.linhas[0].regime === '12x36' && misto.linhas[1].regime === '5x2',
+    'dois regimes na mesma equipe convivem',
+    JSON.stringify(misto.linhas.map(l => l.regime)));
+}
+
+// ── 11. 12x36 exige ciclo; 5x2 não tem ciclo
+{
+  const semCiclo = ler(`${CAB};regime\nAna;100;TEC;MOR;01/03/2024;12x36`);
   ok(/exige o ciclo/.test(semCiclo.linhas[0].erros[0] ?? ''), '12x36 sem ciclo é erro');
 
-  const comCiclo = ler(`${CAB};ciclo\nAna;100;PLA;MOR;01/03/2024;ímpar`);
+  const comCiclo = ler(`${CAB};regime;ciclo\nAna;100;TEC;MOR;01/03/2024;12x36;ímpar`);
   ok(comCiclo.linhas[0].erros.length === 0 && comCiclo.linhas[0].ciclo === 'IMPAR',
     '12x36 com ciclo por extenso e acentuado', JSON.stringify(comCiclo.linhas[0].erros));
   ok(comCiclo.linhas[0].saida === '19:00', '12x36 sai às 19:00 por padrão', comCiclo.linhas[0].saida);
@@ -133,9 +160,9 @@ const CAB = 'nome;matricula;equipe;unidade base;admissao';
   ok(/não é sim nem não/.test(lixo.linhas[0].erros[0] ?? ''), '"talvez" é recusado');
 }
 
-// ── 12. Sexta reduzida não existe no 12x36
+// ── 13. Sexta reduzida não existe no 12x36
 {
-  const r = ler(`${CAB};ciclo;sexta reduzida\nAna;100;PLA;MOR;01/03/2024;par;sim`);
+  const r = ler(`${CAB};regime;ciclo;sexta reduzida\nAna;100;TEC;MOR;01/03/2024;12x36;par;sim`);
   ok(r.linhas[0].sextaReduzida === false, 'plantonista não tem sexta reduzida, mesmo pedindo');
 }
 

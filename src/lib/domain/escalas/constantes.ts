@@ -236,6 +236,59 @@ export const MOTIVOS_INATIVACAO: { chave: string; label: string; desliga: boolea
   { chave: 'OUTRO', label: 'Outro', desliga: false },
 ];
 
+/**
+ * Os cargos que uma área NOVA recebe de brinde — não mais a lista do sistema.
+ *
+ * Desde a 0030 os cargos vivem em `cargos`, uma tabela por área, e quem
+ * cadastra acrescenta e apaga o que quiser. Esta lista sobreviveu por dois
+ * motivos: é a semente que a migration planta em cada área, e é o conjunto que
+ * o fuzzing do motor sorteia, onde o que importa é ter nomes plausíveis e não
+ * ler o banco.
+ *
+ * NÃO a use para validar cargo vindo de formulário ou de planilha: o que vale
+ * ali é o que a área cadastrou.
+ */
+/**
+ * Os turnos, com o nome por extenso e a abreviação das listas apertadas.
+ *
+ * Existe como mapa porque a alternativa estava espalhada: oito telas faziam
+ * `turno === 'N' ? 'Noturno' : 'Diurno'`. Enquanto havia dois valores aquilo
+ * funcionava; no dia em que entrou o vespertino, cada um dos oito passaria a
+ * chamá-lo de diurno — calado, e em oito lugares diferentes.
+ *
+ * O turno é CLASSIFICAÇÃO, não regra de escala: o motor não o lê. Quem define
+ * a jornada é `entrada` e `saida` da pessoa.
+ */
+export const TURNOS = {
+  D: { label: 'Diurno', curto: 'Diu.' },
+  V: { label: 'Vespertino', curto: 'Vesp.' },
+  N: { label: 'Noturno', curto: 'Not.' },
+} as const;
+
+export type Turno = keyof typeof TURNOS;
+
+/** Os valores na ordem em que fazem sentido numa lista: manhã, tarde, noite. */
+export const TURNOS_EM_ORDEM = ['D', 'V', 'N'] as const;
+
+/** O que chegou de um formulário, se for turno; senão, diurno. */
+export function turnoValido(bruto: string): Turno {
+  return (TURNOS_EM_ORDEM as readonly string[]).includes(bruto) ? bruto as Turno : 'D';
+}
+
+/**
+ * Os regimes de trabalho, que são da PESSOA e não da equipe.
+ *
+ * Até a 0031 o regime vinha da equipe e a pessoa não podia discordar dela —
+ * um time com plantonista e administrativo junto precisava ser partido em
+ * dois só para o sistema aceitar.
+ */
+export const REGIMES = {
+  '5x2': { label: '5x2', desc: 'Cinco dias de trabalho, dois de descanso.' },
+  '12x36': { label: '12x36', desc: 'Plantão de doze horas, trinta e seis de descanso.' },
+} as const;
+
+export type Regime = keyof typeof REGIMES;
+
 export const CARGOS = [
   'Técnico I', 'Técnico II', 'Técnico III',
   'Analista Jr', 'Analista Pl', 'Analista Sr',
@@ -272,8 +325,11 @@ export const REGRAS_MOTOR: { n: number; titulo: string; desc: string; rigida: bo
  *
  * A regra da operação: analista tem prioridade no home office, técnico tem
  * prioridade na posição presencial — o técnico é quem precisa estar perto do
- * equipamento. Derivado do prefixo porque CARGOS é uma lista fechada do próprio
- * sistema; cargo fora dela cai em 'OUTRO' e não recebe nem perde prioridade.
+ * equipamento. Derivado do PREFIXO do texto, e não de uma lista: desde que o
+ * cargo virou cadastro da área, um nome qualquer pode aparecer aqui, e o que
+ * não começa por Técnico ou Analista cai em 'OUTRO' — sem prioridade e sem
+ * penalidade, que é o comportamento certo para um cargo que o sistema não
+ * conhece.
  */
 export type FamiliaCargo = 'TECNICO' | 'ANALISTA' | 'OUTRO';
 

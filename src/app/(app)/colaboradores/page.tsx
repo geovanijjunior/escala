@@ -2,9 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getSessao, podeCadastrar } from '@/lib/sessao';
 import { createClient } from '@/lib/supabase/server';
-import { listarColaboradores, listarEquipes, listarUnidades } from '@/lib/data/escalas';
+import { listarCargos, listarColaboradores, listarEquipes, listarUnidades } from '@/lib/data/escalas';
 import { formatarData } from '@/lib/domain/escalas/datas';
-import { CARGOS } from '@/lib/domain/escalas/constantes';
+import { formatarCpf, formatarTelefone } from '@/lib/documentos';
+import { REGIMES, TURNOS, TURNOS_EM_ORDEM } from '@/lib/domain/escalas/constantes';
 import { comFiltros, texto, type Busca } from '@/lib/pagina';
 import { salvarColaborador } from '@/app/actions-cadastros';
 import { Aviso, Badge, Bloco, Pill, Vazio } from '@/components/Ui';
@@ -26,11 +27,12 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
   if (!podeCadastrar(sessao.papel)) redirect('/');
 
   const supabase = await createClient();
-  const [colaboradores, equipes, unidades, perfisRes] = await Promise.all([
+  const [colaboradores, equipes, unidades, perfisRes, cargos] = await Promise.all([
     listarColaboradores(),
     listarEquipes(),
     listarUnidades(),
     supabase.from('perfis').select('id, nome, email, papel').order('nome'),
+    listarCargos(),
   ]);
   const perfis = (perfisRes.data ?? []) as { id: string; nome: string; email: string; papel: string | null }[];
 
@@ -108,6 +110,7 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
               equipes={equipes}
               unidades={unidades}
               perfis={perfis}
+              cargos={cargos}
               fecharHref={`/colaboradores${comFiltros(busca, { novo: null, id: null })}`}
               busca={busca}
             />
@@ -176,7 +179,7 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
                             {equipe?.nome ?? '—'}
                             <div className="flex gap-1 mt-0.5">
                               <Badge cor="var(--brand-700)" bg="var(--brand-100)">{c.regime}</Badge>
-                              <Badge cor="var(--muted)" bg="var(--bg)">{c.turno === 'N' ? 'Noturno' : 'Diurno'}</Badge>
+                              <Badge cor="var(--muted)" bg="var(--bg)">{TURNOS[c.turno].label}</Badge>
                               {c.elegHome && <Badge cor="#6D28D9" bg="#EDE9FE">HOME</Badge>}
                             </div>
                           </td>
@@ -215,12 +218,13 @@ export default async function ColaboradoresPage({ searchParams }: { searchParams
 }
 
 function Formulario({
-  colaborador: c, equipes, unidades, perfis, fecharHref, busca,
+  colaborador: c, equipes, unidades, perfis, cargos, fecharHref, busca,
 }: {
   colaborador: Colaborador | null;
-  equipes: { id: number; nome: string; regime: string; turno: string }[];
+  equipes: { id: number; nome: string; turno: string }[];
   unidades: { id: number; nome: string; ativa: boolean }[];
   perfis: { id: string; nome: string; email: string; papel: string | null }[];
+  cargos: { id: number; nome: string }[];
   fecharHref: string;
   busca: Busca;
 }) {
@@ -252,21 +256,61 @@ function Formulario({
           <span className="esc-rotulo">Cargo</span>
           <select name="cargo" defaultValue={c?.cargo} className="esc-input">
             <option value="">—</option>
-            {CARGOS.map(v => <option key={v} value={v}>{v}</option>)}
+            {/* O cargo gravado na ficha pode não estar mais na lista — ele é
+                texto, e a lista mudou desde que a pessoa foi cadastrada.
+                Sem esta opção extra o `select` abriria no "—" e gravaria vazio
+                ao salvar qualquer outra coisa da ficha, apagando um dado que
+                ninguém pediu para apagar. */}
+            {c?.cargo && !cargos.some(v => v.nome === c.cargo) && (
+              <option value={c.cargo}>{c.cargo} (fora da lista atual)</option>
+            )}
+            {cargos.map(v => <option key={v.id} value={v.nome}>{v.nome}</option>)}
           </select>
         </label>
+        <label className="block">
+          <span className="esc-rotulo">CPF</span>
+          {/* `inputMode` numérico para o teclado do celular abrir em números, e
+              `maxLength` folgado para caber a digitação com ponto e traço — os
+              separadores são descartados na gravação. */}
+          <input
+            name="cpf" defaultValue={c?.cpf ? formatarCpf(c.cpf) : ''}
+            inputMode="numeric" maxLength={14} placeholder="000.000.000-00"
+            className="esc-input esc-num"
+          />
+        </label>
+        <label className="block">
+          <span className="esc-rotulo">Data de nascimento</span>
+          <input type="date" name="nascimento" defaultValue={c?.nascimento ?? ''} className="esc-input esc-num" />
+        </label>
+        <label className="block">
+          <span className="esc-rotulo">Telefone <span style={{ color: 'var(--faint)' }}>(opcional)</span></span>
+          <input
+            name="telefone" defaultValue={c?.telefone ? formatarTelefone(c.telefone) : ''}
+            inputMode="numeric" maxLength={16} placeholder="(11) 90000-0000"
+            className="esc-input esc-num"
+          />
+        </label>
+
         <label className="block">
           <span className="esc-rotulo">Equipe</span>
           <select name="equipeId" defaultValue={c?.equipeId} required className="esc-input">
             <option value="">Selecione</option>
-            {equipes.map(e => <option key={e.id} value={e.id}>{e.nome} ({e.regime})</option>)}
+            {equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
           </select>
         </label>
         <label className="block">
           <span className="esc-rotulo">Turno</span>
           <select name="turno" defaultValue={c?.turno ?? 'D'} className="esc-input">
-            <option value="D">Diurno</option>
-            <option value="N">Noturno</option>
+            {TURNOS_EM_ORDEM.map(v => <option key={v} value={v}>{TURNOS[v].label}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          {/* O regime é da pessoa desde a 0031. Antes vinha da equipe, e o
+              campo não existia aqui: quem precisasse de um plantonista dentro
+              de um time administrativo não tinha como cadastrá-lo. */}
+          <span className="esc-rotulo">Regime</span>
+          <select name="regime" defaultValue={c?.regime ?? '5x2'} className="esc-input">
+            {Object.entries(REGIMES).map(([v, r]) => <option key={v} value={v}>{r.label}</option>)}
           </select>
         </label>
 

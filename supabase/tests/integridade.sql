@@ -87,9 +87,14 @@ select espera_recusa('código de unidade duplicado na mesma conta',
   $$insert into unidades (conta_id, codigo, nome, sigla)
     values ('11111111-1111-1111-1111-111111111111','MOR','Outro','OUT')$$);
 
+-- O regime saiu da equipe na 0031; quem o guarda é a pessoa. O domínio
+-- continua fechado, e é lá que ele precisa ser cobrado.
 select espera_recusa('regime fora do domínio',
-  $$insert into equipes (conta_id, codigo, nome, regime)
-    values ('11111111-1111-1111-1111-111111111111','EQX','X','8x4')$$);
+  $$update colaboradores set regime = '8x4' where id = 1$$);
+
+-- Turno ganhou o vespertino na 0031, e continua fechado em três valores.
+select espera_recusa('turno fora do domínio',
+  $$update colaboradores set turno = 'X' where id = 1$$);
 
 select espera_recusa('ausência de zero dias',
   $$insert into ausencias (conta_id, colaborador_id, tipo, inicio, dias)

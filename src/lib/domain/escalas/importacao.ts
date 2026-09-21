@@ -1,4 +1,3 @@
-import { CARGOS } from './constantes';
 import { horaNormalizada } from './datas';
 import type { Equipe, Unidade } from './tipos';
 
@@ -17,6 +16,8 @@ import type { Equipe, Unidade } from './tipos';
  */
 
 export interface LinhaImportada {
+  /** Da pessoa, desde a 0031 — a equipe não tem mais regime. */
+  regime: '12x36' | '5x2';
   /** Linha no arquivo, contando o cabeçalho. É por ela que a pessoa acha o erro. */
   linha: number;
   nome: string;
@@ -128,6 +129,10 @@ const COLUNAS = {
   equipe: ['equipe', 'time', 'setor'],
   unidade: ['unidade base', 'unidade', 'base', 'lotacao'],
   turno: ['turno'],
+  // Coluna nova desde a 0031, quando o regime deixou de vir da equipe.
+  // Opcional: em branco vale 5x2, que é o expediente comum — obrigá-la
+  // invalidaria toda planilha que já existe por aí.
+  regime: ['regime', 'jornada', 'escala'],
   ciclo: ['ciclo'],
   entrada: ['entrada', 'horario', 'hora entrada'],
   saida: ['saida', 'saída', 'hora saida', 'hora de saida'],
@@ -191,7 +196,7 @@ const hora = horaNormalizada;
 
 export function lerPlanilha(
   conteudo: string,
-  { equipes, unidades }: { equipes: Equipe[]; unidades: Unidade[] },
+  { equipes, unidades, cargos }: { equipes: Equipe[]; unidades: Unidade[]; cargos: string[] },
 ): Leitura {
   // O Excel escreve BOM no começo do arquivo. Sem removê-lo, o primeiro
   // cabeçalho vira "﻿nome" e a coluna obrigatória "nome" some.
@@ -253,9 +258,17 @@ export function lerPlanilha(
     const email = campo('email');
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) problemas.push(`E-mail inválido: "${email}".`);
 
+    // Os cargos vêm da área, e não mais de uma lista no código: quem acabou
+    // de cadastrar "Enfermeiro" em Parâmetros precisa conseguir importar uma
+    // planilha com ele. `chaveDe` compara sem acento e sem caixa, para que
+    // "analista jr" da planilha case com "Analista Jr" do cadastro.
     const cargoBruto = campo('cargo');
-    const cargo = CARGOS.find(c => chaveDe(c) === chaveDe(cargoBruto)) ?? '';
-    if (cargoBruto && !cargo) problemas.push(`Cargo "${cargoBruto}" não existe. Use um destes: ${CARGOS.join(', ')}.`);
+    const cargo = cargos.find(c => chaveDe(c) === chaveDe(cargoBruto)) ?? '';
+    if (cargoBruto && !cargo) {
+      problemas.push(cargos.length
+        ? `Cargo "${cargoBruto}" não está cadastrado. Use um destes: ${cargos.join(', ')}.`
+        : `Cargo "${cargoBruto}" não está cadastrado, e não há cargo nenhum na área. Cadastre em Parâmetros → Cargos.`);
+    }
 
     const equipeBruta = campo('equipe');
     const equipe = acharEquipe.get(chaveDe(equipeBruta));
@@ -273,12 +286,20 @@ export function lerPlanilha(
 
     // O ciclo só existe no 12x36, e ali é obrigatório: sem ele o motor não sabe
     // se a pessoa trabalha nos dias pares ou nos ímpares.
+    // O regime é DA PESSOA desde a 0031: antes saía da equipe, e uma planilha
+    // não tinha como trazer plantonista e administrativo para o mesmo time.
+    const regimeBruto = chaveDe(campo('regime'));
+    const regime: '12x36' | '5x2' = ['12x36', '12 x 36', '12'].includes(regimeBruto) ? '12x36' : '5x2';
+    if (regimeBruto && !['12x36', '12 x 36', '12', '5x2', '5 x 2', '5'].includes(regimeBruto)) {
+      problemas.push(`Regime "${campo('regime')}" não reconhecido. Use "12x36" ou "5x2".`);
+    }
+
     const cicloBruto = chaveDe(campo('ciclo'));
     let ciclo: 'IMPAR' | 'PAR' | null = null;
-    if (equipe?.regime === '12x36') {
+    if (regime === '12x36') {
       if (['impar', 'impares', 'i'].includes(cicloBruto)) ciclo = 'IMPAR';
       else if (['par', 'pares', 'p'].includes(cicloBruto)) ciclo = 'PAR';
-      else problemas.push('Equipe 12x36 exige o ciclo: "ímpar" ou "par".');
+      else problemas.push('Quem é 12x36 exige o ciclo: "ímpar" ou "par".');
     }
 
     const entradaBruta = campo('entrada');
@@ -288,7 +309,7 @@ export function lerPlanilha(
     // O padrão sai do regime porque é o que a planilha mais deixa em branco:
     // 12x36 entra 07:00 e sai 19:00; 5x2 entra 08:00 e sai 17:00.
     const saidaBruta = campo('saida');
-    const saida = saidaBruta ? hora(saidaBruta) : (equipe?.regime === '12x36' ? '19:00' : '17:00');
+    const saida = saidaBruta ? hora(saidaBruta) : (regime === '12x36' ? '19:00' : '17:00');
     if (saida === null) problemas.push(`Horário de saída inválido: "${saidaBruta}". Use HH:MM.`);
     else if (saida === (entrada ?? '08:00')) problemas.push('A saída não pode ser igual à entrada.');
 
@@ -316,6 +337,7 @@ export function lerPlanilha(
       unidadeBaseId: unidade?.id ?? null,
       unidadeNome: unidade?.nome ?? unidadeBruta,
       turno,
+      regime,
       ciclo,
       entrada: entrada ?? '08:00',
       saida: saida ?? '17:00',
@@ -323,7 +345,7 @@ export function lerPlanilha(
       elegExterno,
       // Sexta reduzida não existe no 12x36: quem faz plantão não tem sexta
       // curta. Aceitar em silêncio guardaria uma regra que nunca se aplica.
-      sextaReduzida: equipe?.regime === '5x2' && sextaReduzidaBruta,
+      sextaReduzida: regime === '5x2' && sextaReduzidaBruta,
       admissao: admissao ?? '',
       erros: problemas,
     });

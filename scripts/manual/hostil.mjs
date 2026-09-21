@@ -191,8 +191,8 @@ const outraConta = (await db.query(`
 let outraEquipe = null, outraUnidade = null;
 if (outraConta) {
   outraEquipe = (await db.query(`
-    insert into equipes (conta_id, codigo, nome, regime, turno)
-    values ($1, 'ALVO', 'Equipe da outra área', '5x2', 'D') returning id`, [outraConta])).rows[0].id;
+    insert into equipes (conta_id, codigo, nome, turno)
+    values ($1, 'ALVO', 'Equipe da outra área', 'D') returning id`, [outraConta])).rows[0].id;
   outraUnidade = (await db.query(`
     insert into unidades (conta_id, codigo, nome, sigla)
     values ($1, 'ALVO', 'Unidade da outra área', 'ALV') returning id`, [outraConta])).rows[0].id;
@@ -297,7 +297,11 @@ como(ANA);
   await p.goto(BASE + '/parametros?aba=equipes&equipe=novo', { waitUntil: 'networkidle' });
   await p.waitForTimeout(200);
   try {
-    const f = p.locator('form').filter({ has: p.locator('select[name="regime"]') }).first();
+    // Pelo botão, e não por um campo: este formulário era achado pelo
+    // `select[name="regime"]`, que saiu da equipe na 0031 — e a sonda passou a
+    // falhar por timeout, dizendo "não consegui operar" sobre uma tela que
+    // estava perfeita. Rótulo de botão muda menos que composição de campo.
+    const f = p.locator('form:has(button:text-is("Adicionar equipe"))').first();
     await f.locator('input[name="nome"]').fill(veneno);
     await f.locator('button[type="submit"]').first().click();
     await p.waitForLoadState('networkidle');

@@ -66,7 +66,14 @@ function forma(url) {
   for (const [k, v] of u.searchParams) {
     // Mudam O QUE a página mostra, não QUAL página é: um dia qualquer do
     // calendário exercita o mesmo código que outro.
-    if (['dia', 'colab', 'id', 'competencia', 'q', 'equipe', 'unidade', 'modalidade', 'turno'].includes(k)) {
+    //
+    // `cargo` entrou nesta lista depois de custar caro. Ele nasceu como
+    // parâmetro de edição em Parâmetros e ficou de fora daqui, então cada um
+    // dos nove cargos virou um destino próprio, multiplicado pelos outros
+    // parâmetros da mesma tela. A varredura passou de poucos minutos a mais de
+    // dez, e o que se via na bateria era "travou", não "a fila cresceu".
+    // Parâmetro novo que identifique uma LINHA, e não uma tela, pertence aqui.
+    if (['dia', 'colab', 'id', 'competencia', 'q', 'equipe', 'unidade', 'cargo', 'modalidade', 'turno'].includes(k)) {
       q.set(k, v ? '_' : '');
     // Estado de mensagem, não de navegação. Sem descartar, cada redirecionamento
     // com `?ok=1` vira um destino novo e a fila não fecha nunca.

@@ -124,11 +124,13 @@ async function main() {
   await db.query(`insert into postos (id, conta_id, unidade_id, nome, vagas)
     overriding system value values (1,$1,1,'Corpo Clínico',1)`, [CONTA]);
 
-  await db.query(`insert into equipes (id, conta_id, codigo, nome, regime, turno, gestor_id)
+  // Sem regime: ele é da pessoa desde a 0031. O turno vespertino entra aqui
+  // para a massa exercitar os três valores, e não só dois.
+  await db.query(`insert into equipes (id, conta_id, codigo, nome, turno, gestor_id)
     overriding system value values
-    (1,$1,'TEC','Técnicos de Campo','5x2','D',$2),
-    (2,$1,'ANA','Analistas de Sistemas','5x2','D',$2),
-    (3,$1,'PLA','Plantão 12x36','12x36','D',$2)`, [CONTA, RICARDO]);
+    (1,$1,'TEC','Técnicos de Campo','D',$2),
+    (2,$1,'ANA','Analistas de Sistemas','V',$2),
+    (3,$1,'PLA','Plantão 12x36','N',$2)`, [CONTA, RICARDO]);
 
   // Reservas maiores na segunda e na sexta: dia de reunião no Morumbi.
   await db.query(`insert into capacidades (conta_id, unidade_id, dow, total, reservadas) values
@@ -200,9 +202,15 @@ async function main() {
     // fotos do manual saíam com esse horário e a varredura conferia uma tela
     // que não existe na operação.
     const plantao = p.regime === '12x36';
-    const turno = plantao ? 'N' : 'D';
-    const entrada = plantao ? '19:00' : '08:00';
-    const saida = plantao ? '07:00' : '17:00';
+    // Um vespertino na massa, e não só plantonista e diurno. Desde a 0031 o
+    // turno tem três valores, e uma massa com dois deles deixaria passar
+    // exatamente o defeito que o terceiro trouxe: tela que resolve o rótulo
+    // com `turno === 'N' ? 'Noturno' : 'Diurno'` e chama o vespertino de
+    // diurno, sem erro nenhum à vista.
+    const vespertino = !plantao && i % 5 === 2;
+    const turno = plantao ? 'N' : vespertino ? 'V' : 'D';
+    const entrada = plantao ? '19:00' : vespertino ? '12:00' : '08:00';
+    const saida = plantao ? '07:00' : vespertino ? '21:00' : '17:00';
 
     await db.query(
       `insert into colaboradores
@@ -259,7 +267,8 @@ async function main() {
   }));
   const colaboradores: Colaborador[] = (await q('select * from colaboradores order by id')).map(c => ({
     id: c.id, perfilId: c.perfil_id, nome: c.nome, matricula: c.matricula, email: c.email,
-    cargo: c.cargo, equipeId: c.equipe_id, gestorId: c.gestor_id, regime: c.regime, turno: c.turno,
+    cargo: c.cargo, cpf: c.cpf ?? '', nascimento: c.nascimento ?? null, telefone: c.telefone ?? '',
+    equipeId: c.equipe_id, gestorId: c.gestor_id, regime: c.regime, turno: c.turno,
     ciclo: c.ciclo, entrada: c.entrada, saida: c.saida, unidadeBaseId: c.unidade_base_id,
     elegHome: c.eleg_home, elegExterno: c.eleg_externo, sextaReduzida: c.sexta_reduzida,
     status: c.status, admissao: c.admissao, desligamento: c.desligamento,

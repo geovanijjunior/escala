@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { DIAS_INICIAL, diaSemana, diasNoMes, iso } from '@/lib/domain/escalas/datas';
+import { TURNOS } from '@/lib/domain/escalas/constantes';
 import { aparencia } from './Ui';
 import { ExportarCsv } from './ExportarCsv';
 import type { Alocacao, Colaborador, Equipe, Unidade } from '@/lib/domain/escalas/tipos';
@@ -136,7 +137,7 @@ export function GradeDoMes({
                       className="sticky left-0 text-[10.5px] font-semibold uppercase tracking-wider py-1"
                       style={{ background: 'var(--brand-50)', color: 'var(--brand-800)' }}
                     >
-                      {equipe?.nome ?? 'Sem equipe'} · {equipe?.regime} · turno {equipe?.turno === 'N' ? 'noturno' : 'diurno'}
+                      {equipe?.nome ?? 'Sem equipe'} · turno {equipe ? TURNOS[equipe.turno].label.toLowerCase() : '—'}
                     </td>
                   </tr>
                 );

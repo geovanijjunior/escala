@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { convidarUsuario } from '@/app/actions-usuarios';
-import { CARGOS } from '@/lib/domain/escalas/constantes';
+import { REGIMES, TURNOS, TURNOS_EM_ORDEM } from '@/lib/domain/escalas/constantes';
 import type { PapelEscalas } from '@/lib/domain/escalas/tipos';
 
-export interface OpcaoEquipe { id: number; nome: string; regime: string }
+// Sem `regime`: ele saiu da equipe na 0031 e passou a ser da pessoa.
+export interface OpcaoEquipe { id: number; nome: string }
 export interface OpcaoUnidade { id: number; nome: string }
 
 /**
@@ -30,18 +31,22 @@ export interface OpcaoUnidade { id: number; nome: string }
  * antes de deixar gerar a escala.
  */
 export function FormNovoUsuario({
-  papeis, equipes, unidades,
+  papeis, equipes, unidades, cargos,
 }: {
   papeis: { valor: PapelEscalas; label: string }[];
   equipes: OpcaoEquipe[];
   unidades: OpcaoUnidade[];
+  /** A lista que a área mantém em Parâmetros → Cargos. */
+  cargos: { id: number; nome: string }[];
 }) {
   const [papel, setPapel] = useState<PapelEscalas>('colaborador');
   const [equipeId, setEquipeId] = useState<string>(equipes[0] ? String(equipes[0].id) : '');
+  const [regime, setRegime] = useState<string>('5x2');
 
   const ehColaborador = papel === 'colaborador';
-  const equipe = equipes.find(e => String(e.id) === equipeId);
-  const ehPlantao = equipe?.regime === '12x36';
+  // Agora sai do regime DA PESSOA, e não da equipe: é a pessoa que faz
+  // plantão, e é dela que depende haver ou não sexta reduzida.
+  const ehPlantao = regime === '12x36';
 
   // Sem equipe ou sem unidade não há cadastro de escala possível, e o formulário
   // não deve fingir que há: o aviso manda para o lugar onde isso se resolve.
@@ -93,10 +98,33 @@ export function FormNovoUsuario({
               </label>
 
               <label className="block">
+                <span className="esc-rotulo">CPF</span>
+                <input
+                  name="cpf" inputMode="numeric" maxLength={14} placeholder="000.000.000-00"
+                  className="esc-input esc-num"
+                />
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">Data de nascimento</span>
+                <input type="date" name="nascimento" className="esc-input esc-num" />
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">
+                  Telefone <span style={{ color: 'var(--faint)' }}>(opcional)</span>
+                </span>
+                <input
+                  name="telefone" inputMode="numeric" maxLength={16} placeholder="(11) 90000-0000"
+                  className="esc-input esc-num"
+                />
+              </label>
+
+              <label className="block">
                 <span className="esc-rotulo">Cargo</span>
                 <select name="cargo" className="esc-input">
                   <option value="">—</option>
-                  {CARGOS.map(c => <option key={c} value={c}>{c}</option>)}
+                  {cargos.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                 </select>
               </label>
 
@@ -109,7 +137,7 @@ export function FormNovoUsuario({
                   required
                   className="esc-input"
                 >
-                  {equipes.map(e => <option key={e.id} value={e.id}>{e.nome} · {e.regime}</option>)}
+                  {equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
                 </select>
               </label>
 
@@ -123,8 +151,18 @@ export function FormNovoUsuario({
               <label className="block">
                 <span className="esc-rotulo">Turno</span>
                 <select name="turno" defaultValue="D" className="esc-input">
-                  <option value="D">Diurno</option>
-                  <option value="N">Noturno</option>
+                  {TURNOS_EM_ORDEM.map(v => <option key={v} value={v}>{TURNOS[v].label}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="esc-rotulo">Regime</span>
+                <select
+                  name="regime" value={regime}
+                  onChange={e => setRegime(e.target.value)}
+                  className="esc-input"
+                >
+                  {Object.entries(REGIMES).map(([v, r]) => <option key={v} value={v}>{r.label}</option>)}
                 </select>
               </label>
 

@@ -55,8 +55,8 @@ select q.conta, 'Unidade de Teste', 'TST', 20, 0, 1
  );
 
 -- ── Equipe, com o gestor de teste à frente ───────────────────────────
-insert into equipes (conta_id, nome, regime, turno, gestor_id)
-select q.conta, 'Equipe de Teste', '5x2', 'D', q.gestor
+insert into equipes (conta_id, nome, turno, gestor_id)
+select q.conta, 'Equipe de Teste', 'D', q.gestor
   from _quem q
  where not exists (
    select 1 from equipes e where e.conta_id = q.conta and e.nome = 'Equipe de Teste'

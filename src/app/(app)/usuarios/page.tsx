@@ -27,17 +27,19 @@ export default async function UsuariosPage({
 
   // Equipes e unidades alimentam os campos de escala que aparecem quando o
   // papel escolhido é colaborador.
-  const [perfisRes, equipesRes, unidadesRes] = await Promise.all([
+  const [perfisRes, equipesRes, unidadesRes, cargosRes] = await Promise.all([
     supabase.from('perfis').select('id, nome, email, papel, bloqueado, criado_em').order('nome'),
-    supabase.from('equipes').select('id, nome, regime').order('nome'),
+    supabase.from('equipes').select('id, nome').order('nome'),
     supabase.from('unidades').select('id, nome').eq('ativa', true).order('ordem'),
+    supabase.from('cargos').select('id, nome').order('ordem').order('nome'),
   ]);
 
   const usuarios = (perfisRes.data ?? []) as {
     id: string; nome: string; email: string; papel: PapelEscalas; bloqueado: boolean; criado_em: string;
   }[];
-  const equipes = (equipesRes.data ?? []) as { id: number; nome: string; regime: string }[];
+  const equipes = (equipesRes.data ?? []) as { id: number; nome: string }[];
   const unidades = (unidadesRes.data ?? []) as { id: number; nome: string }[];
+  const cargos = (cargosRes.data ?? []) as { id: number; nome: string }[];
 
   return (
     <>
@@ -142,7 +144,7 @@ export default async function UsuariosPage({
         titulo="Adicionar pessoa"
         desc="Cria o login já dentro desta organização. A senha temporária é gerada automaticamente e mostrada uma única vez depois de salvar."
       >
-        <FormNovoUsuario papeis={PAPEIS} equipes={equipes} unidades={unidades} />
+        <FormNovoUsuario papeis={PAPEIS} equipes={equipes} unidades={unidades} cargos={cargos} />
 
         <ul className="px-4 pb-4 space-y-1.5">
           {PAPEIS.map(p => (

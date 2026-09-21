@@ -27,6 +27,9 @@ quer motor        && executa 'Motor'        npx tsx src/lib/domain/escalas/motor
 # Estava de fora: `npm test` roda os dois, mas a bateria completa — que é a que
 # se roda antes de commitar — só rodava o motor.
 quer importacao   && executa 'Importação'   npx tsx src/lib/domain/escalas/importacao.teste.ts
+# CPF e telefone: a conta dos dígitos verificadores, que decide se um cadastro
+# entra. Sem banco e sem navegador, então fica entre os rápidos.
+quer documentos   && executa 'Documentos'   npx tsx src/lib/documentos.teste.ts
 quer propriedades && executa 'Propriedades' npx tsx src/lib/domain/escalas/motor.propriedades.ts
 # Não toca em banco nem em rede: lê os `actions-*.ts` e cobra sessão e papel em
 # cada função exportada. Fica junto dos testes rápidos porque é um deles.
@@ -70,16 +73,31 @@ if [ "$alvo" = navegador ]; then
     # `acoes` fica por último de propósito: ele encerra o mês de novembro no
     # fim, e mês encerrado recusa ajuste — rodando antes, deixaria os outros
     # medindo um cenário fechado e culpando as telas erradas.
-    executa 'Rotas por papel'  node scripts/manual/rotas.mjs
-    executa 'Rolagem'          node scripts/manual/rolagem.mjs
-    executa 'Telas sem erro'   node scripts/manual/varrer.mjs
-    executa 'Navegação'        node scripts/manual/navegar.mjs
-    executa 'Entradas hostis'  node scripts/manual/hostil.mjs
-    executa 'Implantação'      node scripts/manual/implantacao.mjs
-    executa 'Pedido do colab.'  node scripts/manual/solicitar.mjs
-    executa 'Triagem'           node scripts/manual/triagem.mjs
-    executa 'Ausências do mês'  node scripts/manual/ausencias.mjs
-    executa 'Atestado'          node scripts/manual/atestado.mjs
+    #
+    # E cada roteiro recebe massa NOVA antes de rodar. Sem isso eles herdavam o
+    # estado que o anterior deixou: pedido já decidido, fila já consumida, mês
+    # já mexido. A bateria passava assim mesmo, por sorte de ordem — até o dia
+    # em que a massa mudou e três suítes acusaram defeito em telas que estavam
+    # perfeitas. Custa um segundo e meio por roteiro, e é o que separa "esta
+    # tela quebrou" de "a anterior mexeu no banco".
+    #
+    # `acoes` semeia por conta própria e por isso não entra no laço.
+    semear() { PGDATABASE="${PGDATABASE:-manual}" npx tsx scripts/manual/semear.ts >/dev/null 2>&1; }
+    roteiro() { semear; executa "$1" node "scripts/manual/$2"; }
+
+    roteiro 'Rotas por papel'  rotas.mjs
+    roteiro 'Rolagem'           rolagem.mjs
+    roteiro 'Telas sem erro'    varrer.mjs
+    roteiro 'Navegação'         navegar.mjs
+    roteiro 'Entradas hostis'   hostil.mjs
+    roteiro 'Implantação'       implantacao.mjs
+    roteiro 'Pedido do colab.'  solicitar.mjs
+    roteiro 'Triagem'           triagem.mjs
+    roteiro 'Ausências do mês'  ausencias.mjs
+    roteiro 'Atestado'          atestado.mjs
+    roteiro 'Remover cadastro'  remover-cadastro.mjs
+    roteiro 'Cargos e ficha'    cargos-e-ficha.mjs
+    roteiro 'Regime e turno'    regime-e-turno.mjs
     executa 'Ações de escrita' node scripts/manual/acoes.mjs
   else
     printf '\n\033[31m── Navegador: sem dev server em %s. Suba-o contra o shim antes.\033[0m\n' "$base"

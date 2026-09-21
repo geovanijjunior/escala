@@ -91,10 +91,10 @@ insert into unidades (id, conta_id, codigo, nome, sigla, capacidade_total, capac
   (1, '11111111-1111-1111-1111-111111111111', 'MOR', 'Morumbi', 'MOR', 10, 1),
   (2, '22222222-2222-2222-2222-222222222222', 'CEN', 'Centro',  'CEN', 5, 0);
 
-insert into equipes (id, conta_id, codigo, nome, regime, gestor_id) overriding system value values
-  (1, '11111111-1111-1111-1111-111111111111', 'EQ1', 'Equipe do Gestor A', '5x2', 'aaaaaaa1-0000-0000-0000-000000000002'),
-  (2, '11111111-1111-1111-1111-111111111111', 'EQ2', 'Equipe sem gestor',  '5x2', null),
-  (3, '22222222-2222-2222-2222-222222222222', 'EQB', 'Equipe B',           '5x2', null);
+insert into equipes (id, conta_id, codigo, nome, gestor_id) overriding system value values
+  (1, '11111111-1111-1111-1111-111111111111', 'EQ1', 'Equipe do Gestor A', 'aaaaaaa1-0000-0000-0000-000000000002'),
+  (2, '11111111-1111-1111-1111-111111111111', 'EQ2', 'Equipe sem gestor',  null),
+  (3, '22222222-2222-2222-2222-222222222222', 'EQB', 'Equipe B',           null);
 
 -- Cota da conta A, para o teste de vazamento entre contas ter o que não ver.
 insert into cotas_equipe (conta_id, unidade_id, equipe_id, dow, minimo) values
