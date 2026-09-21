@@ -15,6 +15,11 @@
 #  · a identidade que falta, e o login responde "Invalid login credentials"
 #    com a senha certa.
 #
+# E cobre os dois modos de senha, porque a diferença entre eles é uma linha que
+# alguém edita à mão: a comum a todos e a sorteada por pessoa. Mais a recusa —
+# rodar sem editar aquela linha não pode criar conta nenhuma, senão o lote
+# nasce com a senha que está publicada no repositório.
+#
 # O que este teste NÃO prova: que o GoTrue de verdade aceita estas linhas. Isso
 # só um login real demonstra. O que ele prova é que o estado gravado é o mesmo
 # que a API de admin grava, conferido campo a campo — inclusive o bcrypt, que é
@@ -29,6 +34,8 @@ export PGPORT="${PGPORT:-5433}"
 export PGUSER="${PGUSER:-postgres}"
 
 BANCO=lote_sql_teste
+SENHA_COMUM='SenhaComum2026'
+TMP_SQL=""
 falhas=0
 ok()   { printf '  \033[32mok\033[0m: %s\n' "$1"; }
 erro() { printf '  \033[31mFALHOU\033[0m: %s\n' "$1"; falhas=$((falhas + 1)); }
@@ -36,23 +43,36 @@ valor() { psql -tAX -d "$BANCO" -c "$1" 2>/dev/null | tr -d '[:space:]'; }
 conferir() { # esperado, obtido, rótulo
   [ "$1" = "$2" ] && ok "$3 ($2)" || erro "$3 — esperava $1, veio $2"
 }
+titulo() { printf '\n\033[1m── %s\033[0m\n' "$1"; }
 
-limpar() { dropdb --if-exists "$BANCO" >/dev/null 2>&1; }
+limpar() {
+  dropdb --if-exists "$BANCO" >/dev/null 2>&1
+  [ -n "$TMP_SQL" ] && rm -f "$TMP_SQL"
+}
 trap limpar EXIT
 
-printf '\n\033[1m── Montando o banco\033[0m\n'
-limpar
-createdb "$BANCO" || exit 1
-psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f scripts/manual/auth-stub.sql >/dev/null 2>&1 || exit 1
-for arquivo in supabase/migrations/*.sql; do
-  psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f "$arquivo" >/dev/null 2>&1 || {
-    erro "migration $(basename "$arquivo") não aplicou"; exit 1; }
-done
+# Uma variante do script com a PARTE 0 já editada e sem a PARTE 4 — é dela que
+# saem as senhas, e o teste precisa lê-las depois.
+variante() { # $1 = senha ('' para o modo sorteado)
+  [ -n "$TMP_SQL" ] && rm -f "$TMP_SQL"
+  TMP_SQL="$(mktemp)"
+  sed "s/'TROQUE-ESTA-SENHA'::text/'$1'::text/" supabase/criar-acessos-em-lote.sql \
+    | grep -v '^drop schema lote_temp cascade;' > "$TMP_SQL"
+}
 
-# O `auth` do stub tem só o que as migrations exigem. O script de lote escreve
-# no `auth` do GoTrue, que tem muito mais — então aqui ele é aproximado do de
-# verdade, coluna por coluna, senão o teste passaria sem tocar no que importa.
-psql -q -v ON_ERROR_STOP=1 -d "$BANCO" >/dev/null 2>&1 <<'SQL' || exit 1
+montar_banco() {
+  dropdb --if-exists "$BANCO" >/dev/null 2>&1
+  createdb "$BANCO" || return 1
+  psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f scripts/manual/auth-stub.sql >/dev/null 2>&1 || return 1
+  for arquivo in supabase/migrations/*.sql; do
+    psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f "$arquivo" >/dev/null 2>&1 || {
+      erro "migration $(basename "$arquivo") não aplicou"; return 1; }
+  done
+
+  # O `auth` do stub tem só o que as migrations exigem. O script de lote escreve
+  # no `auth` do GoTrue, que tem muito mais — então aqui ele é aproximado do de
+  # verdade, coluna por coluna, senão o teste passaria sem tocar no que importa.
+  psql -q -v ON_ERROR_STOP=1 -d "$BANCO" >/dev/null 2>&1 <<'SQL' || return 1
 create extension if not exists pgcrypto with schema public;
 alter table auth.users
   add column if not exists instance_id uuid,
@@ -84,10 +104,10 @@ create table if not exists auth.identities (
 );
 SQL
 
-# A massa: um de cada caso que o script tem de separar. Montada à mão, e não
-# pela semeadura do app, porque o que se testa aqui é a TRIAGEM — e uma massa
-# realista traria dezenas de pessoas idênticas entre si, que não provam nada.
-psql -q -v ON_ERROR_STOP=1 -d "$BANCO" >/dev/null 2>&1 <<'SQL' || exit 1
+  # A massa: um de cada caso que o script tem de separar. Montada à mão, e não
+  # pela semeadura do app, porque o que se testa aqui é a TRIAGEM — e uma massa
+  # realista traria dezenas de pessoas idênticas entre si, que não provam nada.
+  psql -q -v ON_ERROR_STOP=1 -d "$BANCO" >/dev/null 2>&1 <<'SQL' || return 1
 insert into contas (id, nome) values ('33333333-3333-3333-3333-333333333333', 'Área de Teste');
 -- `overriding system value` porque as chaves são `generated always`: fixar os
 -- ids deixa a massa legível, e ninguém depende deles fora daqui.
@@ -111,28 +131,51 @@ insert into colaboradores (id, conta_id, nome, matricula, email, equipe_id, unid
   (7, '33333333-3333-3333-3333-333333333333', 'Fabio Com Login', 'M7', 'fabio@x.com', 1, 1, 'ativo',
      '44444444-4444-4444-4444-444444444444');
 SQL
+}
 
-printf '\n\033[1m── Rodando o script (sem a parte que apaga a lista)\033[0m\n'
-# A PARTE 4 sai fora: é dela que saem as senhas, e o teste precisa lê-las para
-# conferir o bcrypt.
-sem_drop="$(mktemp)"
-grep -v '^drop schema lote_temp cascade;' supabase/criar-acessos-em-lote.sql > "$sem_drop"
-psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f "$sem_drop" >/dev/null 2>&1 \
-  || { erro 'o script não rodou até o fim'; rm -f "$sem_drop"; exit 1; }
 
-printf '\n\033[1m── Quem entrou, e quem não\033[0m\n'
+# ── 1. A recusa ──────────────────────────────────────────────────────
+#
+# Rodar sem editar a PARTE 0 não pode criar conta nenhuma. Sem esta trava, um
+# "rodar tudo" distraído daria a oitenta pessoas a senha que está no Git.
+titulo 'Sem editar a PARTE 0, o script recusa'
+montar_banco || exit 1
+saida="$(grep -v '^drop schema lote_temp cascade;' supabase/criar-acessos-em-lote.sql \
+         | psql -v ON_ERROR_STOP=1 -d "$BANCO" 2>&1)"
+case "$saida" in
+  *'Edite a PARTE 0'*) ok 'recusa, dizendo o que editar' ;;
+  *) erro "devia recusar com 'Edite a PARTE 0'; veio: $(printf '%s' "$saida" | tail -1)" ;;
+esac
+conferir 0 "$(valor 'select count(*) from auth.users where encrypted_password is not null')" \
+  'e não criou conta nenhuma'
+
+
+# ── 2. Senha comum a todos ───────────────────────────────────────────
+titulo 'Senha comum: quem entrou, e quem não'
+montar_banco || exit 1
+variante "$SENHA_COMUM"
+psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f "$TMP_SQL" >/dev/null 2>&1 \
+  || { erro 'o script não rodou até o fim'; exit 1; }
+
 conferir 2 "$(valor 'select count(*) from lote_temp.fila')" 'entraram dois — Ana e um dos que dividem o e-mail'
 conferir 1 "$(valor "select count(*) from lote_temp.fila where nome = 'Ana Pronta'")" 'Ana entrou'
 conferir 1 "$(valor "select count(*) from lote_temp.fila where email = 'mesmo@x.com'")" 'do e-mail repetido, um só'
-conferir 4 "$(valor "select count(*) from colaboradores where perfil_id is null")" \
+conferir 4 "$(valor 'select count(*) from colaboradores where perfil_id is null')" \
   'os outros quatro continuam sem login (sem e-mail, afastada, e-mail torto e o segundo do par)'
 conferir 0 "$(valor "select count(*) from lote_temp.fila where nome in ('Bruno Sem Email','Carla Afastada','Gil Email Torto','Fabio Com Login')")" \
   'nenhum dos recusados entrou na fila'
 
-printf '\n\033[1m── O que foi gravado\033[0m\n'
+titulo 'Senha comum: o que foi gravado'
+conferir 2 "$(valor "select count(*) from lote_temp.fila where senha = '$SENHA_COMUM'")" \
+  'todos ficaram com a senha escolhida na PARTE 0'
 conferir 2 "$(valor 'select count(*) from lote_temp.fila f join auth.users u on u.id = f.usuario_id
                       where u.encrypted_password = crypt(f.senha, u.encrypted_password)')" \
   'a senha confere pelo bcrypt, que é o que o GoTrue faz no login'
+# Mesma senha, hashes diferentes: é o sal do bcrypt fazendo o trabalho dele.
+# Se saíssem iguais, o banco estaria anunciando quem compartilha senha com quem.
+conferir 2 "$(valor 'select count(distinct u.encrypted_password) from auth.users u
+                      join lote_temp.fila f on f.usuario_id = u.id')" \
+  'e mesmo assim cada hash é diferente, porque o sal é sorteado'
 conferir 2 "$(valor 'select count(*) from auth.identities i join lote_temp.fila f on f.usuario_id = i.user_id
                       where i.provider = $$email$$ and i.identity_data->>$$sub$$ = f.usuario_id::text')" \
   'a identidade de e-mail existe, com o sub certo'
@@ -155,21 +198,28 @@ conferir 2 "$(valor 'select count(*) from auth.users u join lote_temp.fila f on 
                         and u.raw_app_meta_data->>$$provider$$ = $$email$$')" \
   'aud, role, e-mail confirmado e provedor preenchidos'
 
-printf '\n\033[1m── As senhas\033[0m\n'
-conferir 2 "$(valor 'select count(distinct senha) from lote_temp.fila')" 'uma senha diferente por pessoa'
-# Sem âncora de fim na expressão: o `$` do regex briga com o `$$` que cita a
-# string aqui dentro, e o resultado é uma consulta que falha em silêncio e
-# devolve vazio — que a conferência leria como zero senhas bem formadas.
+titulo 'Senha comum: rodar de novo não duplica ninguém'
+antes="$(valor 'select count(*) from auth.users')"
+psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f "$TMP_SQL" >/dev/null 2>&1
+conferir 0 "$(valor 'select count(*) from lote_temp.fila')" 'a segunda passada não encontra ninguém'
+conferir "$antes" "$(valor 'select count(*) from auth.users')" 'nenhum usuário novo no Auth'
+
+
+# ── 3. Uma senha por pessoa ──────────────────────────────────────────
+titulo 'Modo sorteado: uma senha diferente para cada'
+montar_banco || exit 1
+variante ''
+psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f "$TMP_SQL" >/dev/null 2>&1 \
+  || { erro 'o script não rodou até o fim no modo sorteado'; exit 1; }
+
+conferir 2 "$(valor 'select count(*) from lote_temp.fila')" 'os mesmos dois entraram'
+conferir 2 "$(valor 'select count(distinct senha) from lote_temp.fila')" 'duas senhas diferentes'
 conferir 2 "$(valor 'select count(*) from lote_temp.fila
                       where length(senha) = 12 and senha !~ $$[^A-Za-z2-9]$$ and senha !~ $$[O0Il1]$$')" \
   'doze caracteres, sem os que se confundem ao ditar'
-
-printf '\n\033[1m── Rodar de novo não duplica ninguém\033[0m\n'
-antes="$(valor 'select count(*) from auth.users')"
-psql -q -v ON_ERROR_STOP=1 -d "$BANCO" -f "$sem_drop" >/dev/null 2>&1
-conferir 0 "$(valor 'select count(*) from lote_temp.fila')" 'a segunda passada não encontra ninguém'
-conferir "$antes" "$(valor 'select count(*) from auth.users')" 'nenhum usuário novo no Auth'
-rm -f "$sem_drop"
+conferir 2 "$(valor 'select count(*) from lote_temp.fila f join auth.users u on u.id = f.usuario_id
+                      where u.encrypted_password = crypt(f.senha, u.encrypted_password)')" \
+  'cada uma confere pelo bcrypt'
 
 printf '\n'
 if [ "$falhas" -eq 0 ]; then

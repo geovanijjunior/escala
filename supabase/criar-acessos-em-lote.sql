@@ -2,13 +2,16 @@
 -- CRIAR ACESSOS EM LOTE — direto no banco
 -- =====================================================================
 --
--- Cria o login de todo colaborador ATIVO que ainda não tem, com uma senha
--- diferente para cada um, e devolve a lista de senhas para distribuir.
+-- Cria o login de todo colaborador ATIVO que ainda não tem, e devolve a lista
+-- de quem entrou.
+--
+-- A senha é escolhida na PARTE 0: uma só para todo mundo, ou uma diferente
+-- para cada um. Editar aquela linha é a única coisa que muda entre os dois.
 --
 -- Como rodar: Supabase → SQL Editor. A PARTE 1 é só leitura — rode ela
 -- primeiro e confira o número. As partes 2 a 4 escrevem.
 --
--- ── ANTES DE COMEÇAR, TRÊS COISAS ────────────────────────────────────
+-- ── ANTES DE COMEÇAR, QUATRO COISAS ──────────────────────────────────
 --
 -- 1. ISTO ESCREVE EM `auth.users`, que é território do GoTrue — o serviço de
 --    autenticação do Supabase. A forma suportada de criar usuário é a API de
@@ -28,6 +31,14 @@
 --    Até isso existir, trate estas senhas como permanentes — peça a troca por
 --    fora, ou me peça para implementar a trava.
 --
+-- 4. SENHA IGUAL PARA TODOS: o que isso significa. Cada pessoa passa a poder
+--    entrar como qualquer colega — ver a escala dela, abrir e responder
+--    solicitação no nome dela — e nada no sistema distingue isso de um acesso
+--    legítimo, porque a credencial é a mesma. Enquanto a base é de teste isso
+--    é aceitável, e o SSO resolve de vez. O que fecha a janela até lá é a
+--    trava do item 3: com a troca obrigatória no primeiro acesso, a senha
+--    comum vale só até cada um entrar uma vez.
+--
 -- ── O QUE ELE FAZ E O QUE NÃO FAZ ────────────────────────────────────
 --
 -- Entra no lote quem está ATIVO, tem e-mail em formato válido e ainda não tem
@@ -43,6 +54,45 @@
 -- =====================================================================
 
 set search_path = public, extensions;
+
+
+-- =====================================================================
+-- ── PARTE 0 — A SENHA  ◀── EDITE AQUI ────────────────────────────────
+-- =====================================================================
+--
+-- Troque `TROQUE-ESTA-SENHA` pela senha que todos vão usar.
+--
+-- Deixe `''` (aspas vazias) no lugar dela para o outro modo: uma senha
+-- diferente, sorteada, para cada pessoa — que é o que a PARTE 3 devolve numa
+-- lista para distribuir.
+--
+-- O valor de fábrica é um aviso, não uma senha: o script recusa rodar com ele.
+-- Este arquivo está no repositório, e uma senha de verdade escrita aqui vira
+-- uma senha de verdade no histórico do Git, de onde não sai mais.
+
+create schema if not exists lote_temp;
+
+create or replace function lote_temp.senha_do_lote() returns text
+language sql immutable as $$
+  select 'TROQUE-ESTA-SENHA'::text
+$$;
+
+-- A recusa. Sem ela, um "rodar tudo" distraído criaria oitenta contas com uma
+-- senha que está publicada no repositório.
+do $$
+declare
+  s text := lote_temp.senha_do_lote();
+begin
+  if s = 'TROQUE-ESTA-SENHA' then
+    raise exception
+      'Edite a PARTE 0 antes de rodar: troque TROQUE-ESTA-SENHA pela senha do lote, ou deixe '''' para sortear uma por pessoa.';
+  end if;
+  -- O Supabase recusa senha curta no login seguinte, e o erro apareceria só
+  -- lá, depois de as contas existirem.
+  if s <> '' and length(s) < 8 then
+    raise exception 'A senha do lote tem % caractere(s). Use ao menos 8.', length(s);
+  end if;
+end $$;
 
 
 -- ── PARTE 1 — CONFERIR  (só leitura, não muda nada) ──────────────────
@@ -86,9 +136,7 @@ order by c.nome;
 
 -- ── PARTE 2 — CRIAR ──────────────────────────────────────────────────
 
-create schema if not exists lote_temp;
-
--- A senha. `gen_random_bytes` do pgcrypto, e não `random()`: isto é
+-- A senha sorteada, usada só quando a PARTE 0 ficou vazia. `gen_random_bytes` do pgcrypto, e não `random()`: isto é
 -- credencial, e `random()` é previsível a partir de saídas anteriores — num
 -- lote de oitenta, quem recebesse a própria senha teria material para as
 -- outras. O alfabeto exclui O/0 e I/l/1, que viram chamado de suporte quando
@@ -116,7 +164,7 @@ begin
 end;
 $$;
 
--- A fila: quem entra, com o id do usuário e a senha já sorteados. Fixar os
+-- A fila: quem entra, com o id do usuário e a senha já resolvidos. Fixar os
 -- dois aqui é o que permite gravar em três tabelas diferentes sabendo de
 -- antemão qual id vai para onde.
 drop table if exists lote_temp.fila;
@@ -128,7 +176,10 @@ select
   c.matricula,
   lower(trim(c.email))                  as email,
   gen_random_uuid()                     as usuario_id,
-  lote_temp.senha(12)                   as senha
+  -- A senha da PARTE 0 quando ela tem valor; uma sorteada por pessoa quando
+  -- está vazia. O `coalesce` corta caminho antes de chamar o sorteio, então no
+  -- modo de senha comum ela é literalmente a mesma string para todos.
+  coalesce(nullif(lote_temp.senha_do_lote(), ''), lote_temp.senha(12)) as senha
 from colaboradores c
 where c.perfil_id is null
   and c.status = 'ativo'
@@ -244,10 +295,12 @@ select
      on f.colaborador_id = c.id and c.perfil_id = f.usuario_id)                      as fichas_ligadas;
 
 
--- ── PARTE 3 — A LISTA DE SENHAS ──────────────────────────────────────
+-- ── PARTE 3 — QUEM ENTROU, E COM QUE SENHA ───────────────────────────
 --
--- Copie o resultado (o SQL Editor exporta em CSV) e distribua. Cada pessoa
--- recebe só a linha dela.
+-- No modo de senha comum a coluna repete o mesmo valor, e o que interessa
+-- aqui é a lista de quem passou a ter acesso — confira se são os que você
+-- esperava. No modo sorteado, é esta a lista que se distribui, cada pessoa
+-- recebendo só a linha dela. O SQL Editor exporta em CSV.
 
 select f.nome, f.matricula, f.email, f.senha as senha_temporaria
 from lote_temp.fila f
