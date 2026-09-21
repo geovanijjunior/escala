@@ -158,7 +158,7 @@ with verificacoes as (
         and ((extract(epoch from saida::time) - extract(epoch from entrada::time))::int / 60 + 1440) % 1440 = 780
    )),
 
-  -- ── As quatro recentes ────────────────────────────────────────────
+  -- ── As recentes ───────────────────────────────────────────────────
   -- Aqui não basta a função existir: `pode_ver_colaborador` nasceu na 0002, e
   -- a 0026 só TROCA O CORPO dela. Procurar o nome diria "aplicada" numa base
   -- que parou na 0025 — foi o que aconteceu no primeiro teste deste script.
@@ -184,7 +184,24 @@ with verificacoes as (
    exists (select 1 from pg_constraint
             where conrelid = 'public.solicitacoes'::regclass
               and contype = 'c'
-              and pg_get_constraintdef(oid) like '%ATESTADO%'))
+              and pg_get_constraintdef(oid) like '%ATESTADO%')),
+
+  ('0030', 'cargos viram cadastro da área; ficha ganha CPF, nascimento e telefone',
+   to_regclass('public.cargos') is not null
+   and exists (select 1 from information_schema.columns
+                where table_schema = 'public' and table_name = 'colaboradores'
+                  and column_name = 'cpf')),
+
+  -- Duas conferências, porque a 0031 faz duas coisas e uma pode passar sem a
+  -- outra se alguém rodar o arquivo pela metade: a coluna tem de ter SUMIDO da
+  -- equipe, e o turno tem de aceitar o vespertino.
+  ('0031', 'regime passa a ser da pessoa; turno ganha o vespertino',
+   not exists (select 1 from information_schema.columns
+                where table_schema = 'public' and table_name = 'equipes'
+                  and column_name = 'regime')
+   and exists (select 1 from pg_constraint
+                where conname = 'colaboradores_turno_check'
+                  and pg_get_constraintdef(oid) like '%V%'))
 
   ) as v(numero, o_que_faz, aplicada)
 )
