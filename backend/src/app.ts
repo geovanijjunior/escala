@@ -6,6 +6,7 @@ import { ServicoSso } from './services/sso.ts';
 import { ServicoAutenticacao } from './services/autenticacao.ts';
 import { ControladorAutenticacao } from './controllers/autenticacao.ts';
 import { rotasDeAutenticacao } from './routes/autenticacao.ts';
+import { rotasDeColaboradores } from './routes/colaboradores.ts';
 import { carregarSessao } from './middlewares/sessao.ts';
 
 /**
@@ -66,6 +67,7 @@ export async function construirApp(amb: Ambiente): Promise<FastifyInstance> {
   const controlador = new ControladorAutenticacao(amb, sso, autenticacao);
 
   await app.register(rotasDeAutenticacao(controlador));
+  await app.register(rotasDeColaboradores);
 
   /**
    * Saúde do processo, para o balanceador.
