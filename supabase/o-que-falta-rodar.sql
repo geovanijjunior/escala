@@ -201,7 +201,19 @@ with verificacoes as (
                   and column_name = 'regime')
    and exists (select 1 from pg_constraint
                 where conname = 'colaboradores_turno_check'
-                  and pg_get_constraintdef(oid) like '%V%'))
+                  and pg_get_constraintdef(oid) like '%V%')),
+
+  -- Três conferências, porque a 0032 faz três coisas independentes e o arquivo
+  -- rodado pela metade deixa um estado que PARECE aplicado: a chave para
+  -- `auth.users` tem de ter sumido, `sso_sub` tem de existir e a tabela de
+  -- sessões tem de estar lá. Sem a primeira, quem entra pelo SSO não consegue
+  -- ter perfil; sem a terceira, o login não tem onde guardar a sessão.
+  ('0032', 'SSO corporativo e sessões geridas pela aplicação',
+   not exists (select 1 from pg_constraint where conname = 'perfis_id_fkey')
+   and exists (select 1 from information_schema.columns
+                where table_schema = 'public' and table_name = 'perfis'
+                  and column_name = 'sso_sub')
+   and to_regclass('public.sessoes') is not null)
 
   ) as v(numero, o_que_faz, aplicada)
 )

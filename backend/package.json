@@ -1,0 +1,30 @@
+{
+  "name": "jornada-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API da Jornada — escala de trabalho. Node 24 + Fastify + Prisma 6.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node --experimental-strip-types src/server.ts",
+    "prisma:pull": "prisma db pull",
+    "prisma:generate": "prisma generate",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --env-file=.env --test src/**/*.teste.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@prisma/client": "^6.19.3",
+    "fastify": "^5.12.5",
+    "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

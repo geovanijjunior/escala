@@ -1,0 +1,700 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["auth", "public"]
+}
+
+model users {
+  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String?
+  raw_user_meta_data Json?   @default("{}")
+
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model alocacoes {
+  id             BigInt        @id @default(autoincrement())
+  conta_id       String        @db.Uuid
+  geracao_id     BigInt
+  colaborador_id BigInt
+  data           DateTime      @db.Date
+  modalidade     String
+  unidade_id     BigInt?
+  travado        Boolean       @default(false)
+  posto_id       BigInt?
+  colaboradores  colaboradores @relation(fields: [colaborador_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "alocacoes_colaborador_id_conta_fkey")
+  contas         contas        @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  geracoes       geracoes      @relation(fields: [geracao_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "alocacoes_geracao_id_conta_fkey")
+  postos         postos?       @relation(fields: [posto_id, conta_id], references: [id, conta_id], onDelete: SetNull, onUpdate: NoAction, map: "alocacoes_posto_id_conta_fkey")
+  unidades       unidades?     @relation(fields: [unidade_id, conta_id], references: [id, conta_id], onUpdate: NoAction, map: "alocacoes_unidade_id_conta_fkey")
+
+  @@unique([geracao_id, colaborador_id, data])
+  @@index([colaborador_id, data], map: "alocacoes_colaborador_idx")
+  @@index([conta_id])
+  @@index([geracao_id, data], map: "alocacoes_geracao_data_idx")
+  @@index([unidade_id], map: "alocacoes_unidade_idx")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model alteracoes_pendentes {
+  id             BigInt        @id @default(autoincrement())
+  conta_id       String        @db.Uuid
+  geracao_id     BigInt
+  colaborador_id BigInt
+  data           DateTime      @db.Date
+  de             String        @default("")
+  para           String        @default("")
+  por_id         String?       @db.Uuid
+  por_nome       String        @default("")
+  criado_em      DateTime      @default(now()) @db.Timestamptz(6)
+  colaboradores  colaboradores @relation(fields: [colaborador_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "alteracoes_pendentes_colab_fk")
+  contas         contas        @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  geracoes       geracoes      @relation(fields: [geracao_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis         perfis?       @relation(fields: [por_id], references: [id], onUpdate: NoAction)
+
+  @@unique([geracao_id, colaborador_id, data], map: "alteracoes_pendentes_unica")
+  @@index([geracao_id], map: "alteracoes_pendentes_geracao_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ausencias {
+  id             BigInt        @id @default(autoincrement())
+  conta_id       String        @db.Uuid
+  colaborador_id BigInt
+  tipo           String
+  inicio         DateTime      @db.Date
+  dias           Int
+  grupo          String        @default("")
+  motivo         String        @default("")
+  criado_em      DateTime      @default(now()) @db.Timestamptz(6)
+  criado_por     String?       @db.Uuid
+  colaboradores  colaboradores @relation(fields: [colaborador_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "ausencias_colaborador_id_conta_fkey")
+  contas         contas        @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis         perfis?       @relation(fields: [criado_por], references: [id], onUpdate: NoAction)
+
+  @@index([colaborador_id, inicio], map: "ausencias_colaborador_idx")
+  @@index([conta_id])
+  @@index([criado_por])
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model avisos {
+  id                              BigInt   @id @default(autoincrement())
+  conta_id                        String   @db.Uuid
+  perfil_id                       String   @db.Uuid
+  titulo                          String
+  detalhe                         String   @default("")
+  rota                            String   @default("/")
+  por_id                          String?  @db.Uuid
+  por_nome                        String   @default("")
+  criado_em                       DateTime @default(now()) @db.Timestamptz(6)
+  contas                          contas   @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis_avisos_perfil_idToperfis perfis   @relation("avisos_perfil_idToperfis", fields: [perfil_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis_avisos_por_idToperfis    perfis?  @relation("avisos_por_idToperfis", fields: [por_id], references: [id], onUpdate: NoAction)
+
+  @@index([conta_id], map: "avisos_conta_idx")
+  @@index([perfil_id, criado_em(sort: Desc)], map: "avisos_destinatario_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model capacidades {
+  id         BigInt    @id @default(autoincrement())
+  conta_id   String    @db.Uuid
+  unidade_id BigInt
+  dow        Int?
+  data       DateTime? @db.Date
+  total      Int
+  reservadas Int       @default(0)
+  contas     contas    @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  unidades   unidades  @relation(fields: [unidade_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "capacidades_unidade_id_conta_fkey")
+
+  @@index([conta_id])
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model cargos {
+  id        BigInt   @id @default(autoincrement())
+  conta_id  String   @db.Uuid
+  nome      String
+  ordem     Int      @default(0)
+  criado_em DateTime @default(now()) @db.Timestamptz(6)
+  contas    contas   @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conta_id, nome])
+  @@index([conta_id])
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model colaboradores {
+  id                                                               BigInt                 @id @default(autoincrement())
+  conta_id                                                         String                 @db.Uuid
+  perfil_id                                                        String?                @db.Uuid
+  nome                                                             String
+  matricula                                                        String
+  email                                                            String                 @default("")
+  cargo                                                            String                 @default("")
+  equipe_id                                                        BigInt
+  gestor_id                                                        String?                @db.Uuid
+  regime                                                           String                 @default("5x2")
+  turno                                                            String                 @default("D")
+  ciclo                                                            String?
+  entrada                                                          String                 @default("08:00")
+  unidade_base_id                                                  BigInt
+  eleg_home                                                        Boolean                @default(true)
+  eleg_externo                                                     Boolean                @default(false)
+  sexta_reduzida                                                   Boolean                @default(false)
+  status                                                           String                 @default("ativo")
+  admissao                                                         DateTime               @default(dbgenerated("CURRENT_DATE")) @db.Date
+  desligamento                                                     DateTime?              @db.Date
+  criado_em                                                        DateTime               @default(now()) @db.Timestamptz(6)
+  motivo_status                                                    String                 @default("")
+  saida                                                            String                 @default("17:00")
+  cpf                                                              String                 @default("")
+  nascimento                                                       DateTime?              @db.Date
+  telefone                                                         String                 @default("")
+  alocacoes                                                        alocacoes[]
+  alteracoes_pendentes                                             alteracoes_pendentes[]
+  ausencias                                                        ausencias[]
+  contas                                                           contas                 @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  equipes                                                          equipes                @relation(fields: [equipe_id, conta_id], references: [id, conta_id], onUpdate: NoAction, map: "colaboradores_equipe_id_conta_fkey")
+  perfis_colaboradores_gestor_idToperfis                           perfis?                @relation("colaboradores_gestor_idToperfis", fields: [gestor_id], references: [id], onUpdate: NoAction)
+  perfis_colaboradores_perfil_idToperfis                           perfis?                @relation("colaboradores_perfil_idToperfis", fields: [perfil_id], references: [id], onUpdate: NoAction)
+  unidades                                                         unidades               @relation(fields: [unidade_base_id, conta_id], references: [id, conta_id], onUpdate: NoAction, map: "colaboradores_unidade_base_id_conta_fkey")
+  ocorrencias_ocorrencias_colaborador_id_conta_idTocolaboradores   ocorrencias[]          @relation("ocorrencias_colaborador_id_conta_idTocolaboradores")
+  ocorrencias_ocorrencias_parceiro_id_conta_idTocolaboradores      ocorrencias[]          @relation("ocorrencias_parceiro_id_conta_idTocolaboradores")
+  pins                                                             pins[]
+  planos                                                           planos[]
+  solicitacoes_solicitacoes_colaborador_id_conta_idTocolaboradores solicitacoes[]         @relation("solicitacoes_colaborador_id_conta_idTocolaboradores")
+  solicitacoes_solicitacoes_parceiro_id_conta_idTocolaboradores    solicitacoes[]         @relation("solicitacoes_parceiro_id_conta_idTocolaboradores")
+
+  @@unique([conta_id, matricula])
+  @@unique([id, conta_id])
+  @@index([conta_id])
+  @@index([equipe_id])
+  @@index([gestor_id], map: "colaboradores_gestor_idx")
+  @@index([unidade_base_id], map: "colaboradores_unidade_base_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model comunicado_anexos {
+  id            BigInt      @id @default(autoincrement())
+  conta_id      String      @db.Uuid
+  comunicado_id BigInt
+  nome          String
+  tipo          String
+  tamanho       Int
+  conteudo      Bytes
+  comunicados   comunicados @relation(fields: [comunicado_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contas        contas      @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([comunicado_id], map: "comunicado_anexos_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model comunicados {
+  id                BigInt              @id @default(autoincrement())
+  conta_id          String              @db.Uuid
+  titulo            String
+  corpo             String              @default("")
+  publico           String
+  equipe_id         BigInt?
+  fixado            Boolean             @default(false)
+  autor_id          String?             @db.Uuid
+  autor_nome        String              @default("")
+  criado_em         DateTime            @default(now()) @db.Timestamptz(6)
+  comunicado_anexos comunicado_anexos[]
+  perfis            perfis?             @relation(fields: [autor_id], references: [id], onUpdate: NoAction)
+  contas            contas              @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  equipes           equipes?            @relation(fields: [equipe_id, conta_id], references: [id, conta_id], onDelete: SetNull, onUpdate: NoAction, map: "comunicados_equipe_fk")
+
+  @@index([conta_id, criado_em(sort: Desc)], map: "comunicados_conta_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model config {
+  conta_id             String   @id @db.Uuid
+  ciclo_ancora         DateTime @default(dbgenerated("(date_trunc('month'::text, (CURRENT_DATE)::timestamp with time zone))::date")) @db.Date
+  tolerancia_aderencia Int      @default(1)
+  cobertura_minima     Int      @default(1)
+  contas               contas   @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model contas {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                 String
+  criado_em            DateTime               @default(now()) @db.Timestamptz(6)
+  ativa                Boolean                @default(true)
+  alocacoes            alocacoes[]
+  alteracoes_pendentes alteracoes_pendentes[]
+  ausencias            ausencias[]
+  avisos               avisos[]
+  capacidades          capacidades[]
+  cargos               cargos[]
+  colaboradores        colaboradores[]
+  comunicado_anexos    comunicado_anexos[]
+  comunicados          comunicados[]
+  config               config?
+  cotas_equipe         cotas_equipe[]
+  equipes              equipes[]
+  feriados             feriados[]
+  geracoes             geracoes[]
+  logs                 logs[]
+  notificacoes_lidas   notificacoes_lidas[]
+  ocorrencias          ocorrencias[]
+  perfis               perfis[]
+  pins                 pins[]
+  plano_posto          plano_posto[]
+  planos               planos[]
+  postos               postos[]
+  solicitacao_eventos  solicitacao_eventos[]
+  solicitacoes         solicitacoes[]
+  unidades             unidades[]
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model cotas_equipe {
+  id         BigInt   @id @default(autoincrement())
+  conta_id   String   @db.Uuid
+  unidade_id BigInt
+  equipe_id  BigInt
+  dow        Int?
+  minimo     Int
+  criado_em  DateTime @default(now()) @db.Timestamptz(6)
+  contas     contas   @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  equipes    equipes  @relation(fields: [equipe_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "cotas_equipe_equipe_id_conta_fkey")
+  unidades   unidades @relation(fields: [unidade_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "cotas_equipe_unidade_id_conta_fkey")
+
+  @@index([conta_id])
+  @@index([equipe_id], map: "cotas_equipe_equipe_idx")
+  @@index([unidade_id], map: "cotas_equipe_unidade_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model equipes {
+  id            BigInt          @id @default(autoincrement())
+  conta_id      String          @db.Uuid
+  codigo        String
+  nome          String
+  turno         String          @default("D")
+  gestor_id     String?         @db.Uuid
+  criado_em     DateTime        @default(now()) @db.Timestamptz(6)
+  na_escala     Boolean         @default(true)
+  colaboradores colaboradores[]
+  comunicados   comunicados[]
+  cotas_equipe  cotas_equipe[]
+  contas        contas          @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis        perfis?         @relation(fields: [gestor_id], references: [id], onUpdate: NoAction)
+  postos        postos[]
+
+  @@unique([conta_id, codigo])
+  @@unique([id, conta_id])
+  @@index([conta_id])
+  @@index([gestor_id], map: "equipes_gestor_idx")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model feriados {
+  id       BigInt   @id @default(autoincrement())
+  conta_id String   @db.Uuid
+  data     DateTime @db.Date
+  nome     String
+  contas   contas   @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conta_id, data])
+  @@index([conta_id])
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model geracoes {
+  id                   BigInt                 @id @default(autoincrement())
+  conta_id             String                 @db.Uuid
+  competencia          DateTime               @db.Date
+  versao               Int
+  status               String                 @default("rascunho")
+  escopo               String                 @default("Mês completo")
+  conflitos            Json                   @default("[]")
+  alertas              Json                   @default("[]")
+  aderencia            Json                   @default("[]")
+  atual                Boolean                @default(true)
+  gerada_em            DateTime               @default(now()) @db.Timestamptz(6)
+  gerada_por           String?                @db.Uuid
+  gerada_por_nome      String                 @default("")
+  alocacoes            alocacoes[]
+  alteracoes_pendentes alteracoes_pendentes[]
+  contas               contas                 @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis               perfis?                @relation(fields: [gerada_por], references: [id], onUpdate: NoAction)
+
+  @@unique([conta_id, competencia, versao])
+  @@unique([id, conta_id])
+  @@index([conta_id])
+  @@index([gerada_por])
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model logs {
+  id           BigInt   @id @default(autoincrement())
+  conta_id     String   @db.Uuid
+  usuario_id   String?  @db.Uuid
+  usuario_nome String   @default("")
+  acao         String
+  detalhe      String   @default("")
+  criado_em    DateTime @default(now()) @db.Timestamptz(6)
+  contas       contas   @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis       perfis?  @relation(fields: [usuario_id], references: [id], onUpdate: NoAction)
+
+  @@index([conta_id, criado_em(sort: Desc)], map: "logs_conta_id_idx")
+  @@index([usuario_id], map: "logs_usuario_idx")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model notificacoes_lidas {
+  conta_id  String   @db.Uuid
+  perfil_id String   @db.Uuid
+  chave     String
+  em        DateTime @default(now()) @db.Timestamptz(6)
+  contas    contas   @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis    perfis   @relation(fields: [perfil_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([perfil_id, chave])
+  @@index([perfil_id], map: "notificacoes_lidas_perfil_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ocorrencias {
+  id                                                               BigInt         @id @default(autoincrement())
+  conta_id                                                         String         @db.Uuid
+  colaborador_id                                                   BigInt
+  data                                                             DateTime       @db.Date
+  tipo                                                             String
+  minutos                                                          Int            @default(0)
+  obs                                                              String         @default("")
+  criado_em                                                        DateTime       @default(now()) @db.Timestamptz(6)
+  registrado_por                                                   String?        @db.Uuid
+  dias                                                             Int            @default(1)
+  hora_saida                                                       String?
+  parceiro_id                                                      BigInt?
+  colaboradores_ocorrencias_colaborador_id_conta_idTocolaboradores colaboradores  @relation("ocorrencias_colaborador_id_conta_idTocolaboradores", fields: [colaborador_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "ocorrencias_colaborador_id_conta_fkey")
+  contas                                                           contas         @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  colaboradores_ocorrencias_parceiro_id_conta_idTocolaboradores    colaboradores? @relation("ocorrencias_parceiro_id_conta_idTocolaboradores", fields: [parceiro_id, conta_id], references: [id, conta_id], onDelete: SetNull, onUpdate: NoAction, map: "ocorrencias_parceiro_fk")
+  perfis                                                           perfis?        @relation(fields: [registrado_por], references: [id], onUpdate: NoAction)
+
+  @@index([colaborador_id, data], map: "ocorrencias_colaborador_idx")
+  @@index([conta_id])
+  @@index([parceiro_id], map: "ocorrencias_parceiro_idx")
+  @@index([registrado_por])
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model perfis {
+  id                                            String                 @id @db.Uuid
+  conta_id                                      String?                @db.Uuid
+  nome                                          String
+  email                                         String
+  papel                                         String                 @default("colaborador")
+  precisa_trocar_senha                          Boolean                @default(false)
+  bloqueado                                     Boolean                @default(false)
+  criado_em                                     DateTime               @default(now()) @db.Timestamptz(6)
+  notificacoes_vistas_em                        DateTime               @default(now()) @db.Timestamptz(6)
+  mural_visto_em                                DateTime               @default(dbgenerated("'1970-01-01 00:00:00+00'::timestamp with time zone")) @db.Timestamptz(6)
+  sso_sub                                       String?
+  alteracoes_pendentes                          alteracoes_pendentes[]
+  ausencias                                     ausencias[]
+  avisos_avisos_perfil_idToperfis               avisos[]               @relation("avisos_perfil_idToperfis")
+  avisos_avisos_por_idToperfis                  avisos[]               @relation("avisos_por_idToperfis")
+  colaboradores_colaboradores_gestor_idToperfis colaboradores[]        @relation("colaboradores_gestor_idToperfis")
+  colaboradores_colaboradores_perfil_idToperfis colaboradores[]        @relation("colaboradores_perfil_idToperfis")
+  comunicados                                   comunicados[]
+  equipes                                       equipes[]
+  geracoes                                      geracoes[]
+  logs                                          logs[]
+  notificacoes_lidas                            notificacoes_lidas[]
+  ocorrencias                                   ocorrencias[]
+  contas                                        contas?                @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  pins                                          pins[]
+  planos                                        planos[]
+  sessoes                                       sessoes[]
+  solicitacao_eventos                           solicitacao_eventos[]
+
+  @@index([conta_id])
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model pins {
+  id             BigInt        @id @default(autoincrement())
+  conta_id       String        @db.Uuid
+  colaborador_id BigInt
+  data           DateTime      @db.Date
+  modalidade     String
+  unidade_id     BigInt?
+  motivo         String        @default("")
+  criado_em      DateTime      @default(now()) @db.Timestamptz(6)
+  criado_por     String?       @db.Uuid
+  colaboradores  colaboradores @relation(fields: [colaborador_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "pins_colaborador_id_conta_fkey")
+  contas         contas        @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis         perfis?       @relation(fields: [criado_por], references: [id], onUpdate: NoAction)
+  unidades       unidades?     @relation(fields: [unidade_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "pins_unidade_id_conta_fkey")
+
+  @@unique([colaborador_id, data])
+  @@index([conta_id])
+  @@index([criado_por])
+  @@index([unidade_id], map: "pins_unidade_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model plano_distribuicao {
+  plano_id   BigInt
+  unidade_id BigInt
+  percentual Int
+  planos     planos   @relation(fields: [plano_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  unidades   unidades @relation(fields: [unidade_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([plano_id, unidade_id])
+  @@index([unidade_id], map: "plano_distribuicao_unidade_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model plano_posto {
+  id       BigInt @id @default(autoincrement())
+  conta_id String @db.Uuid
+  plano_id BigInt
+  posto_id BigInt
+  dias     Int
+  semana   Int?
+  contas   contas @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  planos   planos @relation(fields: [plano_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "plano_posto_plano_id_conta_fkey")
+  postos   postos @relation(fields: [posto_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "plano_posto_posto_id_conta_fkey")
+
+  @@unique([plano_id, posto_id])
+  @@index([conta_id], map: "plano_posto_conta_idx")
+  @@index([plano_id], map: "plano_posto_plano_idx")
+  @@index([posto_id], map: "plano_posto_posto_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model plano_unidade_fixa {
+  plano_id   BigInt
+  dow        Int
+  unidade_id BigInt
+  planos     planos   @relation(fields: [plano_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  unidades   unidades @relation(fields: [unidade_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([plano_id, dow])
+  @@index([unidade_id], map: "plano_unidade_fixa_unidade_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model planos {
+  id                  BigInt               @id @default(autoincrement())
+  conta_id            String               @db.Uuid
+  colaborador_id      BigInt
+  competencia         DateTime             @db.Date
+  ciclo               String?
+  ho_modo             String?
+  ho_dias_semana      Int[]                @default([])
+  ho_quantidade       Int                  @default(0)
+  ho_dias_preferencia Int[]                @default([])
+  ho_dias_proibidos   Int[]                @default([])
+  atualizado_em       DateTime             @default(now()) @db.Timestamptz(6)
+  atualizado_por      String?              @db.Uuid
+  plano_distribuicao  plano_distribuicao[]
+  plano_posto         plano_posto[]
+  plano_unidade_fixa  plano_unidade_fixa[]
+  perfis              perfis?              @relation(fields: [atualizado_por], references: [id], onUpdate: NoAction)
+  colaboradores       colaboradores        @relation(fields: [colaborador_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "planos_colaborador_id_conta_fkey")
+  contas              contas               @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([colaborador_id, competencia])
+  @@unique([id, conta_id])
+  @@index([atualizado_por])
+  @@index([conta_id, competencia], map: "planos_competencia_idx")
+  @@index([conta_id])
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model postos {
+  id          BigInt        @id @default(autoincrement())
+  conta_id    String        @db.Uuid
+  unidade_id  BigInt
+  nome        String
+  vagas       Int           @default(1)
+  ativo       Boolean       @default(true)
+  criado_em   DateTime      @default(now()) @db.Timestamptz(6)
+  equipe_id   BigInt?
+  alocacoes   alocacoes[]
+  plano_posto plano_posto[]
+  contas      contas        @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  equipes     equipes?      @relation(fields: [equipe_id, conta_id], references: [id, conta_id], onDelete: SetNull, onUpdate: NoAction, map: "postos_equipe_conta_fk")
+  unidades    unidades      @relation(fields: [unidade_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "postos_unidade_id_conta_fkey")
+
+  @@unique([id, conta_id])
+  @@unique([unidade_id, nome])
+  @@index([conta_id])
+  @@index([equipe_id], map: "postos_equipe_idx")
+  @@index([unidade_id], map: "postos_unidade_idx")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model solicitacao_eventos {
+  id             BigInt       @id @default(autoincrement())
+  conta_id       String       @db.Uuid
+  solicitacao_id BigInt
+  etapa          String
+  detalhe        String       @default("")
+  por_id         String?      @db.Uuid
+  por_nome       String       @default("")
+  em             DateTime     @default(now()) @db.Timestamptz(6)
+  contas         contas       @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfis         perfis?      @relation(fields: [por_id], references: [id], onUpdate: NoAction)
+  solicitacoes   solicitacoes @relation(fields: [solicitacao_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "solicitacao_eventos_solicitacao_id_conta_fkey")
+
+  @@index([conta_id], map: "solic_eventos_conta_idx")
+  @@index([em(sort: Desc)], map: "solic_eventos_em_idx")
+  @@index([por_id], map: "solic_eventos_por_idx")
+  @@index([solicitacao_id], map: "solic_eventos_solicitacao_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model solicitacoes {
+  id                                                                BigInt                @id @default(autoincrement())
+  conta_id                                                          String                @db.Uuid
+  colaborador_id                                                    BigInt
+  tipo                                                              String
+  data                                                              DateTime              @db.Date
+  detalhe                                                           String                @default("")
+  parceiro_id                                                       BigInt?
+  aceite_parceiro                                                   String?
+  unidade_desejada_id                                               BigInt?
+  status                                                            String                @default("TRIAGEM")
+  posicao_fila                                                      Int?
+  motivo_recusa                                                     String?
+  aplicada                                                          Boolean               @default(false)
+  criado_em                                                         DateTime              @default(now()) @db.Timestamptz(6)
+  data_fim                                                          DateTime?             @db.Date
+  opcao_ferias                                                      String?
+  lancado_fiori                                                     Boolean?
+  motivo                                                            String?
+  aberta_pelo_planejamento                                          Boolean               @default(false)
+  solicitacao_eventos                                               solicitacao_eventos[]
+  colaboradores_solicitacoes_colaborador_id_conta_idTocolaboradores colaboradores         @relation("solicitacoes_colaborador_id_conta_idTocolaboradores", fields: [colaborador_id, conta_id], references: [id, conta_id], onDelete: Cascade, onUpdate: NoAction, map: "solicitacoes_colaborador_id_conta_fkey")
+  contas                                                            contas                @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  colaboradores_solicitacoes_parceiro_id_conta_idTocolaboradores    colaboradores?        @relation("solicitacoes_parceiro_id_conta_idTocolaboradores", fields: [parceiro_id, conta_id], references: [id, conta_id], onDelete: SetNull, onUpdate: NoAction, map: "solicitacoes_parceiro_id_conta_fkey")
+  unidades                                                          unidades?             @relation(fields: [unidade_desejada_id, conta_id], references: [id, conta_id], onDelete: SetNull, onUpdate: NoAction, map: "solicitacoes_unidade_desejada_id_conta_fkey")
+
+  @@unique([id, conta_id])
+  @@index([colaborador_id], map: "solicitacoes_colaborador_idx")
+  @@index([conta_id])
+  @@index([parceiro_id], map: "solicitacoes_parceiro_idx")
+  @@index([conta_id, status], map: "solicitacoes_status_idx")
+  @@index([unidade_desejada_id], map: "solicitacoes_unidade_desejada_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model unidades {
+  id                    BigInt               @id @default(autoincrement())
+  conta_id              String               @db.Uuid
+  codigo                String
+  nome                  String
+  sigla                 String
+  cor                   String               @default("#1A4E93")
+  bg                    String               @default("#DCEAF8")
+  capacidade_total      Int                  @default(10)
+  capacidade_reservadas Int                  @default(0)
+  ordem                 Int                  @default(0)
+  ativa                 Boolean              @default(true)
+  criado_em             DateTime             @default(now()) @db.Timestamptz(6)
+  alocacoes             alocacoes[]
+  capacidades           capacidades[]
+  colaboradores         colaboradores[]
+  cotas_equipe          cotas_equipe[]
+  pins                  pins[]
+  plano_distribuicao    plano_distribuicao[]
+  plano_unidade_fixa    plano_unidade_fixa[]
+  postos                postos[]
+  solicitacoes          solicitacoes[]
+  contas                contas               @relation(fields: [conta_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([conta_id, codigo])
+  @@unique([id, conta_id])
+  @@index([conta_id])
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sessoes {
+  id           String    @id
+  perfil_id    String    @db.Uuid
+  criada_em    DateTime  @default(now()) @db.Timestamptz(6)
+  expira_em    DateTime  @db.Timestamptz(6)
+  ultimo_uso   DateTime  @default(now()) @db.Timestamptz(6)
+  sso_sid      String    @default("")
+  sso_refresh  String?
+  ip           String    @default("")
+  agente       String    @default("")
+  encerrada_em DateTime? @db.Timestamptz(6)
+  perfis       perfis    @relation(fields: [perfil_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expira_em], map: "sessoes_expira_idx")
+  @@index([perfil_id], map: "sessoes_perfil_idx")
+  @@schema("public")
+}
